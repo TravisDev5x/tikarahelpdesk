@@ -44,6 +44,7 @@ class Client extends Model
 
     protected $appends = [
         'business_name',
+        'support_email',
     ];
 
     protected $casts = [
@@ -88,6 +89,25 @@ class Client extends Model
     public function getBusinessNameAttribute(): string
     {
         return (string) ($this->attributes['name'] ?? '');
+    }
+
+    /**
+     * Dirección única para levantar tickets por correo, fuera de la
+     * plataforma -- soporte@{portal_slug}.{TENANCY_BASE_DOMAIN}. Sin código
+     * de resolución nuevo: InboundEmailService::resolveTenant() ya matchea
+     * este subdominio contra portal_slug (fallback #2, ver
+     * app/Services/Email/InboundEmailService.php). Null si el cliente aún
+     * no tiene portal_slug asignado.
+     */
+    public function getSupportEmailAttribute(): ?string
+    {
+        if (! $this->portal_slug) {
+            return null;
+        }
+
+        $baseDomain = config('tenancy.base_domain', 'tikara.mx');
+
+        return "soporte@{$this->portal_slug}.{$baseDomain}";
     }
 
     public function operatorUser(): BelongsTo

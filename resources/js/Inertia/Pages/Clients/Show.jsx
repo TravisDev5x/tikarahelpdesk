@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Head, Link, router } from "@inertiajs/react";
 import { useFlash } from "@/hooks/useFlash";
 import AuthenticatedLayout from "@/Inertia/Layouts/AuthenticatedLayout";
@@ -6,7 +7,8 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { PlanTypeBadge } from "@/components/badges/EntityBadges";
-import { ExternalLink, Pencil, Trash2 } from "lucide-react";
+import { notify } from "@/lib/notify";
+import { Check, Copy, ExternalLink, Mail, Pencil, Trash2 } from "lucide-react";
 
 function initials(name) {
     const parts = String(name || "").trim().split(/\s+/).filter(Boolean);
@@ -29,10 +31,23 @@ function userFullName(user) {
 export default function Show({ client, tickets_summary, sites, users, can }) {
     useFlash();
     const name = client.business_name || client.name;
+    const [copied, setCopied] = useState(false);
 
     const confirmDelete = () => {
         if (!window.confirm(`¿Eliminar a ${name}? Esta acción no se puede deshacer.`)) return;
         router.delete(`/clients/${client.id}`);
+    };
+
+    const copySupportEmail = async () => {
+        if (!client.support_email) return;
+        try {
+            await navigator.clipboard.writeText(client.support_email);
+            setCopied(true);
+            notify.success("Correo copiado");
+            setTimeout(() => setCopied(false), 2000);
+        } catch {
+            notify.error("No se pudo copiar. Cópialo manualmente.");
+        }
     };
 
     return (
@@ -64,6 +79,35 @@ export default function Show({ client, tickets_summary, sites, users, can }) {
                                 </Badge>
                             </div>
                         </div>
+                        <Separator />
+                        {client.support_email && (
+                            <div className="rounded-lg border border-primary/20 bg-primary/5 p-3 space-y-1.5">
+                                <div className="flex items-center gap-1.5 text-xs font-medium text-primary">
+                                    <Mail className="h-3.5 w-3.5" />
+                                    Correo para levantar tickets
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <code className="flex-1 truncate text-xs">{client.support_email}</code>
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-6 w-6 shrink-0"
+                                        onClick={copySupportEmail}
+                                        title="Copiar"
+                                    >
+                                        {copied ? (
+                                            <Check className="h-3.5 w-3.5 text-primary" />
+                                        ) : (
+                                            <Copy className="h-3.5 w-3.5" />
+                                        )}
+                                    </Button>
+                                </div>
+                                <p className="text-[11px] text-muted-foreground">
+                                    Único canal externo para crear tickets por correo — compártelo con todo el equipo de {name}.
+                                </p>
+                            </div>
+                        )}
                         <Separator />
                         <dl className="space-y-2 text-sm">
                             {client.contact_name && (
