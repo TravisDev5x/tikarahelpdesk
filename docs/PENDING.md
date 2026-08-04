@@ -27,6 +27,7 @@ muestra deshabilitado en vez de romper la app (`googleConfigured()` /
 | Feature | Doc | Resumen |
 |---|---|---|
 | Cola de revisión manual para correos no reconocidos | [`PENDING_TICKET_REVIEW.md`](./PENDING_TICKET_REVIEW.md) | Hoy, un correo de alguien que no es usuario activo del tenant simplemente no genera ticket (solo un `Log::warning`, nadie se entera). Falta: tabla de correos pendientes + UI para que un agente los apruebe/rechace manualmente y cree el ticket/usuario según corresponda. |
+| Mejorar calendario de tickets (`resources/js/Inertia/Pages/Calendar.jsx`) | — | Ya existe y funciona (agrupa tickets por día usando `created_at`, filtra por estado y por asignado/creado por mí). Falta: (1) mostrar hora exacta, no solo fecha, tanto de creación como en la lista de resultados; (2) mostrar fecha **y hora de cierre** (`tickets.resolved_at`, ya existe en el backend, el frontend nunca lo lee ni lo pinta) — hoy el calendario solo marca días por fecha de creación; (3) idealmente un toggle "ver por fecha de creación / por fecha de cierre" para que se pueda usar como reporte de cierre, no solo de alta. |
 
 ## 3. Bug conocido, documentado pero no arreglado
 
