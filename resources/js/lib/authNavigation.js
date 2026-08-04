@@ -39,3 +39,23 @@ export function redirectToLogin() {
         },
     });
 }
+
+/**
+ * Navegación tras logout explícito -- a la landing, no a /login (evita
+ * mandar al usuario a una pantalla de "vuelve a iniciar sesión" cuando
+ * simplemente cerró sesión por su cuenta).
+ */
+export function redirectToLanding() {
+    if (redirectInFlight) {
+        return;
+    }
+
+    redirectInFlight = true;
+    router.visit("/", {
+        replace: true,
+        preserveState: false,
+        onFinish: () => {
+            redirectInFlight = false;
+        },
+    });
+}

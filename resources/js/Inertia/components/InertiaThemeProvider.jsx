@@ -61,10 +61,10 @@ export function InertiaThemeProvider({ children }) {
 
             if (user) {
                 updateUserTheme(newTheme);
-            }
 
-            if (options.persist !== false) {
-                axios.put("/api/profile/theme", { theme: newTheme }).catch(() => {});
+                if (options.persist !== false) {
+                    axios.put("/api/profile/theme", { theme: newTheme }).catch(() => {});
+                }
             }
         },
         [user, updateUserTheme]

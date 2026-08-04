@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import { router } from "@inertiajs/react";
 import axios from "@/lib/axios";
 import { notify } from "@/lib/notify";
-import { isGuestOnlyPath, redirectToLogin } from "@/lib/authNavigation";
+import { isGuestOnlyPath, redirectToLanding, redirectToLogin } from "@/lib/authNavigation";
 
 function showSessionFlash(flash) {
     const hasFlash = Object.values(flash ?? {}).some(Boolean);
@@ -111,7 +111,7 @@ export const AuthProvider = ({ children, initialAuthUser = null }) => {
         } finally {
             setUser(null);
             delete window.__auth_user_id;
-            redirectToLogin();
+            redirectToLanding();
         }
     }, []);
 
