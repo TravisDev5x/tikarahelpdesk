@@ -26,6 +26,9 @@ class Client extends Model
         'contact_email',
         'contact_phone',
         'website',
+        'address',
+        'latitude',
+        'longitude',
         'logo_path',
         'portal_slug',
         'portal_primary_color',
@@ -52,6 +55,8 @@ class Client extends Model
         'subscription_expires_at' => 'datetime',
         'cancelled_at'            => 'datetime',
         'show_agent_names'        => 'boolean',
+        'latitude'                => 'float',
+        'longitude'               => 'float',
     ];
 
     protected static function booted(): void

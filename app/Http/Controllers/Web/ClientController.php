@@ -117,6 +117,9 @@ class ClientController extends Controller
                 'contact_email' => $validated['contact_email'] ?? null,
                 'contact_phone' => $validated['phone'] ?? null,
                 'website' => $validated['website'] ?? null,
+                'address' => $validated['address'] ?? null,
+                'latitude' => $validated['latitude'] ?? null,
+                'longitude' => $validated['longitude'] ?? null,
                 'logo_path' => $logoPath,
                 'is_active' => $validated['is_active'] ?? true,
                 'operator_user_id' => auth()->id(),
@@ -132,6 +135,8 @@ class ClientController extends Controller
                     'name' => $site['name'],
                     'address' => $site['address'] ?? null,
                     'city' => $site['city'] ?? null,
+                    'latitude' => $site['latitude'] ?? null,
+                    'longitude' => $site['longitude'] ?? null,
                     'type' => 'physical',
                     'is_active' => true,
                 ]);
@@ -221,6 +226,9 @@ class ClientController extends Controller
                 'contact_email' => $validated['contact_email'] ?? null,
                 'contact_phone' => $validated['phone'] ?? null,
                 'website' => $validated['website'] ?? null,
+                'address' => $validated['address'] ?? null,
+                'latitude' => $validated['latitude'] ?? null,
+                'longitude' => $validated['longitude'] ?? null,
                 'is_active' => $validated['is_active'] ?? true,
             ]);
 
@@ -317,6 +325,9 @@ class ClientController extends Controller
             'contact_name' => 'nullable|string|max:255',
             'contact_email' => 'nullable|email|max:255',
             'website' => 'nullable|url|max:255',
+            'address' => 'nullable|string|max:500',
+            'latitude' => 'nullable|numeric|between:-90,90',
+            'longitude' => 'nullable|numeric|between:-180,180',
             'is_active' => 'boolean',
             'logo' => 'nullable|image|max:2048',
             'sites' => 'nullable|array|max:20',
@@ -324,6 +335,8 @@ class ClientController extends Controller
             'sites.*.name' => 'required_with:sites|string|max:255',
             'sites.*.address' => 'nullable|string|max:500',
             'sites.*.city' => 'nullable|string|max:255',
+            'sites.*.latitude' => 'nullable|numeric|between:-90,90',
+            'sites.*.longitude' => 'nullable|numeric|between:-180,180',
         ]);
     }
 
@@ -341,6 +354,8 @@ class ClientController extends Controller
                     'name' => $site['name'],
                     'address' => $site['address'] ?? null,
                     'city' => $site['city'] ?? null,
+                    'latitude' => $site['latitude'] ?? null,
+                    'longitude' => $site['longitude'] ?? null,
                 ]);
             } else {
                 Site::create([
@@ -348,6 +363,8 @@ class ClientController extends Controller
                     'name' => $site['name'],
                     'address' => $site['address'] ?? null,
                     'city' => $site['city'] ?? null,
+                    'latitude' => $site['latitude'] ?? null,
+                    'longitude' => $site['longitude'] ?? null,
                     'type' => 'physical',
                     'is_active' => true,
                 ]);

@@ -141,6 +141,8 @@ Route::middleware(['auth:sanctum','locale','perm:users.manage|catalogs.manage'])
 // ==========================
 
 Route::middleware(['auth:sanctum','locale','perm:catalogs.manage'])->group(function () {
+    Route::post('geocode', \App\Http\Controllers\Api\GeocodeController::class)
+        ->middleware('throttle:20,1');
     Route::apiResource('campaigns', CampaignController::class)
         ->only(['index', 'store', 'update', 'destroy']);
     Route::apiResource('sites', \App\Http\Controllers\Api\SiteController::class)

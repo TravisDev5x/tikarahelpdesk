@@ -15,6 +15,7 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import { Loader2, Plus, Trash2 } from "lucide-react";
+import { AddressMapField } from "@/components/maps/AddressMapField";
 
 function mapSites(sites) {
     return (sites || []).map((s) => ({
@@ -22,6 +23,8 @@ function mapSites(sites) {
         name: s.name ?? "",
         address: s.address ?? "",
         city: s.city ?? "",
+        latitude: s.latitude ?? null,
+        longitude: s.longitude ?? null,
     }));
 }
 
@@ -37,6 +40,9 @@ export default function ClientsForm({ client, industries, sites: initialSites })
         contact_name: client?.contact_name || "",
         contact_email: client?.contact_email || "",
         website: client?.website || "",
+        address: client?.address || "",
+        latitude: client?.latitude ?? null,
+        longitude: client?.longitude ?? null,
         is_active: client?.is_active ?? true,
         logo: null,
         sites: mapSites(initialSites),
@@ -52,7 +58,10 @@ export default function ClientsForm({ client, industries, sites: initialSites })
     );
 
     const addSite = () => {
-        setData("sites", [...data.sites, { id: null, name: "", address: "", city: "" }]);
+        setData("sites", [
+            ...data.sites,
+            { id: null, name: "", address: "", city: "", latitude: null, longitude: null },
+        ]);
     };
 
     const removeSite = (index) => {
@@ -63,9 +72,19 @@ export default function ClientsForm({ client, industries, sites: initialSites })
     };
 
     const updateSite = (index, field, value) => {
-        const next = [...data.sites];
-        next[index] = { ...next[index], [field]: value };
-        setData("sites", next);
+        updateSiteFields(index, { [field]: value });
+    };
+
+    // setData("sites", ...) lee data.sites del closure -- llamar updateSite
+    // varias veces seguidas (sync, mismo handler) pisa cambios anteriores
+    // porque ninguna ve el resultado de la llamada previa todavía. Esta
+    // versión mergea todos los campos en una sola actualización.
+    const updateSiteFields = (index, patch) => {
+        setData((prev) => {
+            const next = [...prev.sites];
+            next[index] = { ...next[index], ...patch };
+            return { ...prev, sites: next };
+        });
     };
 
     const onLogoChange = (e) => {
@@ -189,6 +208,21 @@ export default function ClientsForm({ client, industries, sites: initialSites })
                                 <p className="text-xs text-destructive">{errors.website}</p>
                             )}
                         </div>
+                        <AddressMapField
+                            address={data.address}
+                            onAddressChange={(v) => setData("address", v)}
+                            lat={data.latitude}
+                            lng={data.longitude}
+                            onLocationChange={({ lat, lng, formatted_address }) => {
+                                setData((prev) => ({
+                                    ...prev,
+                                    address: formatted_address,
+                                    latitude: lat,
+                                    longitude: lng,
+                                }));
+                            }}
+                            disabled={processing}
+                        />
                     </CardContent>
                 </Card>
 
@@ -239,48 +273,55 @@ export default function ClientsForm({ client, industries, sites: initialSites })
                             data.sites.map((site, index) => (
                                 <div
                                     key={site.id ?? `new-${index}`}
-                                    className="grid gap-3 sm:grid-cols-[1fr_1fr_1fr_auto] items-end border-b border-border/50 pb-4"
+                                    className="space-y-3 border-b border-border/50 pb-4"
                                 >
-                                    <div className="space-y-1">
-                                        <Label>Nombre</Label>
-                                        <Input
-                                            value={site.name}
-                                            onChange={(e) =>
-                                                updateSite(index, "name", e.target.value)
-                                            }
-                                        />
-                                        {errors[`sites.${index}.name`] && (
-                                            <p className="text-xs text-destructive">
-                                                {errors[`sites.${index}.name`]}
-                                            </p>
-                                        )}
+                                    <div className="grid gap-3 sm:grid-cols-[1fr_1fr_auto] items-end">
+                                        <div className="space-y-1">
+                                            <Label>Nombre</Label>
+                                            <Input
+                                                value={site.name}
+                                                onChange={(e) =>
+                                                    updateSite(index, "name", e.target.value)
+                                                }
+                                            />
+                                            {errors[`sites.${index}.name`] && (
+                                                <p className="text-xs text-destructive">
+                                                    {errors[`sites.${index}.name`]}
+                                                </p>
+                                            )}
+                                        </div>
+                                        <div className="space-y-1">
+                                            <Label>Ciudad</Label>
+                                            <Input
+                                                value={site.city}
+                                                onChange={(e) =>
+                                                    updateSite(index, "city", e.target.value)
+                                                }
+                                            />
+                                        </div>
+                                        <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="icon"
+                                            onClick={() => removeSite(index)}
+                                        >
+                                            <Trash2 className="h-4 w-4 text-destructive" />
+                                        </Button>
                                     </div>
-                                    <div className="space-y-1">
-                                        <Label>Dirección</Label>
-                                        <Input
-                                            value={site.address}
-                                            onChange={(e) =>
-                                                updateSite(index, "address", e.target.value)
-                                            }
-                                        />
-                                    </div>
-                                    <div className="space-y-1">
-                                        <Label>Ciudad</Label>
-                                        <Input
-                                            value={site.city}
-                                            onChange={(e) =>
-                                                updateSite(index, "city", e.target.value)
-                                            }
-                                        />
-                                    </div>
-                                    <Button
-                                        type="button"
-                                        variant="ghost"
-                                        size="icon"
-                                        onClick={() => removeSite(index)}
-                                    >
-                                        <Trash2 className="h-4 w-4 text-destructive" />
-                                    </Button>
+                                    <AddressMapField
+                                        address={site.address}
+                                        onAddressChange={(v) => updateSite(index, "address", v)}
+                                        lat={site.latitude}
+                                        lng={site.longitude}
+                                        onLocationChange={({ lat, lng, formatted_address }) =>
+                                            updateSiteFields(index, {
+                                                address: formatted_address,
+                                                latitude: lat,
+                                                longitude: lng,
+                                            })
+                                        }
+                                        disabled={processing}
+                                    />
                                 </div>
                             ))
                         )}

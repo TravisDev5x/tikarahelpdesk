@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { PlanTypeBadge } from "@/components/badges/EntityBadges";
 import { notify } from "@/lib/notify";
+import { MapPreview } from "@/components/maps/MapPreview";
 import { Check, Copy, ExternalLink, Mail, Pencil, Trash2 } from "lucide-react";
 
 function initials(name) {
@@ -152,6 +153,16 @@ export default function Show({ client, tickets_summary, sites, users, can }) {
                                 </div>
                             )}
                         </dl>
+                        {client.latitude != null && client.longitude != null && (
+                            <>
+                                <Separator />
+                                <MapPreview
+                                    lat={client.latitude}
+                                    lng={client.longitude}
+                                    address={client.address}
+                                />
+                            </>
+                        )}
                         <Separator />
                         <div className="flex flex-col gap-2">
                             <Button asChild variant="outline" className="w-full">
@@ -296,6 +307,12 @@ export default function Show({ client, tickets_summary, sites, users, can }) {
                                                     .filter(Boolean)
                                                     .join(", ") || "—"}
                                             </p>
+                                            <MapPreview
+                                                lat={site.latitude}
+                                                lng={site.longitude}
+                                                address={site.address}
+                                                compact
+                                            />
                                         </li>
                                     ))}
                                 </ul>

@@ -59,4 +59,20 @@ return [
         'redirect' => env('GOOGLE_REDIRECT_URI') ?: rtrim((string) env('APP_URL', 'http://localhost'), '/').'/auth/google/callback',
     ],
 
+    'google_maps' => [
+        // Distinta del bloque 'google' de arriba (ese es OAuth login) --
+        // esta es la key de Google Maps Platform. SERVER-SIDE, nunca se
+        // manda al navegador (GoogleGeocodingService la usa vía HTTP).
+        // Ver docs/GOOGLE_MAPS_SETUP.md.
+        'server_key' => env('GOOGLE_MAPS_SERVER_KEY'),
+
+        // Key para el iframe de Maps Embed API en el frontend -- Google
+        // espera que esta SÍ sea visible en el HTML, se protege con
+        // restricción de HTTP referrer en Cloud Console, no con secreto.
+        // Puede ser la misma que server_key si server_key tiene ambas APIs
+        // habilitadas y no te importa exponerla (no recomendado) -- lo
+        // simple es usar dos keys separadas, cada una restringida distinto.
+        'embed_key' => env('GOOGLE_MAPS_EMBED_KEY'),
+    ],
+
 ];

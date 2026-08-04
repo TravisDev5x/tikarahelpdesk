@@ -22,6 +22,8 @@ class Site extends Model
         'type',      // physical | virtual
         'address',
         'city',
+        'latitude',
+        'longitude',
         'contact_name',
         'contact_phone',
         'contact_email',
@@ -30,6 +32,8 @@ class Site extends Model
 
     protected $casts = [
         'is_active' => 'boolean',
+        'latitude'  => 'float',
+        'longitude' => 'float',
     ];
 
     protected static function booted(): void
