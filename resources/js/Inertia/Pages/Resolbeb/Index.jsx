@@ -391,7 +391,7 @@ export default function ResolbebIndex({ mode = "tickets", catalogs: catalogsProp
     return (
         <AuthenticatedLayout title={pageTitle}>
             <Head title={pageTitle} />
-        <div className="w-full max-w-[1920px] mx-auto p-4 md:p-6 lg:p-8 space-y-6 animate-in fade-in duration-500">
+        <div className="w-full space-y-6 animate-in fade-in duration-500">
             {needsAreaWarning && (
                 <div className={cn(noticeWarningRow, "justify-between")}>
                     <span className="text-sm font-medium">Tienes permiso por área pero no tienes un área asignada. Asigna tu área para ver y gestionar tickets.</span>
@@ -402,19 +402,9 @@ export default function ResolbebIndex({ mode = "tickets", catalogs: catalogsProp
             )}
 
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-2">
-                <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-lg bg-primary text-primary-foreground flex items-center justify-center shadow-md">
-                        <Ticket className="h-5 w-5" />
-                    </div>
-                    <div>
-                        <h1 className="text-2xl font-bold tracking-tight text-foreground">
-                            {isMyTicketsPage ? "Mis tickets" : "Gestión de Tickets"}
-                        </h1>
-                        <p className="text-sm text-muted-foreground">
-                            {isMyTicketsPage ? "Tus tickets como solicitante. Da seguimiento y agrega comentarios." : "Sistema centralizado de incidencias (Resolvev1)."}
-                        </p>
-                    </div>
-                </div>
+                <p className="text-sm text-muted-foreground">
+                    {isMyTicketsPage ? "Tus tickets como solicitante. Da seguimiento y agrega comentarios." : "Sistema centralizado de incidencias."}
+                </p>
                 <div className="flex items-center gap-2">
                     {canManageAll && (
                         <Button variant="outline" size="sm" onClick={handleExport} disabled={loading || exporting} title="Exportar CSV con filtros actuales">

@@ -335,17 +335,9 @@ export default function Index() {
     ].filter(Boolean).length;
 
     return (
-        <div className="w-full max-w-[1920px] mx-auto p-4 md:p-6 lg:p-8 space-y-6 animate-in fade-in duration-500">
+        <div className="w-full space-y-6 animate-in fade-in duration-500">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-2">
-                <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-lg bg-primary text-primary-foreground flex items-center justify-center shadow-md">
-                        <AlertTriangle className="h-5 w-5" />
-                    </div>
-                    <div>
-                        <h1 className="text-2xl font-bold tracking-tight text-foreground">Incidencias</h1>
-                        <p className="text-sm text-muted-foreground">Reportes operativos y recursos humanos.</p>
-                    </div>
-                </div>
+                <p className="text-sm text-muted-foreground">Reportes operativos y recursos humanos.</p>
                 <div className="flex items-center gap-2">
                     <Button variant="outline" size="icon" className="h-9 w-9" onClick={loadData} disabled={loading} title="Actualizar">
                         <Loader2 className={cn("h-4 w-4", loading && "animate-spin")} />

@@ -537,7 +537,7 @@ export default function AuthenticatedLayout({ children, title: titleProp }) {
                     >
                         <div
                             aria-hidden="true"
-                            className="layout-scroll-fade pointer-events-none sticky top-0 left-0 right-0 z-20 h-14 transition-opacity duration-200 ease-out"
+                            className="layout-scroll-fade pointer-events-none sticky top-0 left-0 right-0 z-20 h-2 transition-opacity duration-200 ease-out"
                             style={{ opacity: scrollFadeOpacity }}
                         />
                         <div
@@ -547,7 +547,7 @@ export default function AuthenticatedLayout({ children, title: titleProp }) {
 
                         <div
                             className={cn(
-                                "mx-auto p-4 md:p-8 transition-all duration-300 ease-out",
+                                "mx-auto p-4 transition-all duration-300 ease-out",
                                 focused ? "max-w-[1920px]" : "max-w-7xl"
                             )}
                         >

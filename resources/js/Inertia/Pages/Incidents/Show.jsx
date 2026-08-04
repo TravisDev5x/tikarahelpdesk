@@ -122,7 +122,7 @@ export default function Detalle() {
 
     if (!incident) {
         return (
-            <div className="w-full max-w-[1920px] mx-auto p-4 md:p-6 lg:p-8 space-y-6">
+            <div className="w-full space-y-6">
                 <Skeleton className="h-10 w-1/3" />
                 <Skeleton className="h-40 w-full rounded-xl" />
                 <Skeleton className="h-64 w-full rounded-xl" />
@@ -148,7 +148,7 @@ export default function Detalle() {
     };
 
     return (
-        <div className="w-full max-w-[1920px] mx-auto p-4 md:p-6 lg:p-8 space-y-6 pb-content-mobile">
+        <div className="w-full space-y-6 pb-content-mobile">
             <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
                 <div className="flex items-center gap-3">
                     <a

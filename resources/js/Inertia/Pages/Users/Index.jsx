@@ -49,7 +49,6 @@ import {
     ShieldCheck,
     SlidersHorizontal,
     Trash2,
-    UserCircle,
     UserPlus,
 } from "lucide-react";
 
@@ -683,16 +682,12 @@ export default function Index({ users, catalogs, filters: serverFilters = {} }) 
             <div className="space-y-4 pb-12 animate-in fade-in duration-500">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center justify-between">
                     <div>
-                        <div className="flex items-center gap-2">
-                            {showTrashed ? (
+                        {showTrashed && (
+                            <div className="flex items-center gap-2">
                                 <Trash2 className="h-5 w-5 text-destructive" />
-                            ) : (
-                                <UserCircle className="h-5 w-5 text-primary" />
-                            )}
-                            <h1 className="text-xl font-bold tracking-tight">
-                                {showTrashed ? "Papelera de usuarios" : "Usuarios"}
-                            </h1>
-                        </div>
+                                <h1 className="text-xl font-bold tracking-tight">Papelera de usuarios</h1>
+                            </div>
+                        )}
                         <p className="text-xs text-muted-foreground mt-0.5">
                             {showTrashed
                                 ? "Usuarios eliminados"

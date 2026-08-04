@@ -589,7 +589,7 @@ export default function Resolvev1Detalle() {
 
     if (!ticket) {
         return (
-            <div className="p-4 md:p-6 space-y-6 max-w-4xl mx-auto">
+            <div className="space-y-6 max-w-4xl mx-auto">
                 <div className="flex items-center gap-3">
                     <Skeleton className="h-9 w-9 rounded-md" />
                     <div className="space-y-2">

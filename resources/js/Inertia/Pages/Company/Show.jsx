@@ -55,8 +55,7 @@ export default function CompanyShow({ profile, plan, can }) {
         <>
             <Head title="Mi empresa" />
 
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
-                <h1 className="text-2xl font-bold tracking-tight">Mi empresa</h1>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-end gap-4 mb-6">
                 {can?.edit && (
                     <Button asChild>
                         <Link href="/company/edit">

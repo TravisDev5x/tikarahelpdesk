@@ -212,10 +212,7 @@ export default function Settings() {
 
             <div className="max-w-4xl mx-auto space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-content-mobile">
                 <header className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 border-b pb-6 border-border/40">
-                    <div className="space-y-1">
-                        <h1 className="text-3xl font-bold tracking-tight">{t("settings.title")}</h1>
-                        <p className="text-muted-foreground italic">{t("settings.subtitle")}</p>
-                    </div>
+                    <p className="text-muted-foreground italic">{t("settings.subtitle")}</p>
                     <div className="flex items-center gap-2">
                         <Button
                             variant="outline"

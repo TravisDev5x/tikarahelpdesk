@@ -574,7 +574,7 @@ function DashboardSolicitante() {
     }, [tickets]);
 
     return (
-        <div className="w-full max-w-4xl mx-auto p-4 md:p-6 space-y-6">
+        <div className="w-full max-w-4xl mx-auto space-y-6">
             <DashboardWelcome user={user}>
                 <p className="text-sm text-foreground/90 mt-2">
                     Tienes <strong>{openCount}</strong> {openCount === 1 ? "solicitud abierta" : "solicitudes abiertas"}
@@ -1019,7 +1019,7 @@ function DashboardIntermedio() {
     }
 
     return (
-        <div className="w-full max-w-[1920px] mx-auto p-4 md:p-6 lg:p-8 space-y-8 animate-in fade-in duration-500">
+        <div className="w-full space-y-8 animate-in fade-in duration-500">
             <DashboardWelcome
                 user={user}
                 actions={
@@ -1267,7 +1267,7 @@ function DashboardAdmin() {
     const isInitialLoading = loading && !data;
 
     return (
-        <div className="w-full max-w-[1920px] mx-auto p-4 md:p-6 lg:p-8 space-y-8 animate-in fade-in duration-500">
+        <div className="w-full space-y-8 animate-in fade-in duration-500">
 
             <DashboardWelcome
                 user={user}
