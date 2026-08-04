@@ -28,6 +28,11 @@ class DemoDataSeeder extends Seeder
      */
     public function run(): void
     {
+        // RBAC v2 (Fase 6): mismo razonamiento que FullDemoSeeder::run().
+        if (getPermissionsTeamId() === null) {
+            setPermissionsTeamId(config('tenancy.super_admin_team_id'));
+        }
+
         $this->command->info('Iniciando datos de prueba (Faker + 300+ registros)...');
 
         \DB::transaction(function () {

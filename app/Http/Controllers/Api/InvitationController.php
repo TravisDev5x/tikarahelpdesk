@@ -217,6 +217,11 @@ class InvitationController extends Controller
             return $role;
         }
 
-        return Role::where('name', $role->name)->where('guard_name', 'web')->first() ?? $role;
+        // RBAC v2 (Fase 6, Paso 3): scoped por team_id, ver mismo fix en
+        // InvitationAcceptanceService::resolveRoleForGuard().
+        return Role::where('team_id', $role->team_id)
+            ->where('name', $role->name)
+            ->where('guard_name', 'web')
+            ->first() ?? $role;
     }
 }

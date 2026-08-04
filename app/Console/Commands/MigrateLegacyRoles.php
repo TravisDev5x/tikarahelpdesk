@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Models\Client;
 use App\Models\User;
 use Illuminate\Console\Command;
 
@@ -16,12 +17,19 @@ use Illuminate\Console\Command;
  * ambos esquemas (TenantRoleSeeder normaliza sus permisos in-place, no hay
  * nada que migrar). super_admin (rol de plataforma) y visitante (nunca
  * existió como rol real) tampoco se tocan aquí.
+ *
+ * RBAC v2 (Fase 6): ahora requiere portal_slug -- User::role($legacyRole) y
+ * assignRole($newRole) están scoped por team_id (spatie/laravel-permission
+ * teams), así que "migrar legacy roles" sin decir de qué tenant ya no tiene
+ * sentido. Hallazgo nuevo durante Fase 6, fuera de los 9 puntos originales
+ * del Paso 0 -- reportado explícitamente, no una redecisión en silencio.
+ * Mismo patrón que tenants:seed-default-roles (Paso 2).
  */
 class MigrateLegacyRoles extends Command
 {
-    protected $signature = 'roles:migrate-legacy {--dry-run : Solo reporta, no escribe nada}';
+    protected $signature = 'roles:migrate-legacy {portal_slug} {--dry-run : Solo reporta, no escribe nada}';
 
-    protected $description = 'Asigna (aditivo) el rol nuevo de Fase 3 a usuarios que solo tienen el legacy equivalente';
+    protected $description = 'Asigna (aditivo) el rol nuevo de Fase 3 a usuarios del tenant que solo tienen el legacy equivalente';
 
     private const MAP = [
         'gerente' => 'supervisor',
@@ -35,6 +43,16 @@ class MigrateLegacyRoles extends Command
 
     public function handle(): int
     {
+        $slug = (string) $this->argument('portal_slug');
+        $client = Client::where('portal_slug', $slug)->first();
+        if (! $client) {
+            $this->error("No existe ningún client con portal_slug '{$slug}'.");
+
+            return self::FAILURE;
+        }
+
+        setPermissionsTeamId($client->id);
+
         $dryRun = (bool) $this->option('dry-run');
         $totalAssigned = 0;
 

@@ -247,10 +247,17 @@ class TicketPolicy
     /**
      * Devuelve el tipo de alcance de visibilidad (Fase 4, por rol/site):
      * - all: is_operator o tickets.manage_all (admin)
-     * - supervisor: rol supervisor
-     * - agente: rol agente
-     * - solicitante: rol solicitante
-     * - null: ninguno de los roles nuevos -- sin acceso.
+     * - supervisor: alguna plantilla asignada con scope_archetype=supervisor
+     * - agente: alguna plantilla asignada con scope_archetype=agente
+     * - solicitante: alguna plantilla asignada con scope_archetype=solicitante
+     * - null: ninguna plantilla con archetype -- sin acceso.
+     *
+     * RBAC v2 (Fase 6): antes comparaba hasRole('supervisor')/'agente'/
+     * 'solicitante' por NOMBRE literal -- con plantillas editables por
+     * tenant (nombre libre), eso dejaba de tener sentido. Ahora lee
+     * scope_archetype (columna fija en roles, independiente del nombre
+     * visible de la plantilla) vía highestScopeArchetype(). El resto de
+     * esta clase ($user->can(...) en todos los demás métodos) no cambió.
      *
      * OJO: usuarios que SOLO tienen un rol legacy (gerente, soporte*,
      * usuario, consultor) sin su equivalente nuevo asignado (ver
@@ -264,14 +271,26 @@ class TicketPolicy
         if ($user->is_operator || $user->can('tickets.manage_all')) {
             return 'all';
         }
-        if ($user->hasRole('supervisor')) {
-            return 'supervisor';
-        }
-        if ($user->hasRole('agente')) {
-            return 'agente';
-        }
-        if ($user->hasRole('solicitante')) {
-            return 'solicitante';
+
+        $archetype = $this->highestScopeArchetype($user);
+
+        return $archetype === 'admin' ? 'all' : $archetype;
+    }
+
+    /**
+     * Precedencia cuando un usuario tiene más de una plantilla asignada
+     * con distinto scope_archetype (RBAC v2, Fase 6): admin > supervisor >
+     * agente > solicitante -- el arquetipo más amplio gana. Explícito a
+     * propósito, no un supuesto silencioso.
+     */
+    protected function highestScopeArchetype(User $user): ?string
+    {
+        $archetypes = $user->roles()->pluck('scope_archetype')->filter()->unique();
+
+        foreach (['admin', 'supervisor', 'agente', 'solicitante'] as $archetype) {
+            if ($archetypes->contains($archetype)) {
+                return $archetype;
+            }
         }
 
         return null;

@@ -101,6 +101,24 @@ Route::middleware(['auth:sanctum','locale','perm:roles.manage'])->group(function
     Route::post('roles/{role}/permissions', [RolePermissionController::class, 'sync']);
 });
 
+// RBAC v2 (Fase 6, Paso 5): plantillas editables por tenant (nombre libre +
+// scope_archetype + permisos por objeto del catálogo). GET del catálogo
+// accesible con auth (no muta nada); crear/editar plantilla requiere
+// roles.manage, igual que el resto del módulo de roles.
+Route::middleware(['auth:sanctum','locale'])->get('authorization-objects', [\App\Http\Controllers\Api\RoleTemplateController::class, 'catalog']);
+Route::middleware(['auth:sanctum','locale','perm:roles.manage'])->group(function () {
+    Route::post('role-templates', [\App\Http\Controllers\Api\RoleTemplateController::class, 'store']);
+    Route::put('role-templates/{role}', [\App\Http\Controllers\Api\RoleTemplateController::class, 'update']);
+});
+
+// RBAC v2 (Fase 6, Paso 5): overrides directos de permiso por usuario,
+// mismo gate que el resto de gestión de usuarios.
+Route::middleware(['auth:sanctum','locale','perm:users.manage'])->group(function () {
+    Route::get('users/{user}/permissions', [\App\Http\Controllers\Api\UserPermissionOverrideController::class, 'show']);
+    Route::post('users/{user}/permission-overrides', [\App\Http\Controllers\Api\UserPermissionOverrideController::class, 'store']);
+    Route::delete('users/{user}/permission-overrides/{permission}', [\App\Http\Controllers\Api\UserPermissionOverrideController::class, 'destroy']);
+});
+
 // ==========================
 // PERMISOS
 // ==========================

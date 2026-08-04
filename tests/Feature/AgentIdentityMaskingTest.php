@@ -41,8 +41,6 @@ class AgentIdentityMaskingTest extends TestCase
     {
         parent::setUp();
 
-        $this->seed(TenantRoleSeeder::class);
-
         $admin = $this->makeUser('admin@test.local');
         $admin->update(['is_operator' => true]);
 
@@ -52,6 +50,10 @@ class AgentIdentityMaskingTest extends TestCase
             'is_active' => true,
             'portal_slug' => 'tenant-masking-'.uniqid(),
         ]);
+
+        setPermissionsTeamId($this->client->id);
+        $this->seed(TenantRoleSeeder::class);
+
         $this->site = Site::create(['client_id' => $this->client->id, 'name' => 'Site A', 'type' => 'physical', 'is_active' => true]);
         $this->catalog = $this->makeCatalog();
 

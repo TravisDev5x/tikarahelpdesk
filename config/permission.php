@@ -131,7 +131,9 @@ return [
      * (view the latest version of this package's migration file)
      */
 
-    'teams' => false,
+    // RBAC v2 (Fase 6): team_id = clients.id. Ver migración
+    // 2026_07_15_000001_add_team_id_to_permission_tables.php.
+    'teams' => true,
 
     /*
      * The class to use to resolve the permissions team id

@@ -28,6 +28,7 @@ class CatalogApiOperatorScopeTest extends TestCase
 
         $operatorA = $this->bareUser(['is_operator' => true]);
         $operatorB = $this->bareUser(['is_operator' => true, 'email' => 'op-b-catalog@test.local']);
+        setPermissionsTeamId(config('tenancy.super_admin_team_id'));
         $operatorA->givePermissionTo('catalogs.manage');
 
         TicketState::create([
@@ -69,6 +70,7 @@ class CatalogApiOperatorScopeTest extends TestCase
 
         $operatorA = $this->bareUser(['is_operator' => true]);
         $operatorB = $this->bareUser(['is_operator' => true, 'email' => 'op-c-catalog@test.local']);
+        setPermissionsTeamId(config('tenancy.super_admin_team_id'));
         $operatorA->givePermissionTo('catalogs.manage');
 
         $foreign = TicketState::create([

@@ -241,6 +241,8 @@ trait CreatesMspTwinClientFixtures
             'status' => 'active',
             'email_verified_at' => now(),
         ]);
+        // RBAC v2 (Fase 6): givePermissionTo() necesita team_id resuelto.
+        setPermissionsTeamId($clientId);
         $user->givePermissionTo(['tickets.manage_all', 'incidents.manage_all', 'catalogs.manage']);
 
         return $user;

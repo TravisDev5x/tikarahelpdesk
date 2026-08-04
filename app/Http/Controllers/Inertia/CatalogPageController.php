@@ -77,8 +77,15 @@ class CatalogPageController extends Controller
 
     public function roles(): Response
     {
+        // RBAC v2 (Fase 6, Paso 3): scoped por team_id, mismo criterio que
+        // RoleController::index().
+        $teamId = getPermissionsTeamId();
+
         return Inertia::render('Catalogs/Roles', [
-            'roles' => Role::orderBy('guard_name')->orderBy('name')->get(['id', 'name', 'slug', 'guard_name', 'created_at']),
+            'roles' => Role::where(fn ($q) => $q->whereNull('team_id')->orWhere('team_id', $teamId))
+                ->orderBy('guard_name')
+                ->orderBy('name')
+                ->get(['id', 'name', 'slug', 'guard_name', 'scope_archetype', 'created_at']),
         ]);
     }
 
@@ -146,8 +153,16 @@ class CatalogPageController extends Controller
 
     public function permissions(): Response
     {
+        // RBAC v2 (Fase 6, Paso 3): roles scoped por team_id, mismo criterio
+        // que roles()/RoleController::index(). Permission NO está team-scoped
+        // (catálogo global, ver migración 2026_07_15_000001), se queda igual.
+        $teamId = getPermissionsTeamId();
+
         return Inertia::render('System/Permissions', [
-            'roles' => Role::with('permissions')->orderBy('name')->get(),
+            'roles' => Role::with('permissions')
+                ->where(fn ($q) => $q->whereNull('team_id')->orWhere('team_id', $teamId))
+                ->orderBy('name')
+                ->get(),
             'permissions' => Permission::orderBy('name')->get(['id', 'name', 'guard_name']),
         ]);
     }

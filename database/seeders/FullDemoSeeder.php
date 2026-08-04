@@ -27,6 +27,18 @@ class FullDemoSeeder extends Seeder
 {
     public function run(): void
     {
+        // RBAC v2 (Fase 6): este seeder es previo a multi-tenancy -- no
+        // crea ningún Client, siembra roles "planos" (admin/soporte/
+        // usuario/consultor/super_admin) sin dueño de tenant. Sin un
+        // team_id, cualquier assignRole()/syncRoles() de aquí en adelante
+        // fallaría (model_has_roles.team_id es NOT NULL). Si el llamador ya
+        // fijó un team_id (ej. un test que sí tiene un Client real), se
+        // respeta -- solo cae al centinela de plataforma si nadie fijó
+        // nada, no lo pisa incondicionalmente.
+        if (getPermissionsTeamId() === null) {
+            setPermissionsTeamId(config('tenancy.super_admin_team_id'));
+        }
+
         $this->command->info('FullDemoSeeder (mínimo): catálogos básicos, roles y usuario admin.');
 
         DB::transaction(function () {
@@ -243,7 +255,18 @@ class FullDemoSeeder extends Seeder
             ]
         );
 
-        $user->syncRoles(['admin', 'super_admin']);
+        // RBAC v2 (Fase 6): 'super_admin' vive SIEMPRE en el team_id
+        // centinela de plataforma (nunca en el de un tenant real, ver
+        // migración 2026_07_15_000003) -- si este seeder corre dentro del
+        // contexto de un tenant real (alguien ya fijó setPermissionsTeamId()
+        // antes de invocarlo, ej. un test de coexistencia con
+        // TenantRoleSeeder), asignarle 'super_admin' al admin demo de ESE
+        // tenant sería un bug de producto real (acceso cross-tenant no
+        // solicitado), no solo un problema técnico -- se omite a propósito.
+        $user->syncRoles(['admin']);
+        if (getPermissionsTeamId() === config('tenancy.super_admin_team_id')) {
+            $user->assignRole('super_admin');
+        }
 
         if ($this->command) {
             $this->command->newLine();

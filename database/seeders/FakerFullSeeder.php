@@ -44,6 +44,11 @@ class FakerFullSeeder extends Seeder
 
     public function run(): void
     {
+        // RBAC v2 (Fase 6): mismo razonamiento que FullDemoSeeder::run().
+        if (getPermissionsTeamId() === null) {
+            setPermissionsTeamId(config('tenancy.super_admin_team_id'));
+        }
+
         $this->command->info('FakerFullSeeder: admin con todos los permisos + 50+ usuarios, tickets e incidencias (Faker).');
 
         DB::transaction(function () {

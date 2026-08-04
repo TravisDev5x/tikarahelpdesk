@@ -64,6 +64,11 @@ class InvitationAcceptanceService
             if ($locked->role_id) {
                 $role = $this->resolveRoleForGuard((int) $locked->role_id);
                 if ($role) {
+                    // RBAC v2 (Fase 6): syncRoles() necesita team_id resuelto
+                    // -- mismo fallback que ApplyPgsqlTenantRls (client_id de
+                    // la invitación, o el centinela de plataforma si es un
+                    // alta de operador sin client_id, $isOperator arriba).
+                    setPermissionsTeamId($locked->client_id ?? config('tenancy.super_admin_team_id'));
                     $user->syncRoles([$role]);
                     User::forgetPermissionCache($user);
                     $user->update(['status' => 'active']);
@@ -101,6 +106,12 @@ class InvitationAcceptanceService
             return $role;
         }
 
-        return Role::where('name', $role->name)->where('guard_name', 'web')->first() ?? $role;
+        // RBAC v2 (Fase 6, Paso 3): scoped por team_id -- sin esto, buscaría
+        // por nombre en TODOS los tenants (no hay global scope de Spatie
+        // sobre el modelo Role, confirmado leyendo el paquete).
+        return Role::where('team_id', $role->team_id)
+            ->where('name', $role->name)
+            ->where('guard_name', 'web')
+            ->first() ?? $role;
     }
 }

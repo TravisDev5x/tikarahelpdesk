@@ -37,4 +37,20 @@ return [
     */
     'legacy_msp_wide_access' => env('TENANCY_LEGACY_MSP_WIDE_ACCESS', false),
 
+    /*
+    | RBAC v2 (spatie/laravel-permission "teams"): team_id de spatie/laravel-permission
+    | para usuarios de plataforma (super_admin) que actúan cross-tenant.
+    |
+    | NO puede ser NULL: model_has_roles.team_id / model_has_permissions.team_id
+    | son parte de una PRIMARY KEY compuesta, y ninguna columna de una PK
+    | admite NULL en ningún motor (verificado). "0" es un centinela seguro
+    | porque los IDs autoincrementales de clients empiezan en 1 -- nunca va
+    | a colisionar con un client_id real. Debe usarse SIEMPRE vía esta
+    | constante (nunca un 0 literal repetido) en: la fila del rol
+    | super_admin, cada asignación (assignRole) y cada request donde el
+    | usuario actuante sea OperatorScopeService::bypassesOperatorScope() --
+    | ver App\Http\Middleware\ApplyPgsqlTenantRls.
+    */
+    'super_admin_team_id' => env('TENANCY_SUPER_ADMIN_TEAM_ID', 0),
+
 ];

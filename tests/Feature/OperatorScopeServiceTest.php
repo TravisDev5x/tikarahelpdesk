@@ -28,6 +28,12 @@ class OperatorScopeServiceTest extends TestCase
         );
         Permission::firstOrCreate(['name' => 'clients.view_all', 'guard_name' => 'web']);
         Permission::firstOrCreate(['name' => 'tickets.manage_all', 'guard_name' => 'web']);
+
+        // RBAC v2 (Fase 6): este archivo llama assignRole()/givePermissionTo()
+        // directo (sin pasar por HTTP/ApplyPgsqlTenantRls) sobre usuarios sin
+        // client_id propio -- mismo centinela de plataforma que usa el hook
+        // para ese caso.
+        setPermissionsTeamId(config('tenancy.super_admin_team_id'));
     }
 
     public function test_operator_only_sees_own_clients(): void

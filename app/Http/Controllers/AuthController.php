@@ -225,7 +225,31 @@ class AuthController extends Controller
                 ->exists();
 
             if (! $isInvited && $user->roles()->count() === 0) {
-                $adminRole = Role::where('name', 'admin')->where('guard_name', 'web')->first();
+                // RBAC v2 (Fase 6, Paso 3) -- CASO ESPECIAL, sin resolver del
+                // todo: en este punto del flujo (verificación de email de un
+                // registro nuevo, no invitado) el usuario TODAVÍA NO tiene
+                // client_id -- User::register() lo crea con client_id=null
+                // (línea ~156) y el Client real se crea después, en el
+                // wizard de onboarding (OperatorOnboardingController). No
+                // hay tenant al que scoped-ear este rol todavía.
+                //
+                // Uso el centinela de plataforma como placeholder explícito
+                // (no un lookup sin team_id, que filtraría por CUALQUIER
+                // 'admin' de CUALQUIER tenant -- la fuga cross-tenant que
+                // Paso 3 existe para cerrar). Esto es una decisión de
+                // bootstrap provisional, NO una resolución completa: cuando
+                // el usuario complete el onboarding y su Client exista de
+                // verdad, esta asignación sigue viviendo en el team_id
+                // centinela, no en el de su tenant real -- alguien tiene que
+                // decidir si el onboarding debe re-scopear esta asignación
+                // en ese momento, o si el auto-promote a 'admin' debería
+                // moverse por completo al momento de creación del Client en
+                // vez de vivir aquí. Señalado explícitamente, no resuelto.
+                setPermissionsTeamId(config('tenancy.super_admin_team_id'));
+                $adminRole = Role::where('team_id', config('tenancy.super_admin_team_id'))
+                    ->where('name', 'admin')
+                    ->where('guard_name', 'web')
+                    ->first();
                 if ($adminRole) {
                     $user->syncRoles([$adminRole]);
                 }

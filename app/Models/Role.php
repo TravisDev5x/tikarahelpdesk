@@ -13,5 +13,7 @@ class Role extends SpatieRole
         'name',
         'slug',
         'guard_name',
+        'team_id',
+        'scope_archetype',
     ];
 }

@@ -46,6 +46,15 @@ class ProcessInboundTicket implements ShouldQueue
         }
         TenantContextService::set($tenant);
 
+        // RBAC v2 (Fase 6): los Jobs no pasan por ApplyPgsqlTenantRls (ese
+        // middleware es de HTTP, no de cola) -- sin esto, TicketCreated
+        // (disparado más abajo) llega a SendTicketNotification::recipients()
+        // -> TicketPolicy::notifiableStaff() con team_id sin resolver
+        // (null, o lo que haya quedado de un job anterior en un worker de
+        // larga duración -- riesgo real de fuga entre tenants en ese
+        // segundo caso, no solo un crash).
+        setPermissionsTeamId($tenant->id);
+
         // Política: un email = un tenant, y solo usuarios ya registrados
         // pueden generar tickets por correo — nada de cuentas guest
         // implícitas (antes: User::firstOrCreate creaba una para cualquier

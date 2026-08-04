@@ -144,6 +144,7 @@ class TenantApiIsolationTest extends TestCase
             'client_id' => $foreignClient->id,
         ]);
         $world['otherOperator']->update(['site_id' => $foreignSite->id]);
+        setPermissionsTeamId($foreignClient->id);
         $world['otherOperator']->givePermissionTo('tickets.manage_all');
 
         $this->assertTenantBoundaryDenied(
@@ -159,6 +160,9 @@ class TenantApiIsolationTest extends TestCase
         }
 
         $world = $this->createTwinClientIsolationWorld();
+        // El operador MSP administra varios clients, sin uno propio --
+        // mismo centinela de plataforma que usa ApplyPgsqlTenantRls.
+        setPermissionsTeamId(config('tenancy.super_admin_team_id'));
         $world['operator']->givePermissionTo('catalogs.manage');
 
         $clientes = $this->actingAs($world['operator'], 'web')->getJson('/api/clients');

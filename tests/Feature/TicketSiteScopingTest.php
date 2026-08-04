@@ -33,12 +33,17 @@ class TicketSiteScopingTest extends TestCase
     {
         parent::setUp();
 
-        $this->seed(TenantRoleSeeder::class);
-
         $admin = $this->makeUser('admin@test.local');
         $admin->update(['is_operator' => true]);
 
         $this->client = Client::create(['name' => 'Tenant Scoping', 'operator_user_id' => $admin->id, 'is_active' => true]);
+
+        // RBAC v2 (Fase 6): las plantillas ahora viven dentro del team_id
+        // del tenant (spatie/laravel-permission teams) -- por eso el client
+        // se crea ANTES de sembrar roles, no después como antes de Fase 6.
+        setPermissionsTeamId($this->client->id);
+        $this->seed(TenantRoleSeeder::class);
+
         $this->siteA = Site::create(['client_id' => $this->client->id, 'name' => 'Site A', 'type' => 'physical', 'is_active' => true]);
         $this->siteB = Site::create(['client_id' => $this->client->id, 'name' => 'Site B', 'type' => 'physical', 'is_active' => true]);
         $this->catalog = $this->makeCatalog();
@@ -298,6 +303,50 @@ class TicketSiteScopingTest extends TestCase
             'note' => 'Intento de comentar como solicitante',
         ]);
         $response->assertStatus(403);
+    }
+
+    // ── RBAC v2 (Fase 6): scope_archetype, no el nombre del rol ──────────
+
+    /**
+     * Prueba real de que el bloqueante #6 de RBAC v2 quedó resuelto:
+     * TicketPolicy::siteScopeType() lee scope_archetype (columna fija),
+     * NO el nombre del rol -- una plantilla con nombre completamente
+     * distinto a los 4 defaults ("Mesa de ayuda L2") pero con
+     * scope_archetype='agente' debe comportarse EXACTAMENTE igual que un
+     * rol literalmente llamado 'agente'. Antes de Fase 6 esto era
+     * imposible de expresar (TicketPolicy comparaba hasRole('agente') por
+     * nombre literal).
+     */
+    public function test_site_scoping_works_with_a_custom_named_template_via_scope_archetype(): void
+    {
+        setPermissionsTeamId($this->client->id);
+        $customRole = \App\Models\Role::create([
+            'team_id' => $this->client->id,
+            'name' => 'Mesa de ayuda L2',
+            'slug' => 'mesa-de-ayuda-l2',
+            'guard_name' => 'web',
+            'scope_archetype' => 'agente',
+        ]);
+        $customRole->syncPermissions(['tickets.view_area', 'tickets.comment', 'tickets.assign']);
+
+        $agent = $this->makeUser('mesa-l2-'.uniqid().'@test.local');
+        $agent->update(['client_id' => $this->client->id]);
+        $agent->assignRole($customRole);
+        $agent->sites()->sync([$this->siteA->id]);
+
+        $otherAgent = $this->makeStaff('agente', [$this->siteA->id]);
+        $unassigned = $this->makeTicket($this->siteA->id);
+        $assignedToOther = $this->makeTicket($this->siteA->id, $otherAgent->id);
+        $outsideSite = $this->makeTicket($this->siteB->id);
+
+        // Mismo comportamiento que un 'agente' de nombre literal:
+        // sin asignar o suyo dentro de su site, nunca fuera de su site ni
+        // lo de otro agente.
+        $ids = $this->indexAs($agent);
+        $this->assertContains($unassigned->id, $ids);
+        $this->assertNotContains($assignedToOther->id, $ids);
+        $this->assertNotContains($outsideSite->id, $ids);
+        $this->assertTrue($this->authorizes('update', $agent, $unassigned));
     }
 
     // ── notas internas filtradas en backend ─────────────────────────────

@@ -64,6 +64,10 @@ class SessionMonitorScopeTest extends TestCase
         $this->insertActiveSession($userA->id, 'sess-a');
         $this->insertActiveSession($userB->id, 'sess-b');
 
+        // RBAC v2 (Fase 6): operatorA no tiene client_id propio (administra
+        // varios) -- mismo centinela de plataforma que ApplyPgsqlTenantRls
+        // usa para ese caso, ver su docblock.
+        setPermissionsTeamId(config('tenancy.super_admin_team_id'));
         $operatorA->givePermissionTo('users.manage');
 
         $response = $this->actingAs($operatorA, 'web')->getJson('/api/sessions');
@@ -96,6 +100,7 @@ class SessionMonitorScopeTest extends TestCase
         $foreignUser = $this->bareUser(['email' => 'foreign@sessions.test', 'site_id' => $siteB]);
         $this->insertActiveSession($foreignUser->id, 'sess-foreign');
 
+        setPermissionsTeamId(config('tenancy.super_admin_team_id'));
         $operatorA->givePermissionTo('users.manage');
 
         $response = $this->actingAs($operatorA, 'web')->postJson('/api/sessions/logout-user', [
@@ -153,6 +158,7 @@ class SessionMonitorScopeTest extends TestCase
         $this->insertActiveSession($userB->id, 'sess-pb');
 
         $admin = $this->bareUser(['email' => 'portal-admin@sessions.test', 'site_id' => $siteA, 'client_id' => $clientA->id]);
+        setPermissionsTeamId($clientA->id);
         $admin->givePermissionTo('users.manage');
 
         $request = Request::create('http://sess-portal-a.tikara.test/api/sessions', 'GET');

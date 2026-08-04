@@ -45,12 +45,14 @@ class TicketReassignmentTest extends TestCase
     {
         parent::setUp();
 
-        $this->seed(TenantRoleSeeder::class);
-
         $admin = $this->makeUser('admin@test.local');
         $admin->update(['is_operator' => true]);
 
         $this->client = Client::create(['name' => 'Tenant Reassign', 'operator_user_id' => $admin->id, 'is_active' => true]);
+
+        setPermissionsTeamId($this->client->id);
+        $this->seed(TenantRoleSeeder::class);
+
         $this->siteA = Site::create(['client_id' => $this->client->id, 'name' => 'Site A', 'type' => 'physical', 'is_active' => true]);
         $this->siteB = Site::create(['client_id' => $this->client->id, 'name' => 'Site B', 'type' => 'physical', 'is_active' => true]);
         $this->catalog = $this->makeCatalog();

@@ -66,6 +66,7 @@ class TenantClientResolverTest extends TestCase
             'area_id' => $areaId,
         ]);
         Permission::firstOrCreate(['name' => 'incidents.view_area', 'guard_name' => 'web']);
+        setPermissionsTeamId($clientA->id);
         $user->givePermissionTo('incidents.view_area');
 
         $typeId = DB::table('incident_types')->insertGetId([

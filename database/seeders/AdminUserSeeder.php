@@ -18,6 +18,12 @@ class AdminUserSeeder extends Seeder
      */
     public function run(): void
     {
+        // RBAC v2 (Fase 6): seeder plano sin concepto de Client/tenant --
+        // ver el mismo razonamiento en FullDemoSeeder::run().
+        if (getPermissionsTeamId() === null) {
+            setPermissionsTeamId(config('tenancy.super_admin_team_id'));
+        }
+
         $email = 'admin@helpdesk.local';
         $password = 'AdminHelpdesk2025!';
         $employeeNumber = 'ADMIN001';

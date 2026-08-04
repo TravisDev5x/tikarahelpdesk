@@ -49,12 +49,14 @@ class TicketNotificationRecipientsTest extends TestCase
     {
         parent::setUp();
 
-        $this->seed(TenantRoleSeeder::class);
-
         $admin = $this->makeUser('admin@test.local');
         $admin->update(['is_operator' => true]);
 
         $this->client = Client::create(['name' => 'Tenant Notif', 'operator_user_id' => $admin->id, 'is_active' => true]);
+
+        setPermissionsTeamId($this->client->id);
+        $this->seed(TenantRoleSeeder::class);
+
         $this->siteA = Site::create(['client_id' => $this->client->id, 'name' => 'Site A', 'type' => 'physical', 'is_active' => true]);
         $this->siteB = Site::create(['client_id' => $this->client->id, 'name' => 'Site B', 'type' => 'physical', 'is_active' => true]);
         $this->catalog = $this->makeCatalog();
@@ -130,6 +132,57 @@ class TicketNotificationRecipientsTest extends TestCase
         event(new TicketUpdated($ticket));
 
         Notification::assertSentTo($supervisor, TicketActivityNotification::class);
+    }
+
+    /**
+     * RBAC v2 (Fase 6): ProcessInboundTicket no pasa por HTTP (no hay
+     * ApplyPgsqlTenantRls) -- sin su propio setPermissionsTeamId() dentro
+     * del Job, TicketCreated (disparado al final de handle()) llegaría a
+     * notifiableStaff() con team_id sin resolver, y ningún agente/
+     * supervisor recibiría notificación del flujo de correo entrante. No
+     * usa Event::fake() a propósito (a diferencia de TicketNotificationEventsTest,
+     * que solo prueba que el evento se dispara) -- este test deja correr
+     * el listener real para probar la resolución de destinatarios de
+     * punta a punta a través del Job.
+     */
+    public function test_process_inbound_ticket_job_notifies_site_linked_staff(): void
+    {
+        Notification::fake();
+        Mail::fake();
+
+        $agentA = $this->makeStaff('agente', [$this->siteA->id]);
+        $requester = $this->makeStaff('solicitante', []);
+        $requester->update(['site_id' => $this->siteA->id]);
+
+        // Resetea el team_id que dejó setUp() (sembró roles ahí) -- sin
+        // esto el test no probaría nada real: pasaría igual aunque
+        // ProcessInboundTicket nunca fijara su propio contexto, porque el
+        // de setUp() ya coincidiría por casualidad con el del tenant del
+        // Job. Forzar null aquí prueba que el Job resuelve su team_id por
+        // su cuenta, no que hereda uno que ya estaba puesto.
+        setPermissionsTeamId(null);
+
+        // TicketClassifierService::classify() cae al default (sin regla,
+        // sin IA en tests) y usa IDs fijos de catálogo (ticket_type_id=3,
+        // priority_id=3) -- no los del fixture de esta clase.
+        $now = now();
+        DB::table('ticket_types')->insertOrIgnore(['id' => 3, 'name' => 'Solicitud de cambio', 'code' => 'change_request', 'is_active' => true, 'created_at' => $now, 'updated_at' => $now]);
+        DB::table('priorities')->insertOrIgnore(['id' => 3, 'name' => 'Media', 'level' => 3, 'is_active' => true, 'created_at' => $now, 'updated_at' => $now]);
+
+        \App\Jobs\ProcessInboundTicket::dispatchSync($this->client->id, [
+            'from' => $requester->email,
+            'from_name' => 'Cliente',
+            'to' => 'soporte@'.($this->client->portal_slug ?? 'tenant').'.tikara.mx',
+            'subject' => 'Ayuda con mi equipo',
+            'body_plain' => 'Detalle del problema',
+            'message_id' => '<inbound-'.uniqid().'@empresa.test>',
+        ]);
+
+        $ticket = Ticket::where('client_id', $this->client->id)->where('source', 'email')->first();
+        $this->assertNotNull($ticket, 'ProcessInboundTicket no creó el ticket -- revisar fixture antes que el aserto de notificación.');
+        $this->assertSame($this->siteA->id, $ticket->site_id);
+
+        Notification::assertSentTo($agentA, TicketActivityNotification::class);
     }
 
     /** Cierra el hueco de cobertura reportado en 5.2: take() envía TicketAssignedNotification in-app. */

@@ -87,6 +87,7 @@ class InvitationFlowTest extends TestCase
         ]);
 
         $admin = $this->bareUser(['email' => 'portal-admin@test.local', 'client_id' => $clientA->id]);
+        setPermissionsTeamId($clientA->id);
         $admin->assignRole('admin');
         $admin->givePermissionTo('users.manage');
 

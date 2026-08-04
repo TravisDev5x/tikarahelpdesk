@@ -76,16 +76,20 @@ class TicketApiTest extends TestCase
             'onboarding_completed' => true,
         ]);
 
-        $adminRole = Role::where('name', 'admin')->where('guard_name', 'web')->first();
-        if ($adminRole) {
-            $this->user->assignRole($adminRole);
-        }
-
         $client = Client::create([
             'name' => 'Cliente ticket test',
             'operator_user_id' => $this->user->id,
             'is_active' => true,
         ]);
+
+        // RBAC v2 (Fase 6): assignRole() necesita team_id resuelto (el
+        // rol legacy 'admin' tiene team_id NULL -- válido como "plantilla
+        // compartida", pero la ASIGNACIÓN igual necesita team_id concreto).
+        setPermissionsTeamId($client->id);
+        $adminRole = Role::where('name', 'admin')->where('guard_name', 'web')->first();
+        if ($adminRole) {
+            $this->user->assignRole($adminRole);
+        }
 
         if ($this->site) {
             $this->site->update(['client_id' => $client->id]);

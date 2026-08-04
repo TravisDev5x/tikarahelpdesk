@@ -43,6 +43,10 @@ class ProcessInboundReply implements ShouldQueue
         }
         TenantContextService::set($tenant);
 
+        // RBAC v2 (Fase 6): mismo razonamiento que ProcessInboundTicket --
+        // este Job no pasa por ApplyPgsqlTenantRls.
+        setPermissionsTeamId($tenant->id);
+
         $ticket = Ticket::where('client_id', $this->clientId)
             ->where('folio', $this->folio)
             ->first();

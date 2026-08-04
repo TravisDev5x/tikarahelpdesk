@@ -40,6 +40,7 @@ class MailablesTest extends TestCase
         $role = Role::firstOrCreate(['name' => 'agente', 'guard_name' => 'web'], ['slug' => 'agente']);
 
         $admin = User::factory()->create(['client_id' => $client->id]);
+        setPermissionsTeamId($client->id);
         $admin->assignRole('admin');
         $admin->givePermissionTo('users.manage');
 
@@ -172,6 +173,7 @@ class MailablesTest extends TestCase
             'site_id' => $fixture['site_id'], 'client_id' => $client->id, 'status' => 'active',
         ]);
         Permission::firstOrCreate(['name' => 'requester.create.ticket', 'guard_name' => 'web']);
+        setPermissionsTeamId($client->id);
         $user->givePermissionTo('requester.create.ticket');
 
         $response = $this->actingAs($user, 'web')->postJson('/api/my-tickets', [
@@ -226,6 +228,7 @@ class MailablesTest extends TestCase
 
         $fixture = $this->createTenantFixtureSet();
         $client = Client::find($fixture['client_id']);
+        setPermissionsTeamId($client->id);
 
         $agent = User::create([
             'first_name' => 'Agente', 'paternal_last_name' => 'Soporte',

@@ -14,6 +14,16 @@ use Illuminate\Support\Facades\DB;
  * usuarios y retirar los legacy) es un paso aparte y explícito, ver
  * App\Console\Commands\MigrateLegacyRoles.
  *
+ * RBAC v2 (Fase 6, Paso 2): DEJÓ de crear roles GLOBALES una sola vez.
+ * Ahora crea plantillas DENTRO del team_id vigente (spatie/laravel-permission
+ * teams = clients.id) -- requiere que el llamador ya haya fijado el
+ * contexto con setPermissionsTeamId($clientId) antes de invocar run(); no
+ * lo resuelve él mismo. El punto de entrada real para operadores es
+ * App\Console\Commands\SeedDefaultTenantRoles
+ * (`tenants:seed-default-roles {portal_slug}`), que resuelve el tenant y
+ * fija el contexto antes de invocar este seeder -- es exactamente lo que
+ * Fase 7 (onboarding) va a invocar más adelante al crear un tenant nuevo.
+ *
  * Mapeo acordado tras la auditoría del sprint (2026-07-12):
  *   admin                              -> admin
  *   super_admin                        -> (fuera del RBAC de tenant, es de plataforma)
@@ -33,11 +43,19 @@ class TenantRoleSeeder extends Seeder
 {
     public function run(): void
     {
-        $this->command?->info('TenantRoleSeeder: admin, supervisor, agente, solicitante.');
+        $teamId = getPermissionsTeamId();
+        if ($teamId === null) {
+            throw new \RuntimeException(
+                'TenantRoleSeeder requiere team_id -- llama setPermissionsTeamId($clientId) '
+                .'antes de invocarlo (o usa el comando tenants:seed-default-roles).'
+            );
+        }
 
-        DB::transaction(function () {
+        $this->command?->info("TenantRoleSeeder: admin, supervisor, agente, solicitante (team_id={$teamId}).");
+
+        DB::transaction(function () use ($teamId) {
             $this->seedPermissions();
-            $this->seedRoles();
+            $this->seedRoles($teamId);
         });
 
         $this->command?->info('TenantRoleSeeder finalizado.');
@@ -45,6 +63,9 @@ class TenantRoleSeeder extends Seeder
 
     private function seedPermissions(): void
     {
+        // Los permisos NO están team-scoped -- catálogo global (ver migración
+        // 2026_07_15_000001_add_team_id_to_permission_tables.php: el stub
+        // oficial de Spatie tampoco le agrega team_id a `permissions`).
         foreach (['web', 'sanctum'] as $guard) {
             DB::table('permissions')->insertOrIgnore([
                 'name' => 'tickets.reassign',
@@ -57,7 +78,7 @@ class TenantRoleSeeder extends Seeder
         app(\Spatie\Permission\PermissionRegistrar::class)->forgetCachedPermissions();
     }
 
-    private function seedRoles(): void
+    private function seedRoles(int|string $teamId): void
     {
         $allWebPermissions = DB::table('permissions')
             ->where('guard_name', 'web')
@@ -90,27 +111,48 @@ class TenantRoleSeeder extends Seeder
 
         $roles = [
             // Admin: todos los permisos (igual que el admin legacy).
-            'admin' => $allWebPermissions,
+            'admin' => ['perms' => $allWebPermissions, 'archetype' => 'admin'],
             // Supervisor: colapsa gerente+supervisor legacy. Único rol de
             // tenant con tickets.reassign en esta fase -- Fase 5 decide si
             // agente también lo necesita cuando implemente la acción real.
-            'supervisor' => $supervisorPerms,
+            'supervisor' => ['perms' => $supervisorPerms, 'archetype' => 'supervisor'],
             // Agente: colapsa soporte/soporte_n1/n2/n3 + consultor legacy
             // (consultor no tiene variante de solo lectura separada).
-            'agente' => $agentePerms,
+            'agente' => ['perms' => $agentePerms, 'archetype' => 'agente'],
             // Solicitante: igual que usuario legacy.
-            'solicitante' => [
-                'tickets.create',
-                'tickets.view_own',
-            ],
+            'solicitante' => ['perms' => ['tickets.create', 'tickets.view_own'], 'archetype' => 'solicitante'],
         ];
 
-        foreach ($roles as $roleName => $permNames) {
-            $role = Role::firstOrCreate(
-                ['name' => $roleName, 'guard_name' => 'web'],
-                ['slug' => $roleName]
-            );
-            $role->syncPermissions($permNames);
+        foreach ($roles as $roleName => $def) {
+            // Lookup explícito por team_id -- no usar Role::firstOrCreate()
+            // con el nombre solo, eso es justo la asunción de unicidad
+            // global que RBAC v2 elimina (ver auditoría Paso 0).
+            $role = Role::where('team_id', $teamId)
+                ->where('name', $roleName)
+                ->where('guard_name', 'web')
+                ->first();
+
+            if (! $role) {
+                // Role::create() (override de Spatie) rechaza esto con
+                // RoleAlreadyExists si existe una fila "global" preexistente
+                // (team_id NULL) con el mismo nombre -- el caso real aquí:
+                // la migración base sembró 'admin'/'super_admin' sin
+                // team_id antes de que existiera RBAC v2. Role::query()->create()
+                // evita ese chequeo (Spatie lo expone así a propósito) y
+                // usa directamente nuestro lookup explícito de arriba, que
+                // sí es team-aware.
+                $role = Role::query()->create([
+                    'team_id' => $teamId,
+                    'name' => $roleName,
+                    'guard_name' => 'web',
+                    'slug' => $roleName,
+                    'scope_archetype' => $def['archetype'],
+                ]);
+            } elseif ($role->scope_archetype !== $def['archetype']) {
+                $role->update(['scope_archetype' => $def['archetype']]);
+            }
+
+            $role->syncPermissions($def['perms']);
         }
     }
 }

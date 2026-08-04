@@ -69,6 +69,7 @@ class TicketNotificationEventsTest extends TestCase
             'site_id' => $fixture['site_id'], 'client_id' => $client->id, 'status' => 'active',
         ]);
         \Spatie\Permission\Models\Permission::firstOrCreate(['name' => 'requester.create.ticket', 'guard_name' => 'web']);
+        setPermissionsTeamId($client->id);
         $user->givePermissionTo('requester.create.ticket');
 
         $response = $this->actingAs($user, 'web')->postJson('/api/my-tickets', [
@@ -124,6 +125,7 @@ class TicketNotificationEventsTest extends TestCase
         ]);
         $ticket->update(['requester_id' => $user->id]);
         \Spatie\Permission\Models\Permission::firstOrCreate(['name' => 'requester.comment.ticket', 'guard_name' => 'web']);
+        setPermissionsTeamId($client->id);
         $user->givePermissionTo('requester.comment.ticket');
 
         $this->actingAs($user, 'web')->postJson("/api/my-tickets/{$ticket->id}/comments", [
