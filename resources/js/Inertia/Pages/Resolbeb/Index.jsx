@@ -11,6 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { TicketCreateDialog } from "@/components/tickets/TicketCreateDialog";
+import { TicketReviewDialog } from "@/components/tickets/TicketReviewDialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { notify } from "@/lib/notify";
 import { clearCatalogCache } from "@/lib/catalogCache";
@@ -35,7 +36,7 @@ import {
 
 const RESOLVE_BASE = "/resolbeb";
 
-const TicketRow = memo(function TicketRow({ ticket }) {
+const TicketRow = memo(function TicketRow({ ticket, onReview }) {
     const needsAttention = !ticket.assigned_user && !ticket.assignedUser;
     const isOverdue = Boolean(ticket.is_overdue);
 
@@ -108,22 +109,33 @@ const TicketRow = memo(function TicketRow({ ticket }) {
                 </div>
             </TableCell>
             <TableCell className="text-right pr-4">
-                <Button
-                    asChild
-                    variant={needsAttention ? "default" : "secondary"}
-                    size="sm"
-                    className={`
-                        h-8 text-xs font-semibold shadow-sm transition-all
-                        ${needsAttention
-                        ? "bg-primary hover:bg-primary/90 text-primary-foreground"
-                        : "bg-secondary/50 hover:bg-primary hover:text-primary-foreground border border-border/50"}
-                    `}
-                >
-                    <InertiaLink href={`${RESOLVE_BASE}/tickets/${ticket.id}`} className="flex items-center gap-2">
-                        <span>Gestionar</span>
-                        <ArrowRightCircle className="w-3.5 h-3.5 opacity-70" />
-                    </InertiaLink>
-                </Button>
+                <div className="flex items-center justify-end gap-1.5">
+                    <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 text-xs"
+                        onClick={() => onReview?.(ticket)}
+                    >
+                        Revisar
+                    </Button>
+                    <Button
+                        asChild
+                        variant={needsAttention ? "default" : "secondary"}
+                        size="sm"
+                        className={`
+                            h-8 text-xs font-semibold shadow-sm transition-all
+                            ${needsAttention
+                            ? "bg-primary hover:bg-primary/90 text-primary-foreground"
+                            : "bg-secondary/50 hover:bg-primary hover:text-primary-foreground border border-border/50"}
+                        `}
+                    >
+                        <InertiaLink href={`${RESOLVE_BASE}/tickets/${ticket.id}`} className="flex items-center gap-2">
+                            <span>Gestionar</span>
+                            <ArrowRightCircle className="w-3.5 h-3.5 opacity-70" />
+                        </InertiaLink>
+                    </Button>
+                </div>
             </TableCell>
         </TableRow>
     );
@@ -155,6 +167,11 @@ export default function ResolbebIndex({ mode = "tickets", catalogs: catalogsProp
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [open, setOpen] = useState(false);
+    const [reviewTicket, setReviewTicket] = useState(null);
+    const rejectedStateId = useMemo(
+        () => catalogs.ticket_states?.find((s) => (s.code || "").toLowerCase() === "rechazado")?.id,
+        [catalogs.ticket_states]
+    );
     const [summary, setSummary] = useState(null);
     const [summaryLoading, setSummaryLoading] = useState(true);
     const [pagination, setPagination] = useState({ current_page: 1, last_page: 1, total: 0 });
@@ -646,7 +663,7 @@ export default function ResolbebIndex({ mode = "tickets", catalogs: catalogsProp
                                         </TableCell>
                                     </TableRow>
                                 ) : (
-                                    tickets.map((t) => <TicketRow key={t.id} ticket={t} />)
+                                    tickets.map((t) => <TicketRow key={t.id} ticket={t} onReview={setReviewTicket} />)
                                 )}
                             </TableBody>
                         </Table>
@@ -687,6 +704,14 @@ export default function ResolbebIndex({ mode = "tickets", catalogs: catalogsProp
                 saving={saving}
                 onSubmit={handleSubmit}
                 siteContext={ticketSiteContext}
+            />
+
+            <TicketReviewDialog
+                open={Boolean(reviewTicket)}
+                onClose={() => setReviewTicket(null)}
+                ticket={reviewTicket}
+                rejectedStateId={rejectedStateId}
+                onReviewed={loadData}
             />
         </div>
         </AuthenticatedLayout>

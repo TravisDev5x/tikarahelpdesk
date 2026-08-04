@@ -104,6 +104,7 @@ class FullDemoSeeder extends Seeder
             ['name' => 'Resuelto',    'code' => 'resuelto',    'is_final' => false],
             ['name' => 'Cerrado',     'code' => 'cerrado',     'is_final' => true],
             ['name' => 'Cancelado',   'code' => 'cancelado',   'is_final' => true],
+            ['name' => 'Rechazado',   'code' => 'rechazado',   'is_final' => true],
         ];
 
         foreach ($states as $s) {
