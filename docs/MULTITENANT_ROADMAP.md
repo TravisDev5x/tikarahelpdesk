@@ -37,7 +37,7 @@ Estado base (2026-06): aislamiento en aplicación (MSP + portal + login tenant-a
 
 | # | Tarea | Criterio de hecho |
 |---|--------|-------------------|
-| 3.1 | Roles Spatie por operador (`operator_user_id` o teams) | Mismo nombre de permiso, distinto alcance |
+| 3.1 | Roles Spatie por operador (`operator_user_id` o teams) | ✅ `teams` activo (`team_id`=`clients.id`), commit `2caab15` — detalle en `docs/RBAC_ROADMAP.md` (Fase 6 de ese hilo) |
 | 3.2 | Auditoría: operador entra a portal cliente | `audit_logs` con `client_id` + actor |
 | 3.3 | Límites por plan (`max_clients`, `max_users`) en middleware | 403 al superar cuota |
 | 3.4 | Rate limit login por `portal_slug` + IP | Mitigar fuerza bruta |
@@ -86,4 +86,5 @@ Semana 4: Fase 4.1 + 4.2 + revisión SIGUA (5.1)
 | `docs/CLIENT_PORTAL.md` | Subdominios y portal |
 | `docs/API_TENANCY_AUDIT.md` | Rutas API y gaps |
 | `docs/SANCTUM_TENANCY.md` | Cookies y Laragon/prod |
+| `docs/RBAC_ROADMAP.md` | Fases del hilo de roles/permisos de tickets (numeración propia, no coincide con las Fases de este documento) |
 | `config/tenancy.php` | Flags |
