@@ -172,7 +172,21 @@ export default function ClientsForm({ client, industries, sites: initialSites })
                 <StepIndicator steps={STEPS} currentStep={step} />
             </div>
 
-            <form onSubmit={submit} className="mx-auto mt-6 max-w-2xl space-y-6">
+            <form
+                onSubmit={submit}
+                onKeyDown={(e) => {
+                    // Los 4 pasos comparten un solo <form> -- Enter en
+                    // cualquier input (ej. escribiendo el nombre de una
+                    // sede en el paso 4) dispara el submit nativo del
+                    // navegador sin importar el paso visible. Solo se deja
+                    // pasar en el último paso, que es donde el botón
+                    // visible realmente es "Guardar".
+                    if (e.key === "Enter" && step < STEPS.length) {
+                        e.preventDefault();
+                    }
+                }}
+                className="mx-auto mt-6 max-w-2xl space-y-6"
+            >
                 {step === 1 && (
                     <Card>
                         <CardContent className="space-y-4 pt-6">
