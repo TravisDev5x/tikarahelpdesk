@@ -72,6 +72,13 @@ class AppServiceProvider extends ServiceProvider
         Event::listen(\App\Events\TicketCreated::class, \App\Listeners\SendTicketNotification::class);
         Event::listen(\App\Events\TicketUpdated::class, \App\Listeners\SendTicketNotification::class);
 
+        // Login con Outlook/Microsoft 365 (Azure AD) -- registra el driver
+        // 'azure' en Socialite. Ver docs/MICROSOFT_LOGIN_SETUP.md.
+        Event::listen(
+            \SocialiteProviders\Manager\SocialiteWasCalled::class,
+            \SocialiteProviders\Azure\AzureExtendSocialite::class.'@handle'
+        );
+
         ResetPassword::createUrlUsing(function ($user, string $token) {
             $email = urlencode((string) $user->email);
             return URL::to('/') . "/reset-password?token={$token}&email={$email}";

@@ -59,6 +59,15 @@ return [
         'redirect' => env('GOOGLE_REDIRECT_URI') ?: rtrim((string) env('APP_URL', 'http://localhost'), '/').'/auth/google/callback',
     ],
 
+    'azure' => [
+        // Login con Outlook / Microsoft 365 (Azure AD) vía socialiteproviders/microsoft-azure.
+        // Ver docs/MICROSOFT_LOGIN_SETUP.md para el registro de la app en Azure Portal.
+        'client_id' => env('AZURE_CLIENT_ID'),
+        'client_secret' => env('AZURE_CLIENT_SECRET'),
+        'redirect' => env('AZURE_REDIRECT_URI') ?: rtrim((string) env('APP_URL', 'http://localhost'), '/').'/auth/microsoft/callback',
+        'tenant' => env('AZURE_TENANT_ID', 'common'),
+    ],
+
     'google_maps' => [
         // Distinta del bloque 'google' de arriba (ese es OAuth login) --
         // esta es la key de Google Maps Platform. SERVER-SIDE, nunca se

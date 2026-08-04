@@ -51,6 +51,17 @@ function GoogleIcon() {
     );
 }
 
+function MicrosoftIcon() {
+    return (
+        <svg viewBox="0 0 21 21" width="18" height="18" aria-hidden className="shrink-0">
+            <rect x="1" y="1" width="9" height="9" fill="#F25022" />
+            <rect x="11" y="1" width="9" height="9" fill="#7FBA00" />
+            <rect x="1" y="11" width="9" height="9" fill="#00A4EF" />
+            <rect x="11" y="11" width="9" height="9" fill="#FFB900" />
+        </svg>
+    );
+}
+
 export default function AcceptInvitation({
     token,
     email,
@@ -60,6 +71,8 @@ export default function AcceptInvitation({
     assigns_role_on_accept,
     google_enabled,
     google_url,
+    microsoft_enabled,
+    microsoft_url,
     error: pageError,
 }) {
     const isInvalid = Boolean(pageError) || !token;
@@ -175,19 +188,36 @@ export default function AcceptInvitation({
                         ) : null}
                     </div>
 
-                    {google_enabled && google_url ? (
+                    {(google_enabled && google_url) || (microsoft_enabled && microsoft_url) ? (
                         <>
-                            <Button
-                                type="button"
-                                variant="outline"
-                                className={`h-11 w-full rounded-lg ${btnBrandOutline}`}
-                                asChild
-                            >
-                                <a href={google_url}>
-                                    <GoogleIcon />
-                                    <span className="ml-2">Continuar con Google</span>
-                                </a>
-                            </Button>
+                            <div className="space-y-2">
+                                {google_enabled && google_url ? (
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        className={`h-11 w-full rounded-lg ${btnBrandOutline}`}
+                                        asChild
+                                    >
+                                        <a href={google_url}>
+                                            <GoogleIcon />
+                                            <span className="ml-2">Continuar con Google</span>
+                                        </a>
+                                    </Button>
+                                ) : null}
+                                {microsoft_enabled && microsoft_url ? (
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        className={`h-11 w-full rounded-lg ${btnBrandOutline}`}
+                                        asChild
+                                    >
+                                        <a href={microsoft_url}>
+                                            <MicrosoftIcon />
+                                            <span className="ml-2">Continuar con Microsoft</span>
+                                        </a>
+                                    </Button>
+                                ) : null}
+                            </div>
                             <p className="text-center text-xs text-muted-foreground">
                                 O completa el formulario con contraseña
                             </p>

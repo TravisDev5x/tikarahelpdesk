@@ -55,6 +55,12 @@ Route::get('/auth/google/redirect', [\App\Http\Controllers\Auth\GoogleAuthContro
 Route::get('/auth/google/callback', [\App\Http\Controllers\Auth\GoogleAuthController::class, 'callback'])
     ->middleware('guest')
     ->name('auth.google.callback');
+Route::get('/auth/microsoft/redirect', [\App\Http\Controllers\Auth\MicrosoftAuthController::class, 'redirect'])
+    ->middleware('guest')
+    ->name('auth.microsoft.redirect');
+Route::get('/auth/microsoft/callback', [\App\Http\Controllers\Auth\MicrosoftAuthController::class, 'callback'])
+    ->middleware('guest')
+    ->name('auth.microsoft.callback');
 Route::get('/register', function () {
     return Inertia::render('Auth/Register', [
         'plans' => Plan::activePublic()->get([

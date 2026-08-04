@@ -48,6 +48,7 @@ class AcceptInvitationController extends Controller
         }
 
         $googleEnabled = (bool) config('services.google.client_id');
+        $microsoftEnabled = (bool) config('services.azure.client_id');
 
         return Inertia::render('Auth/AcceptInvitation', [
             'token' => $invitation->token,
@@ -59,6 +60,10 @@ class AcceptInvitationController extends Controller
             'google_enabled' => $googleEnabled,
             'google_url' => $googleEnabled
                 ? route('auth.google.redirect', ['intent' => 'invitation', 'token' => $invitation->token])
+                : null,
+            'microsoft_enabled' => $microsoftEnabled,
+            'microsoft_url' => $microsoftEnabled
+                ? route('auth.microsoft.redirect', ['intent' => 'invitation', 'token' => $invitation->token])
                 : null,
             'error' => $request->session()->get('error'),
         ]);
@@ -112,6 +117,8 @@ class AcceptInvitationController extends Controller
             'assigns_role_on_accept' => false,
             'google_enabled' => false,
             'google_url' => null,
+            'microsoft_enabled' => false,
+            'microsoft_url' => null,
             'error' => $message ?? 'Esta invitación no es válida o ha expirado',
         ]);
     }

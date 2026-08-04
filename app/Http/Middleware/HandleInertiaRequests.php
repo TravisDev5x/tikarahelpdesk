@@ -118,6 +118,7 @@ class HandleInertiaRequests extends Middleware
             ],
             'authProviders' => [
                 'google' => (bool) config('services.google.client_id'),
+                'microsoft' => (bool) config('services.azure.client_id'),
             ],
         ];
     }

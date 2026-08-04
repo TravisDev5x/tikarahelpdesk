@@ -11,6 +11,7 @@ import { RegisterBrandingPanel } from "@/components/auth/AuthBrandingPresets";
 import { AuthFormAlert } from "@/components/auth/AuthFormAlert";
 import { AuthFormField } from "@/components/auth/AuthFormField";
 import { AuthGoogleSection } from "@/components/auth/AuthGoogleSection";
+import { AuthMicrosoftSection } from "@/components/auth/AuthMicrosoftSection";
 import { AuthPageHeader } from "@/components/auth/AuthPageHeader";
 import { AuthSplitLayout } from "@/components/auth/AuthSplitLayout";
 import { focusFirstFormError } from "@/lib/focusFirstFormError";
@@ -145,7 +146,17 @@ export default function Register() {
                         href="/auth/google/redirect?intent=login"
                         mode="register"
                         disabled={loading}
+                        showSeparator={false}
                     />
+
+                    <div className="mt-3">
+                        <AuthMicrosoftSection
+                            enabled={Boolean(authProviders?.microsoft)}
+                            href="/auth/microsoft/redirect?intent=login"
+                            mode="register"
+                            disabled={loading}
+                        />
+                    </div>
 
                     <form
                         onSubmit={handleSubmit(onSubmit, (fieldErrors) =>

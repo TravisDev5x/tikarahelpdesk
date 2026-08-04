@@ -8,6 +8,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Loader2, Eye, EyeOff } from "lucide-react";
 import { AuthBrandingPanel } from "@/components/auth/AuthBrandingPanel";
 import { AuthGoogleSection } from "@/components/auth/AuthGoogleSection";
+import { AuthMicrosoftSection } from "@/components/auth/AuthMicrosoftSection";
 import { AuthSplitLayout } from "@/components/auth/AuthSplitLayout";
 import {
     btnBrand,
@@ -172,7 +173,17 @@ export default function Login() {
                     href="/auth/google/redirect?intent=login"
                     mode="login"
                     disabled={loading}
+                    showSeparator={false}
                 />
+
+                <div className="mt-3">
+                    <AuthMicrosoftSection
+                        enabled={Boolean(authProviders?.microsoft)}
+                        href="/auth/microsoft/redirect?intent=login"
+                        mode="login"
+                        disabled={loading}
+                    />
+                </div>
 
                 <form onSubmit={handleSubmit} className="space-y-4">
                             <div>

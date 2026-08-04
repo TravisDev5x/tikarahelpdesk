@@ -17,7 +17,7 @@ class InvitationAcceptanceService
     ) {}
 
     /**
-     * @param  array{first_name: string, paternal_last_name: string, maternal_last_name?: ?string, password?: ?string, google_id?: ?string}  $profile
+     * @param  array{first_name: string, paternal_last_name: string, maternal_last_name?: ?string, password?: ?string, google_id?: ?string, microsoft_id?: ?string}  $profile
      */
     public function accept(UserInvitation $invitation, array $profile): User
     {
@@ -52,6 +52,7 @@ class InvitationAcceptanceService
                 'email' => $locked->email,
                 'password' => $profile['password'] ?? Str::password(32),
                 'google_id' => $profile['google_id'] ?? null,
+                'microsoft_id' => $profile['microsoft_id'] ?? null,
                 'status' => 'pending_admin',
                 'client_id' => $locked->client_id,
                 'is_operator' => $isOperator,
