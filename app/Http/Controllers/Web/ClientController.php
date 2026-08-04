@@ -133,12 +133,16 @@ class ClientController extends Controller
                 Site::create([
                     'client_id' => $client->id,
                     'name' => $site['name'],
+                    'code' => $site['code'] ?? null,
+                    'type' => $site['type'] ?? 'physical',
                     'address' => $site['address'] ?? null,
                     'city' => $site['city'] ?? null,
                     'latitude' => $site['latitude'] ?? null,
                     'longitude' => $site['longitude'] ?? null,
-                    'type' => 'physical',
-                    'is_active' => true,
+                    'contact_name' => $site['contact_name'] ?? null,
+                    'contact_phone' => $site['contact_phone'] ?? null,
+                    'contact_email' => $site['contact_email'] ?? null,
+                    'is_active' => $site['is_active'] ?? true,
                 ]);
             }
 
@@ -333,10 +337,16 @@ class ClientController extends Controller
             'sites' => 'nullable|array|max:20',
             'sites.*.id' => 'nullable|integer|exists:sites,id',
             'sites.*.name' => 'required_with:sites|string|max:255',
+            'sites.*.code' => 'nullable|string|max:255',
+            'sites.*.type' => 'nullable|in:physical,virtual',
             'sites.*.address' => 'nullable|string|max:500',
             'sites.*.city' => 'nullable|string|max:255',
             'sites.*.latitude' => 'nullable|numeric|between:-90,90',
             'sites.*.longitude' => 'nullable|numeric|between:-180,180',
+            'sites.*.contact_name' => 'nullable|string|max:255',
+            'sites.*.contact_phone' => 'nullable|string|max:50',
+            'sites.*.contact_email' => 'nullable|email|max:255',
+            'sites.*.is_active' => 'boolean',
         ]);
     }
 
@@ -352,21 +362,31 @@ class ClientController extends Controller
             if (! empty($site['id'])) {
                 $client->sites()->where('id', $site['id'])->update([
                     'name' => $site['name'],
+                    'code' => $site['code'] ?? null,
+                    'type' => $site['type'] ?? 'physical',
                     'address' => $site['address'] ?? null,
                     'city' => $site['city'] ?? null,
                     'latitude' => $site['latitude'] ?? null,
                     'longitude' => $site['longitude'] ?? null,
+                    'contact_name' => $site['contact_name'] ?? null,
+                    'contact_phone' => $site['contact_phone'] ?? null,
+                    'contact_email' => $site['contact_email'] ?? null,
+                    'is_active' => $site['is_active'] ?? true,
                 ]);
             } else {
                 Site::create([
                     'client_id' => $client->id,
                     'name' => $site['name'],
+                    'code' => $site['code'] ?? null,
+                    'type' => $site['type'] ?? 'physical',
                     'address' => $site['address'] ?? null,
                     'city' => $site['city'] ?? null,
                     'latitude' => $site['latitude'] ?? null,
                     'longitude' => $site['longitude'] ?? null,
-                    'type' => 'physical',
-                    'is_active' => true,
+                    'contact_name' => $site['contact_name'] ?? null,
+                    'contact_phone' => $site['contact_phone'] ?? null,
+                    'contact_email' => $site['contact_email'] ?? null,
+                    'is_active' => $site['is_active'] ?? true,
                 ]);
             }
         }

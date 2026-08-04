@@ -100,7 +100,9 @@ Route::middleware('auth')->group(function () {
         ->name('onboarding.skip');
 
     Route::redirect('/clientes', '/clients');
-    Route::redirect('/sedes', '/sites');
+    // Sedes ya no es un catálogo aparte -- se administran dentro del
+    // formulario de cliente (Clients/Form.jsx, paso 4).
+    Route::redirect('/sedes', '/clients');
     Route::redirect('/ubicaciones', '/locations');
     Route::redirect('/calendario', '/calendar');
 
@@ -177,7 +179,6 @@ Route::middleware('auth')->group(function () {
         ->middleware('onboarding')
         ->name('resolbeb.detalle');
 
-    Route::get('/sites', [$catalogPages, 'sites'])->name('sites.index');
     Route::get('/locations', [$catalogPages, 'locations'])->name('locations.index');
     Route::get('/ticket-macros', [$catalogPages, 'ticketMacros'])->name('ticket-macros.index');
     Route::get('/priority-matrix', [$catalogPages, 'priorityMatrix'])->name('priority-matrix.index');

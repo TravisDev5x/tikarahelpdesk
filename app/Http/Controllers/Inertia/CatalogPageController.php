@@ -119,23 +119,6 @@ class CatalogPageController extends Controller
         ]);
     }
 
-    public function sites(): Response
-    {
-        $user = auth()->user();
-
-        $sitesQuery = $this->operatorScope->applyOnSites(
-            Site::with('client:id,name'),
-            $user
-        );
-
-        return Inertia::render('Catalogs/Sites', [
-            'sites' => $sitesQuery->orderBy('type')->orderBy('name')->get(),
-            'clients' => $user
-                ? $this->operatorScope->clientsForCatalog($user)
-                : [],
-        ]);
-    }
-
     public function locations(): Response
     {
         return Inertia::render('Catalogs/Locations', [

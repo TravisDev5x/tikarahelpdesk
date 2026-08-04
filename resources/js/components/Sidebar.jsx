@@ -430,7 +430,6 @@ export function Sidebar({ collapsed, onToggle, onNavigate, currentPath: currentP
         // BLOQUE: CATÁLOGOS (colapsable como los demás módulos; sin Roles ni Permisos, van en Sistema)
         const catalogChildren = [
             inertiaNav('/campaigns', { label: t('nav.campaigns'), icon: Megaphone }),
-            inertiaNav('/sites', { label: t('nav.sites'), icon: MapPin }),
             inertiaNav('/areas', { label: t('nav.areas'), icon: Network }),
             inertiaNav('/positions', { label: t('nav.positions'), icon: Briefcase }),
             inertiaNav('/locations', { label: t('nav.locations'), icon: MapPin }),
