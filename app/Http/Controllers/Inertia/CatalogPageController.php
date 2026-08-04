@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Inertia;
 
 use App\Http\Controllers\Controller;
 use App\Models\Area;
+use App\Models\AuthorizationObject;
 use App\Services\OperatorScopeService;
 use App\Models\Campaign;
 use App\Models\Client;
@@ -82,10 +83,19 @@ class CatalogPageController extends Controller
         $teamId = getPermissionsTeamId();
 
         return Inertia::render('Catalogs/Roles', [
-            'roles' => Role::where(fn ($q) => $q->whereNull('team_id')->orWhere('team_id', $teamId))
+            // RBAC v2 (Fase 7.2): permissions:id,name para reconstruir en el
+            // cliente la selección Full/Solo lectura/Ninguno al editar.
+            'roles' => Role::with('permissions:id,name')
+                ->where(fn ($q) => $q->whereNull('team_id')->orWhere('team_id', $teamId))
                 ->orderBy('guard_name')
                 ->orderBy('name')
                 ->get(['id', 'name', 'slug', 'guard_name', 'scope_archetype', 'created_at']),
+            // RBAC v2 (Fase 6/7.1): catálogo global para el editor de plantillas
+            // (mismo query que RoleTemplateController::catalog()).
+            'authorizationObjects' => AuthorizationObject::whereNull('parent_id')
+                ->with('children')
+                ->orderBy('sort_order')
+                ->get(),
         ]);
     }
 

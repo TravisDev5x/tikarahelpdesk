@@ -30,6 +30,7 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import UserPermissionOverrides from "@/Inertia/components/Roles/UserPermissionOverrides";
 import { notify } from "@/lib/notify";
 import { getApiErrorMessage } from "@/lib/apiErrors";
 import { strongPasswordSchema } from "@/lib/passwordSchema";
@@ -971,9 +972,10 @@ export default function Index({ users, catalogs, filters: serverFilters = {} }) 
                     </DialogHeader>
 
                     <Tabs defaultValue="personal" className="w-full">
-                        <TabsList className="grid w-full grid-cols-2">
+                        <TabsList className={cn("grid w-full", editUser ? "grid-cols-3" : "grid-cols-2")}>
                             <TabsTrigger value="personal">Información personal</TabsTrigger>
                             <TabsTrigger value="access">Acceso y organización</TabsTrigger>
+                            {editUser && <TabsTrigger value="permissions">Permisos</TabsTrigger>}
                         </TabsList>
                         <TabsContent value="personal" className="space-y-4 pt-4">
                             <div className="grid sm:grid-cols-2 gap-3">
@@ -1237,6 +1239,12 @@ export default function Index({ users, catalogs, filters: serverFilters = {} }) 
                                 </div>
                             </div>
                         </TabsContent>
+
+                        {editUser && (
+                            <TabsContent value="permissions">
+                                <UserPermissionOverrides userId={editUser.id} />
+                            </TabsContent>
+                        )}
                     </Tabs>
 
                     <DialogFooter>
