@@ -1,17 +1,31 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Head, router } from "@inertiajs/react";
 import axios from "@/lib/axios";
 import { useAuth } from "@/context/AuthContext";
 import AuthenticatedLayout from "@/Inertia/Layouts/AuthenticatedLayout";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
+import { Badge } from "@/components/ui/badge";
+import { Field, SectionHeading } from "@/components/tickets/TicketFormFields";
+import { MarkdownToolbar } from "@/components/tickets/MarkdownToolbar";
+import { priorityClassByLevel } from "@/lib/badgeStyles";
+import { cn } from "@/lib/utils";
 import { notify } from "@/lib/notify";
-import { ArrowLeft, Plus, Loader2, CheckCircle2, MapPin, User } from "lucide-react";
+import {
+    ArrowLeft,
+    Loader2,
+    CheckCircle2,
+    MapPin,
+    Building2,
+    User,
+    Paperclip,
+    X,
+} from "lucide-react";
+
+const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024;
 
 const RESOLVE_BASE = "/resolbeb";
 
@@ -27,6 +41,8 @@ export default function ResolbebCreate({ catalogs: catalogsProp }) {
     const catalogs = catalogsProp ?? {};
     const [saving, setSaving] = useState(false);
     const [errors, setErrors] = useState({});
+    const [pendingFiles, setPendingFiles] = useState([]);
+    const descriptionRef = useRef(null);
     const [form, setForm] = useState({
         subject: "",
         description: "",
@@ -66,7 +82,7 @@ export default function ResolbebCreate({ catalogs: catalogsProp }) {
     const isSolicitanteOnly = !can("tickets.manage_all") && !can("tickets.view_area");
     const backTo = isSolicitanteOnly ? RESOLVE_BASE : `${RESOLVE_BASE}/tickets`;
 
-    const calculatedPriorityName = useMemo(() => {
+    const calculatedPriority = useMemo(() => {
         const matrix = catalogs.priority_matrix || [];
         const row = matrix.find(
             (m) =>
@@ -74,10 +90,7 @@ export default function ResolbebCreate({ catalogs: catalogsProp }) {
                 Number(m.urgency_level_id) === Number(form.urgency_level_id)
         );
         const pid = row?.priority_id;
-        const p = (catalogs.priorities || []).find((x) => Number(x.id) === Number(pid));
-        if (p) return p.name;
-        if (form.impact_level_id && form.urgency_level_id) return "—";
-        return "Selecciona Impacto y Urgencia";
+        return (catalogs.priorities || []).find((x) => Number(x.id) === Number(pid)) || null;
     }, [catalogs.priority_matrix, catalogs.priorities, form.impact_level_id, form.urgency_level_id]);
 
     const handleSubmit = async (e) => {
@@ -121,6 +134,17 @@ export default function ResolbebCreate({ catalogs: catalogsProp }) {
             const { data } = await axios.post("/api/tickets", payload);
             notify.success("Ticket creado correctamente");
             const ticketId = data?.id ?? data?.ticket?.id;
+
+            if (ticketId && pendingFiles.length > 0) {
+                const attachmentsForm = new FormData();
+                pendingFiles.forEach((file) => attachmentsForm.append("attachments[]", file));
+                try {
+                    await axios.post(`/api/tickets/${ticketId}/attachments`, attachmentsForm);
+                } catch {
+                    notify.error("El ticket se creó, pero los adjuntos no se pudieron subir.");
+                }
+            }
+
             if (ticketId) {
                 router.visit(`${RESOLVE_BASE}/tickets/${ticketId}`);
             } else if (isSolicitanteOnly) {
@@ -140,204 +164,272 @@ export default function ResolbebCreate({ catalogs: catalogsProp }) {
         }
     };
 
+    const addFiles = (fileList) => {
+        const incoming = Array.from(fileList || []);
+        const tooLarge = incoming.filter((f) => f.size > MAX_ATTACHMENT_BYTES);
+        if (tooLarge.length > 0) {
+            notify.error(`${tooLarge.length === 1 ? "Un archivo supera" : `${tooLarge.length} archivos superan`} el límite de 10 MB.`);
+        }
+        const accepted = incoming.filter((f) => f.size <= MAX_ATTACHMENT_BYTES);
+        if (accepted.length > 0) setPendingFiles((prev) => [...prev, ...accepted]);
+    };
+
+    const removeFile = (index) => {
+        setPendingFiles((prev) => prev.filter((_, i) => i !== index));
+    };
+
+    const siteName =
+        user?.site?.name ||
+        (catalogs.sites || []).find((s) => String(s.id) === String(user?.site_id))?.name ||
+        "—";
+
     return (
         <AuthenticatedLayout title="Nuevo ticket">
             <Head title="Nuevo ticket" />
 
-            <div className="w-full max-w-2xl mx-auto p-4 md:p-6 space-y-6">
-                <div className="flex items-center gap-3">
-                    <Button variant="ghost" size="sm" asChild className="-ml-2">
+            <div className="w-full space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-content-mobile">
+                <div className="flex flex-col gap-4 border-b border-border/40 pb-6 sm:flex-row sm:items-center sm:justify-between">
+                    <p className="text-sm text-muted-foreground">
+                        Completa los datos para registrar tu solicitud.
+                    </p>
+                    <Button variant="ghost" size="sm" asChild className="-ml-2 sm:ml-0">
                         <a href={backTo}>
                             <ArrowLeft className="h-4 w-4 mr-1" /> Volver
                         </a>
                     </Button>
                 </div>
 
-                <Card>
-                    <CardHeader className="bg-primary/10 border-b">
-                        <CardTitle className="text-xl flex items-center gap-2">
-                            <Plus className="h-5 w-5" /> Nuevo ticket
-                        </CardTitle>
-                        <CardDescription>
-                            Completa los datos para registrar tu solicitud (Resolvev1).
-                        </CardDescription>
-                    </CardHeader>
-                    <form onSubmit={handleSubmit}>
-                        <CardContent className="p-6 space-y-6">
-                            <div className="space-y-2">
-                                <Label>
-                                    Asunto <span className="text-destructive">*</span>
-                                </Label>
-                                <Input
-                                    required
-                                    placeholder="Ej: Fallo en impresora de recepción"
-                                    value={form.subject}
-                                    onChange={(e) => setForm({ ...form, subject: e.target.value })}
+                <form onSubmit={handleSubmit} className="space-y-8">
+                    <div className="space-y-4">
+                        <SectionHeading>¿Qué pasó?</SectionHeading>
+                        <Field label="Asunto" required>
+                            <Input
+                                required
+                                autoFocus
+                                placeholder="Ej: Fallo en impresora de recepción"
+                                value={form.subject}
+                                onChange={(e) => setForm({ ...form, subject: e.target.value })}
+                            />
+                            <FieldError errors={errors} field="subject" />
+                        </Field>
+                        <Field label="Descripción del problema">
+                            <div className="space-y-1.5">
+                                <MarkdownToolbar
+                                    textareaRef={descriptionRef}
+                                    onChange={(v) => setForm({ ...form, description: v })}
+                                    disabled={saving}
                                 />
-                                <FieldError errors={errors} field="subject" />
-                            </div>
-
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div className="space-y-2">
-                                    <Label>Tipo de ticket</Label>
-                                    <Select
-                                        value={form.ticket_type_id}
-                                        onValueChange={(v) => setForm({ ...form, ticket_type_id: v })}
-                                    >
-                                        <SelectTrigger>
-                                            <SelectValue placeholder="Seleccionar" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {(catalogs.ticket_types || []).map((t) => (
-                                                <SelectItem key={t.id} value={String(t.id)}>
-                                                    {t.name}
-                                                </SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                    <FieldError errors={errors} field="ticket_type_id" />
-                                </div>
-                                <div className="space-y-2">
-                                    <Label>
-                                        Impacto <span className="text-destructive">*</span>
-                                    </Label>
-                                    <Select
-                                        value={form.impact_level_id}
-                                        onValueChange={(v) => setForm({ ...form, impact_level_id: v })}
-                                    >
-                                        <SelectTrigger>
-                                            <SelectValue placeholder="Seleccionar" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {(catalogs.impact_levels || []).map((i) => (
-                                                <SelectItem key={i.id} value={String(i.id)}>
-                                                    {i.name}
-                                                </SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                    <FieldError errors={errors} field="impact_level_id" />
-                                </div>
-                                <div className="space-y-2">
-                                    <Label>
-                                        Urgencia <span className="text-destructive">*</span>
-                                    </Label>
-                                    <Select
-                                        value={form.urgency_level_id}
-                                        onValueChange={(v) => setForm({ ...form, urgency_level_id: v })}
-                                    >
-                                        <SelectTrigger>
-                                            <SelectValue placeholder="Seleccionar" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {(catalogs.urgency_levels || []).map((u) => (
-                                                <SelectItem key={u.id} value={String(u.id)}>
-                                                    {u.name}
-                                                </SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                    <FieldError errors={errors} field="urgency_level_id" />
-                                </div>
-                                <div className="space-y-2">
-                                    <Label>Prioridad (calculada)</Label>
-                                    <Input readOnly className="bg-muted" value={calculatedPriorityName} />
-                                </div>
-                            </div>
-
-                            <Separator />
-
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-muted/20 p-4 rounded-lg border border-border/50">
-                                <div className="space-y-2">
-                                    <Label>Cliente</Label>
-                                    <div className="flex h-10 items-center rounded-md border border-border/60 bg-background px-3 text-sm">
-                                        {user?.client_name || "Sin cliente"}
-                                    </div>
-                                </div>
-                                <div className="space-y-2">
-                                    <Label className="flex items-center gap-1">
-                                        <MapPin className="w-3 h-3" /> Sede
-                                    </Label>
-                                    <div className="flex h-10 items-center rounded-md border border-border/60 bg-background px-3 text-sm">
-                                        {user?.site?.name ||
-                                            (catalogs.sites || []).find(
-                                                (s) => String(s.id) === String(user?.site_id)
-                                            )?.name ||
-                                            "—"}
-                                    </div>
-                                    <p className="text-xs text-muted-foreground">
-                                        Asignadas automáticamente a tu perfil.
-                                    </p>
-                                </div>
-                                <div className="space-y-2">
-                                    <Label className="flex items-center gap-1">
-                                        <User className="w-3 h-3" /> Área responsable{" "}
-                                        <span className="text-destructive">*</span>
-                                    </Label>
-                                    <Select
-                                        value={form.area_current_id}
-                                        onValueChange={(v) => setForm({ ...form, area_current_id: v })}
-                                    >
-                                        <SelectTrigger className="bg-background">
-                                            <SelectValue placeholder="Área que atenderá" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {(catalogs.areas || []).map((a) => (
-                                                <SelectItem key={a.id} value={String(a.id)}>
-                                                    {a.name}
-                                                </SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                    <FieldError errors={errors} field="area_current_id" />
-                                </div>
-                                <div className="space-y-2 md:col-span-2">
-                                    <Label>Área de origen (solicitante)</Label>
-                                    <Select
-                                        value={form.area_origin_id}
-                                        onValueChange={(v) => setForm({ ...form, area_origin_id: v })}
-                                    >
-                                        <SelectTrigger className="bg-background">
-                                            <SelectValue placeholder="Tu área" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {(catalogs.areas || []).map((a) => (
-                                                <SelectItem key={a.id} value={String(a.id)}>
-                                                    {a.name}
-                                                </SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                    <FieldError errors={errors} field="area_origin_id" />
-                                </div>
-                            </div>
-
-                            <div className="space-y-2">
-                                <Label>Descripción del problema</Label>
                                 <Textarea
+                                    ref={descriptionRef}
                                     placeholder="Describe qué ocurrió, cuándo y si hay mensajes de error..."
                                     className="min-h-[120px] resize-y"
                                     value={form.description}
                                     onChange={(e) => setForm({ ...form, description: e.target.value })}
                                 />
-                                <FieldError errors={errors} field="description" />
                             </div>
-                        </CardContent>
-                        <CardFooter className="border-t p-4 flex justify-end gap-2">
-                            <Button type="button" variant="ghost" asChild>
-                                <a href={backTo}>Cancelar</a>
-                            </Button>
-                            <Button type="submit" disabled={saving}>
-                                {saving ? (
-                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                ) : (
-                                    <CheckCircle2 className="mr-2 h-4 w-4" />
-                                )}
-                                Crear ticket
-                            </Button>
-                        </CardFooter>
-                    </form>
-                </Card>
+                            <FieldError errors={errors} field="description" />
+                        </Field>
+
+                        <Field
+                            label="Adjuntar evidencia (opcional)"
+                            hint="Capturas de pantalla, fotos u otros archivos de soporte. Máx. 10 MB por archivo."
+                        >
+                            <Input
+                                type="file"
+                                multiple
+                                accept="image/*,.pdf"
+                                onChange={(e) => {
+                                    addFiles(e.target.files);
+                                    e.target.value = "";
+                                }}
+                            />
+                            {pendingFiles.length > 0 && (
+                                <ul className="mt-2 space-y-1.5">
+                                    {pendingFiles.map((file, index) => (
+                                        <li
+                                            key={`${file.name}-${index}`}
+                                            className="flex items-center justify-between gap-2 rounded-md border border-border/60 bg-muted/20 px-3 py-1.5 text-sm"
+                                        >
+                                            <span className="flex min-w-0 items-center gap-1.5 truncate">
+                                                <Paperclip className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden />
+                                                <span className="truncate">{file.name}</span>
+                                            </span>
+                                            <span className="flex shrink-0 items-center gap-2">
+                                                <span className="text-xs text-muted-foreground">
+                                                    {Math.round(file.size / 1024)} KB
+                                                </span>
+                                                <Button
+                                                    type="button"
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    className="h-6 w-6"
+                                                    disabled={saving}
+                                                    onClick={() => removeFile(index)}
+                                                >
+                                                    <X className="h-3.5 w-3.5" aria-hidden />
+                                                </Button>
+                                            </span>
+                                        </li>
+                                    ))}
+                                </ul>
+                            )}
+                        </Field>
+                    </div>
+
+                    <Separator />
+
+                    <div className="space-y-4">
+                        <SectionHeading>Clasificación</SectionHeading>
+                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                            <Field label="Tipo de ticket">
+                                <Select
+                                    value={form.ticket_type_id}
+                                    onValueChange={(v) => setForm({ ...form, ticket_type_id: v })}
+                                >
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="Seleccionar" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {(catalogs.ticket_types || []).map((t) => (
+                                            <SelectItem key={t.id} value={String(t.id)}>
+                                                {t.name}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                                <FieldError errors={errors} field="ticket_type_id" />
+                            </Field>
+                            <Field label="Impacto" required>
+                                <Select
+                                    value={form.impact_level_id}
+                                    onValueChange={(v) => setForm({ ...form, impact_level_id: v })}
+                                >
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="Seleccionar" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {(catalogs.impact_levels || []).map((i) => (
+                                            <SelectItem key={i.id} value={String(i.id)}>
+                                                {i.name}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                                <FieldError errors={errors} field="impact_level_id" />
+                            </Field>
+                            <Field label="Urgencia" required>
+                                <Select
+                                    value={form.urgency_level_id}
+                                    onValueChange={(v) => setForm({ ...form, urgency_level_id: v })}
+                                >
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="Seleccionar" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {(catalogs.urgency_levels || []).map((u) => (
+                                            <SelectItem key={u.id} value={String(u.id)}>
+                                                {u.name}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                                <FieldError errors={errors} field="urgency_level_id" />
+                            </Field>
+                        </div>
+                        <div className="flex items-center gap-2 rounded-lg border border-border/50 bg-muted/20 px-3 py-2">
+                            <span className="text-xs font-medium text-muted-foreground">
+                                Prioridad calculada:
+                            </span>
+                            {calculatedPriority ? (
+                                <Badge
+                                    variant="outline"
+                                    className={cn("text-xs", priorityClassByLevel(calculatedPriority.level))}
+                                >
+                                    {calculatedPriority.name}
+                                </Badge>
+                            ) : (
+                                <span className="text-xs text-muted-foreground">
+                                    Selecciona Impacto y Urgencia
+                                </span>
+                            )}
+                        </div>
+                    </div>
+
+                    <Separator />
+
+                    <div className="space-y-4">
+                        <SectionHeading>Asignación</SectionHeading>
+                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                            <Field label="Cliente">
+                                <div className="flex h-10 items-center gap-2 rounded-md border border-border/60 bg-muted/30 px-3 text-sm">
+                                    <Building2 className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+                                    <span>{user?.client_name || "Sin cliente"}</span>
+                                </div>
+                            </Field>
+                            <Field label="Sede" hint="Se asignan automáticamente según tu perfil.">
+                                <div className="flex h-10 items-center gap-2 rounded-md border border-border/60 bg-muted/30 px-3 text-sm">
+                                    <MapPin className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+                                    <span>{siteName}</span>
+                                </div>
+                            </Field>
+                        </div>
+                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                            <Field label="Área responsable" required>
+                                <Select
+                                    value={form.area_current_id}
+                                    onValueChange={(v) => setForm({ ...form, area_current_id: v })}
+                                >
+                                    <div className="relative">
+                                        <User className="pointer-events-none absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
+                                        <SelectTrigger className="pl-9">
+                                            <SelectValue placeholder="Área que atenderá" />
+                                        </SelectTrigger>
+                                    </div>
+                                    <SelectContent>
+                                        {(catalogs.areas || []).map((a) => (
+                                            <SelectItem key={a.id} value={String(a.id)}>
+                                                {a.name}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                                <FieldError errors={errors} field="area_current_id" />
+                            </Field>
+                            <Field label="Área de origen" hint="Quién reporta el incidente.">
+                                <Select
+                                    value={form.area_origin_id}
+                                    onValueChange={(v) => setForm({ ...form, area_origin_id: v })}
+                                >
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="Tu área" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {(catalogs.areas || []).map((a) => (
+                                            <SelectItem key={a.id} value={String(a.id)}>
+                                                {a.name}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                                <FieldError errors={errors} field="area_origin_id" />
+                            </Field>
+                        </div>
+                    </div>
+
+                    <div className="flex justify-end gap-2 border-t border-border/40 pt-6">
+                        <Button type="button" variant="ghost" asChild>
+                            <a href={backTo}>Cancelar</a>
+                        </Button>
+                        <Button type="submit" disabled={saving}>
+                            {saving ? (
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            ) : (
+                                <CheckCircle2 className="mr-2 h-4 w-4" />
+                            )}
+                            Crear ticket
+                        </Button>
+                    </div>
+                </form>
             </div>
         </AuthenticatedLayout>
     );

@@ -1,7 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Label } from "@/components/ui/label";
 import {
     Dialog,
     DialogContent,
@@ -17,29 +16,8 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
-import { cn } from "@/lib/utils";
 import { Building2, CheckCircle2, Loader2, MapPin, Ticket, User } from "lucide-react";
-
-function Field({ label, required, hint, children, className }) {
-    return (
-        <div className={cn("space-y-1.5", className)}>
-            <Label className="text-sm font-medium leading-none text-foreground">
-                {label}
-                {required ? <span className="text-destructive ml-0.5">*</span> : null}
-            </Label>
-            {children}
-            {hint ? <p className="text-xs text-muted-foreground">{hint}</p> : null}
-        </div>
-    );
-}
-
-function SectionHeading({ children }) {
-    return (
-        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground pt-1">
-            {children}
-        </p>
-    );
-}
+import { Field, SectionHeading } from "@/components/tickets/TicketFormFields";
 
 /**
  * Modal unificado para crear tickets (Resolbeb / listados legacy).
