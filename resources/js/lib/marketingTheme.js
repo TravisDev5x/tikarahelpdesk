@@ -33,10 +33,10 @@ export const brandGradientText =
     "bg-gradient-to-r from-brand-muted to-brand bg-clip-text text-transparent";
 
 export const btnBrand =
-    `${brandGradientFill} font-semibold text-brand-foreground hover:opacity-90 border-0 shadow-md shadow-[hsl(var(--brand)/0.2)]`;
+    `${brandGradientFill} hover-lift font-semibold text-brand-foreground hover:opacity-90 border-0 shadow-md shadow-[hsl(var(--brand)/0.2)] transition-colors hover:-translate-y-0.5 hover:shadow-lg active:translate-y-0 active:scale-[0.98]`;
 
 export const btnBrandOutline =
-    "border-border bg-card/80 text-foreground/90 hover:border-brand/50 hover:text-brand-muted hover:bg-card";
+    "hover-lift border-border bg-card/80 text-foreground/90 hover:border-brand/50 hover:text-brand-muted hover:bg-card transition-colors hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98]";
 
 export const authCard = "w-full max-w-md mkt-elevated rounded-2xl p-8";
 
@@ -45,15 +45,28 @@ export const authPanelSide =
 
 export const linkBrand = "text-brand-muted hover:text-brand font-semibold transition-colors";
 
-export const navLink = "text-sm text-muted-foreground transition-colors hover:text-foreground";
+/** Enlace de nav con subrayado animado (requiere contenedor position:relative, ya lo es <a>) */
+export const navLink =
+    "relative text-sm text-muted-foreground transition-colors hover:text-foreground " +
+    "after:absolute after:left-0 after:-bottom-1 after:h-px after:w-0 after:bg-brand " +
+    "after:transition-[width] after:duration-300 hover:after:w-full " +
+    "rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background";
 
 export const sectionAlt = "py-24 px-6 mkt-section-alt";
 
 export const sectionDefault = "py-24 px-6 mkt-section-default";
 
-/** Cards con elevación real (no solo border sobre blanco) */
+/**
+ * Cards con elevación real (no solo border sobre blanco).
+ * El "extra" de sombra al hover vive en un ::after con transición de opacidad
+ * (barata, GPU) en vez de animar box-shadow directamente (fuerza repintado y
+ * se siente pesado/tosco en cuadro a cuadro).
+ */
 export const featureCard =
-    "group mkt-elevated rounded-xl p-6 transition-[box-shadow,border-color] hover:border-brand/40 hover:shadow-lg";
+    "relative mkt-elevated rounded-xl p-6 hover-lift hover:will-change-transform hover:-translate-y-1.5 hover:scale-[1.015] " +
+    "after:content-[''] after:absolute after:inset-0 after:rounded-xl after:pointer-events-none " +
+    "after:shadow-lg after:opacity-0 after:transition-opacity after:duration-500 " +
+    "after:ease-[cubic-bezier(0.22,1,0.36,1)] hover:after:opacity-100";
 
 export const featureIconBox =
     "mb-4 flex h-12 w-12 items-center justify-center rounded-lg bg-brand-subtle";
@@ -64,13 +77,20 @@ export const infoBadge =
 export const pricingTabWrap =
     "inline-flex gap-1 rounded-xl border border-border/80 bg-card/90 p-1.5 shadow-sm";
 
+const pricingTabFocus =
+    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background";
+
 export const pricingTabActive =
-    "rounded-lg bg-card px-5 py-2.5 text-sm font-semibold text-foreground shadow-sm ring-1 ring-border/80";
+    `rounded-lg bg-card px-5 py-2.5 text-sm font-semibold text-foreground shadow-sm ring-1 ring-border/80 ${pricingTabFocus}`;
 
 export const pricingTabInactive =
-    "cursor-pointer rounded-lg px-5 py-2.5 text-sm text-muted-foreground transition-all duration-200 hover:text-foreground hover:bg-muted/50";
+    `cursor-pointer rounded-lg px-5 py-2.5 text-sm text-muted-foreground transition-all duration-200 hover:text-foreground hover:bg-muted/50 ${pricingTabFocus}`;
 
-export const planCard = "relative flex flex-col mkt-elevated rounded-2xl p-8 transition-all duration-200";
+export const planCard =
+    "relative flex flex-col mkt-elevated rounded-2xl p-8 hover-lift hover:will-change-transform hover:-translate-y-1.5 hover:scale-[1.015] " +
+    "after:content-[''] after:absolute after:inset-0 after:rounded-2xl after:pointer-events-none " +
+    "after:shadow-xl after:opacity-0 after:transition-opacity after:duration-500 " +
+    "after:ease-[cubic-bezier(0.22,1,0.36,1)] hover:after:opacity-100";
 
 export const planCardHighlighted =
     "border-brand/50 shadow-xl shadow-[hsl(var(--brand)/0.12)]";
@@ -78,7 +98,9 @@ export const planCardHighlighted =
 export const planChip =
     "mb-1 mr-1 inline-flex rounded-full bg-muted px-3 py-1 text-xs text-muted-foreground";
 
-export const footerLink = "text-muted-foreground hover:text-foreground transition-colors";
+export const footerLink =
+    "text-muted-foreground hover:text-foreground transition-colors rounded-sm " +
+    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background";
 
 /** Filas internas del mock del hero */
 export const mockTicketRow = "rounded-lg bg-secondary p-3 mb-2";

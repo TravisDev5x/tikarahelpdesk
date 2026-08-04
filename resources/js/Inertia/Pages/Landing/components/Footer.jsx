@@ -3,6 +3,7 @@ import { Link } from "@inertiajs/react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
+import { Reveal } from "@/components/ui/Reveal";
 import { brandLogo, btnBrand, footerLink } from "@/lib/marketingTheme";
 import {
     Twitter,
@@ -114,10 +115,10 @@ export default function Footer() {
     const year = new Date().getFullYear();
 
     return (
-        <footer id="footer" className="border-t border-border/50 bg-secondary/20 px-6 pt-16 pb-10">
+        <footer id="footer" className="border-t border-border/50 bg-secondary/20 px-6 pt-16 pb-10 scroll-mt-16">
             <div className="mx-auto max-w-7xl">
                 {/* Main grid */}
-                <div className="grid grid-cols-2 gap-x-8 gap-y-12 sm:grid-cols-3 lg:grid-cols-[260px_repeat(4,1fr)]">
+                <Reveal as="div" className="grid grid-cols-2 gap-x-8 gap-y-12 sm:grid-cols-3 lg:grid-cols-[260px_repeat(4,1fr)]">
 
                     {/* ── Brand column ── */}
                     <div className="col-span-2 sm:col-span-3 lg:col-span-1">
@@ -139,7 +140,7 @@ export default function Footer() {
                                     key={label}
                                     href={href}
                                     aria-label={label}
-                                    className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground/60 transition-colors hover:bg-muted/60 hover:text-foreground"
+                                    className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground/60 transition-colors hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                                 >
                                     <Icon className="h-4 w-4" />
                                 </a>
@@ -173,18 +174,18 @@ export default function Footer() {
                             </ul>
                         </div>
                     ))}
-                </div>
+                </Reveal>
 
                 {/* Divider */}
                 <Separator className="mt-14 mb-6 bg-border/40" />
 
                 {/* Bottom bar */}
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between text-xs text-muted-foreground/50">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between text-xs text-muted-foreground/70">
                     <p>
                         © {year}{" "}
-                        <span className="font-medium text-muted-foreground/70">Tikara</span>
+                        <span className="font-medium text-muted-foreground/90">Tikara</span>
                         {" · "}una marca de{" "}
-                        <span className="font-medium text-muted-foreground/70">
+                        <span className="font-medium text-muted-foreground/90">
                             DDMA Desarrollos Digitales Mexicanos y Asociados
                         </span>
                         . Todos los derechos reservados.

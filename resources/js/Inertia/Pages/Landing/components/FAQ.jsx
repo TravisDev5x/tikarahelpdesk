@@ -1,4 +1,5 @@
 import { AccordionSimple } from "@/components/ui/accordion";
+import { Reveal } from "@/components/ui/Reveal";
 import { badgeNeutral } from "@/lib/badgeStyles";
 import { sectionDefault } from "@/lib/marketingTheme";
 
@@ -55,18 +56,21 @@ const FAQ_ITEMS = [
 
 export default function FAQ() {
     return (
-        <section id="faq" className={sectionDefault}>
+        <section id="faq" className={`${sectionDefault} scroll-mt-16`}>
             <div className="mx-auto max-w-7xl">
-                <div className="text-center">
+                <Reveal className="text-center">
                     <span className={`inline-block rounded-full px-4 py-1 text-sm mb-4 ${badgeNeutral}`}>
                         Preguntas
                     </span>
                     <h2 className="text-4xl font-bold text-foreground">Preguntas frecuentes</h2>
-                </div>
+                </Reveal>
 
-                <div className="mt-12 max-w-3xl mx-auto [&_details]:mkt-elevated [&_details]:rounded-lg [&_summary]:text-foreground [&_div]:text-muted-foreground">
+                <Reveal
+                    delay={100}
+                    className="mt-12 max-w-3xl mx-auto [&_details]:mkt-elevated [&_details]:rounded-lg [&_details]:transition-shadow [&_details]:duration-300 [&_summary]:text-foreground [&_div]:text-muted-foreground"
+                >
                     <AccordionSimple items={FAQ_ITEMS} defaultOpen="1" />
-                </div>
+                </Reveal>
             </div>
         </section>
     );

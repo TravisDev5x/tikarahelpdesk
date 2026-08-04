@@ -1,6 +1,7 @@
 import { Link } from "@inertiajs/react";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { AuthBrandHomeLink } from "@/components/auth/AuthBrandHomeLink";
+import { Reveal } from "@/components/ui/Reveal";
 import { authCard, linkBrand, surfaceAuth } from "@/lib/marketingTheme";
 import { cn } from "@/lib/utils";
 
@@ -19,7 +20,7 @@ export function AuthSplitLayout({
             {brandingPanel}
 
             <div className="flex min-h-[100dvh] flex-1 items-center justify-center bg-muted/20 px-4 py-8 sm:px-8 lg:px-16">
-                <div
+                <Reveal
                     className={cn(
                         authCard,
                         "w-full pb-[max(1rem,env(safe-area-inset-bottom))]",
@@ -51,7 +52,7 @@ export function AuthSplitLayout({
                     ) : null}
 
                     {children}
-                </div>
+                </Reveal>
             </div>
         </div>
     );

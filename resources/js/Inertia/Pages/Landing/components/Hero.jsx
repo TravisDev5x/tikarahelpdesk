@@ -1,6 +1,7 @@
 import { Link } from "@inertiajs/react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Reveal } from "@/components/ui/Reveal";
 import {
     brandBadge,
     brandGradientText,
@@ -66,7 +67,7 @@ export default function Hero() {
     return (
         <section
             id="mission"
-            className="relative flex flex-col items-center pt-28 pb-0 px-6 mkt-section-default mkt-dots overflow-hidden"
+            className="relative flex flex-col items-center pt-28 pb-0 px-6 mkt-section-default mkt-dots overflow-hidden scroll-mt-16"
         >
             {/* Background radial glow */}
             <div className="pointer-events-none absolute top-0 left-1/2 -translate-x-1/2 w-[900px] h-[500px] -z-10 blur-[120px] bg-[radial-gradient(ellipse,hsl(var(--brand)/0.12)_0%,transparent_70%)]" />
@@ -74,53 +75,53 @@ export default function Hero() {
             {/* ── Text block ─────────────────────────────── */}
             <div className="w-full max-w-3xl text-center">
                 {/* Badges row */}
-                <div className="flex flex-wrap items-center justify-center gap-3 mb-8">
+                <Reveal className="flex flex-wrap items-center justify-center gap-3 mb-8">
                     <div className={brandBadge}>
                         <span className="h-2 w-2 rounded-full bg-brand animate-pulse" />
                         Listo para operar en tu empresa
                     </div>
-                    <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground/60">
+                    <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground/70">
                         <span className="h-px w-4 bg-border" />
                         Un producto de{" "}
-                        <span className="font-semibold text-foreground/55 tracking-tight">DDMA</span>
+                        <span className="font-semibold text-foreground/70 tracking-tight">DDMA</span>
                     </span>
-                </div>
+                </Reveal>
 
                 {/* Headline */}
-                <h1 className="text-6xl sm:text-7xl lg:text-8xl font-black text-foreground leading-[1.15] tracking-tighter">
+                <Reveal delay={80} as="h1" className="text-6xl sm:text-7xl lg:text-8xl font-black text-foreground leading-[1.15] tracking-tighter">
                     Soporte IT
                     <br />
                     <span className={`${brandGradientText} inline-block pb-2 pr-1`}>sin caos</span>
-                </h1>
+                </Reveal>
 
                 {/* Subtitle */}
-                <p className="mt-7 text-lg lg:text-xl text-muted-foreground max-w-xl mx-auto leading-relaxed">
+                <Reveal delay={160} as="p" className="mt-7 text-lg lg:text-xl text-muted-foreground max-w-xl mx-auto leading-relaxed">
                     Tikara reúne tickets, clientes, técnicos y SLAs en un solo panel.
                     Pensado para empresas MSP que quieren escalar sin perder el control.
-                </p>
+                </Reveal>
 
                 {/* CTAs */}
-                <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4">
+                <Reveal delay={240} className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4">
                     <Button size="lg" className={`px-8 ${btnBrand}`} asChild>
                         <Link href="/register">Crear cuenta gratis</Link>
                     </Button>
                     <Button size="lg" variant="outline" className={btnBrandOutline} asChild>
                         <Link href="/login">Ya tengo cuenta</Link>
                     </Button>
-                </div>
+                </Reveal>
 
                 {/* Trust row */}
-                <p className="mt-5 text-sm text-muted-foreground/50 flex flex-wrap items-center justify-center gap-x-3 gap-y-1">
+                <Reveal delay={300} as="p" className="mt-5 text-sm text-muted-foreground/80 flex flex-wrap items-center justify-center gap-x-3 gap-y-1">
                     <span>Registro en 3 minutos</span>
                     <span className="h-1 w-1 rounded-full bg-border/80" />
                     <span>Sin tarjeta de crédito</span>
                     <span className="h-1 w-1 rounded-full bg-border/80" />
                     <span>Cancela cuando quieras</span>
-                </p>
+                </Reveal>
             </div>
 
             {/* ── Dashboard mockup ───────────────────────── */}
-            <div className="relative mt-16 w-full max-w-5xl">
+            <Reveal delay={200} className="relative mt-16 w-full max-w-5xl">
                 {/* Glow under the card */}
                 <div className="pointer-events-none absolute -inset-x-10 top-12 h-32 -z-10 blur-3xl bg-[hsl(var(--brand)/0.1)]" />
 
@@ -236,7 +237,7 @@ export default function Hero() {
 
                 {/* Gradient fade-out at the bottom */}
                 <div className="h-20 bg-gradient-to-b from-transparent to-background" />
-            </div>
+            </Reveal>
         </section>
     );
 }

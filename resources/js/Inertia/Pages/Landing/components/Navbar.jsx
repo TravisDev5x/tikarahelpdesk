@@ -76,7 +76,7 @@ export default function Navbar() {
                                     key={link.href}
                                     href={link.href}
                                     onClick={() => setOpen(false)}
-                                    className="text-muted-foreground hover:text-brand-muted transition-colors"
+                                    className="text-muted-foreground hover:text-brand-muted transition-colors rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                                 >
                                     {link.label}
                                 </a>

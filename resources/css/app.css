@@ -319,6 +319,90 @@ html[data-theme-switching="1"] *::after {
     }
 }
 
+/* Scroll suave para anclas de navegación (landing) */
+html {
+    scroll-behavior: smooth;
+}
+@media (prefers-reduced-motion: reduce) {
+    html {
+        scroll-behavior: auto;
+    }
+}
+
+/*
+ * Reveal-on-scroll (landing, auth): fade + slide sutil al entrar en viewport.
+ * !important necesario: la regla global "*:not([data-no-transition])" de más
+ * arriba (transición de tema) también fija `transition` en TODOS los
+ * elementos y, al no ser !important pero tener más especificidad que una
+ * sola clase, le ganaba a esta y dejaba opacity/transform sin animar.
+ */
+.reveal {
+    opacity: 0;
+    transform: translateY(22px);
+    transition: opacity 0.7s cubic-bezier(0.16, 1, 0.3, 1),
+        transform 0.7s cubic-bezier(0.16, 1, 0.3, 1) !important;
+    will-change: opacity, transform;
+}
+.reveal.is-visible {
+    opacity: 1;
+    transform: translateY(0);
+}
+.reveal-left {
+    transform: translateX(-28px);
+}
+.reveal-left.is-visible {
+    transform: translateX(0);
+}
+.reveal-right {
+    transform: translateX(28px);
+}
+.reveal-right.is-visible {
+    transform: translateX(0);
+}
+@media (prefers-reduced-motion: reduce) {
+    .reveal,
+    .reveal-left,
+    .reveal-right {
+        opacity: 1;
+        transform: none;
+        transition: none;
+    }
+}
+
+/*
+ * Hover con "levantamiento" (cards, botones): mismo motivo que .reveal arriba
+ * — necesita !important para ganarle a la transición global de tema, que
+ * solo anima color/background y le gana a las utilidades de Tailwind
+ * (transition-transform, duration-*) por especificidad/capas.
+ */
+.hover-lift {
+    transition: transform 0.5s cubic-bezier(0.22, 1, 0.36, 1) !important;
+}
+@media (prefers-reduced-motion: reduce) {
+    .hover-lift {
+        transition: none !important;
+    }
+}
+
+/* Fade de entrada solo-opacidad (sin transform) para el panel lateral auth:
+   position:sticky se rompe si un ancestro recibe `transform`, incluso en 0. */
+.auth-fade-in {
+    animation: auth-fade-in 0.6s ease-out;
+}
+@keyframes auth-fade-in {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+@media (prefers-reduced-motion: reduce) {
+    .auth-fade-in {
+        animation: none;
+    }
+}
+
 /* Safe area superior para header (notch iOS/Android); en md sin padding extra */
 .safe-area-header {
     padding-top: max(env(safe-area-inset-top, 0px), 1rem);

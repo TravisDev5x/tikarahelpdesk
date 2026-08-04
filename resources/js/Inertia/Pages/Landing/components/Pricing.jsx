@@ -5,6 +5,7 @@ import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { PlanTypeBadge } from "@/components/badges/EntityBadges";
+import { Reveal } from "@/components/ui/Reveal";
 import {
     brandBadgeSm,
     brandGradientFill,
@@ -183,9 +184,9 @@ export default function Pricing({ plans = [] }) {
     const activePlans = activeTab === "msp" ? mspPlans : inhousePlans;
 
     return (
-        <section id="pricing" className={`${sectionAlt} px-6`}>
+        <section id="pricing" className={`${sectionAlt} px-6 scroll-mt-16`}>
             <div className="mx-auto max-w-7xl">
-                <div className="text-center">
+                <Reveal className="text-center">
                     <span className={infoBadge}>Planes</span>
                     <h2 className="text-center text-4xl font-bold text-foreground">
                         Precios simples, sin sorpresas
@@ -193,7 +194,7 @@ export default function Pricing({ plans = [] }) {
                     <p className="mx-auto mt-3 max-w-xl text-center text-muted-foreground">
                         Empieza gratis 14 días. Sin tarjeta de crédito.
                     </p>
-                </div>
+                </Reveal>
 
                 <div className="mt-10 flex justify-center">
                     <div className={pricingTabWrap}>
@@ -244,12 +245,14 @@ export default function Pricing({ plans = [] }) {
                 </div>
 
                 <div className="mt-12 grid grid-cols-1 items-stretch gap-6 lg:grid-cols-3">
-                    {activePlans.map((plan) => (
-                        <PlanCard
+                    {activePlans.map((plan, index) => (
+                        <Reveal
                             key={`${activeTab}-${plan.id}`}
-                            plan={plan}
-                            billingCycle={billingCycle}
-                        />
+                            delay={index * 100}
+                            className="flex h-full [&>*]:w-full [&>*]:flex-1"
+                        >
+                            <PlanCard plan={plan} billingCycle={billingCycle} />
+                        </Reveal>
                     ))}
                 </div>
             </div>

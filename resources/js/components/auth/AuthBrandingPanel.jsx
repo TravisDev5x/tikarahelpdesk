@@ -22,7 +22,7 @@ export function AuthBrandingPanel({
 
     return (
         <aside
-            className={cn(authPanelSide, className)}
+            className={cn(authPanelSide, "auth-fade-in", className)}
             style={resolveTenantBrandCssVars(tenant)}
         >
             <div className={brandPanelGlow} aria-hidden />

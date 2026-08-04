@@ -1,3 +1,4 @@
+import { Reveal } from "@/components/ui/Reveal";
 import { brandBadgeSm, brandGradientText, sectionDefault } from "@/lib/marketingTheme";
 
 const STEPS = [
@@ -25,17 +26,21 @@ const STEPS = [
 
 export default function HowItWorks() {
     return (
-        <section id="how-it-works" className={sectionDefault}>
+        <section id="how-it-works" className={`${sectionDefault} scroll-mt-16`}>
             <div className="mx-auto max-w-7xl">
-                <div className="text-center mb-16">
+                <Reveal className="text-center mb-16">
                     <span className={`inline-block ${brandBadgeSm} mb-4`}>Cómo empezar</span>
                     <h2 className="text-4xl font-bold text-foreground">Operativo en minutos</h2>
                     <p className="mt-3 text-muted-foreground">Sin instalaciones. Sin configuraciones complejas.</p>
-                </div>
+                </Reveal>
 
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-10 md:gap-6">
                     {STEPS.map((step, index) => (
-                        <div key={step.n} className="relative text-center md:text-left">
+                        <Reveal
+                            key={step.n}
+                            delay={index * 100}
+                            className="relative text-center md:text-left"
+                        >
                             {index < STEPS.length - 1 && (
                                 <div
                                     className="hidden md:block absolute top-8 left-[calc(50%+2rem)] right-0 h-px bg-gradient-to-r from-[hsl(var(--brand)/0.5)] to-transparent"
@@ -45,7 +50,7 @@ export default function HowItWorks() {
                             <span className={`text-6xl font-black ${brandGradientText}`}>{step.n}</span>
                             <h3 className="text-foreground font-semibold mt-3">{step.title}</h3>
                             <p className="text-muted-foreground text-sm mt-1 leading-relaxed">{step.desc}</p>
-                        </div>
+                        </Reveal>
                     ))}
                 </div>
             </div>
