@@ -27,6 +27,7 @@ import {
 import { UserAvatar } from '@/components/user-avatar'
 import { TenantBrandHeader, TenantBrandMark } from '@/components/TenantBrand'
 import { isClientPortalTenant } from '@/lib/tenantBranding'
+import { storageUrl } from '@/lib/storage'
 
 import {
     Home,
@@ -340,6 +341,13 @@ export function Sidebar({ collapsed, onToggle, onNavigate, currentPath: currentP
     const isPortalBrand = isClientPortalTenant(tenant)
     const brandTitle = isPortalBrand ? tenant.name : t('brand.title')
     const brandSubtitle = isPortalBrand ? t('brand.portalSubtitle') : t('brand.subtitle')
+    // Fuera del portal de cliente (app de staff): "Tikara" siempre arriba,
+    // y debajo el logo/nombre del cliente al que pertenece ESTE usuario
+    // (no el tenant resuelto por subdominio -- ese es el caso portal, ya
+    // cubierto arriba). Nada si el usuario no pertenece a ningún cliente
+    // (ej. operador de plataforma).
+    const userClientName = !isPortalBrand ? user?.client_name : null
+    const userClientLogoUrl = !isPortalBrand ? storageUrl(user?.client_logo_path) : null
     const pathname = currentPathProp || url.split('?')[0]
     const { position: sidebarPosition } = useSidebarPosition()
     const tooltipSide = sidebarPosition === 'right' ? 'left' : 'right'
@@ -381,45 +389,51 @@ export function Sidebar({ collapsed, onToggle, onNavigate, currentPath: currentP
         ]
         sections.push({ sectionId: 'general', label: t('section.general'), items: generalItems })
 
-        // BLOQUE 2: MÓDULOS — RESOLBEB, TIMEDESK
+        // BLOQUE 2: MÓDULOS — TICKETS, INCIDENCIAS, TIMEDESK
+        // "Mis tickets" y "Crear ticket" NO se repiten aquí -- ya están en
+        // General para todos. "Resolbeb" (nombre interno/legacy) se separa
+        // en dos módulos con nombre claro: Tickets e Incidencias.
         const moduleItems = []
 
         const canSeeResolbeb = canSeeTicketsModule || canSeeMyTickets
-        const resolbebChildren = []
+        const ticketsChildren = []
         if (canSeeResolbeb) {
-            // — Tickets
-            resolbebChildren.push(inertiaNav('/resolbeb', { label: t('nav.dashboard'), icon: LayoutDashboard }))
-            if (canSeeMyTickets) resolbebChildren.push(inertiaNav('/resolbeb/mis-tickets', { label: t('nav.myTickets'), icon: Ticket }))
-            if (canSeeTicketsModule) resolbebChildren.push(inertiaNav('/resolbeb/tickets', { label: t('nav.tickets'), icon: Ticket }))
-            if (can('tickets.create') || can('tickets.manage_all'))
-                resolbebChildren.push(inertiaNav('/resolbeb/tickets/new', { label: t('nav.newTicket'), icon: Layers }))
-            // Catálogos de tickets (separador para no mezclar con incidencias)
+            ticketsChildren.push(inertiaNav('/resolbeb', { label: t('nav.dashboard'), icon: LayoutDashboard }))
+            if (canSeeTicketsModule) ticketsChildren.push(inertiaNav('/resolbeb/tickets', { label: t('nav.allTickets'), icon: Ticket }))
             if (canSeeCatalogs) {
-                resolbebChildren.push({ type: 'separator', label: t('nav.catalogsTickets') })
-                resolbebChildren.push(inertiaNav('/resolbeb/estados', { label: t('nav.ticketStates'), icon: Workflow }))
-                resolbebChildren.push(inertiaNav('/resolbeb/tipos', { label: t('nav.ticketTypes'), icon: Tags }))
-                resolbebChildren.push(inertiaNav('/priorities', { label: t('nav.priorities'), icon: SignalHigh }))
-                resolbebChildren.push(inertiaNav('/impact-levels', { label: t('nav.impactLevels'), icon: SignalHigh }))
-                resolbebChildren.push(inertiaNav('/urgency-levels', { label: t('nav.urgencyLevels'), icon: SignalHigh }))
-                resolbebChildren.push(inertiaNav('/priority-matrix', { label: t('nav.priorityMatrix'), icon: Grid3X3 }))
-                resolbebChildren.push(inertiaNav('/ticket-macros', { label: t('nav.ticketMacros'), icon: FileText }))
-            }
-            // — Incidencias (dentro de Resolbeb) y sus catálogos
-            if (canSeeIncidents) {
-                resolbebChildren.push({ type: 'separator', label: t('nav.incidents') })
-                resolbebChildren.push(inertiaNav('/incidents', { label: t('nav.incidents'), icon: AlertTriangle }))
-                resolbebChildren.push({ type: 'separator', label: t('nav.catalogsIncidents') })
-                resolbebChildren.push(inertiaNav('/incident-types', { label: t('nav.incidentTypes'), icon: Tags }))
-                resolbebChildren.push(inertiaNav('/incident-severities', { label: t('nav.severities'), icon: SignalHigh }))
-                resolbebChildren.push(inertiaNav('/incident-statuses', { label: t('nav.incidentStates'), icon: Workflow }))
+                ticketsChildren.push({ type: 'separator', label: t('nav.catalogsTickets') })
+                ticketsChildren.push(inertiaNav('/resolbeb/estados', { label: t('nav.ticketStates'), icon: Workflow }))
+                ticketsChildren.push(inertiaNav('/resolbeb/tipos', { label: t('nav.ticketTypes'), icon: Tags }))
+                ticketsChildren.push(inertiaNav('/priorities', { label: t('nav.priorities'), icon: SignalHigh }))
+                ticketsChildren.push(inertiaNav('/impact-levels', { label: t('nav.impactLevels'), icon: SignalHigh }))
+                ticketsChildren.push(inertiaNav('/urgency-levels', { label: t('nav.urgencyLevels'), icon: SignalHigh }))
+                ticketsChildren.push(inertiaNav('/priority-matrix', { label: t('nav.priorityMatrix'), icon: Grid3X3 }))
+                ticketsChildren.push(inertiaNav('/ticket-macros', { label: t('nav.ticketMacros'), icon: FileText }))
             }
         }
-        if (canSeeResolbeb && resolbebChildren.length > 0) {
+        if (canSeeResolbeb && ticketsChildren.length > 0) {
             moduleItems.push({
-                label: t('nav.resolbeb'),
+                label: t('nav.tickets'),
                 icon: Ticket,
                 emphasis: false,
-                children: resolbebChildren,
+                children: ticketsChildren,
+            })
+        }
+
+        const incidentsChildren = []
+        if (canSeeIncidents) {
+            incidentsChildren.push(inertiaNav('/incidents', { label: t('nav.allIncidents'), icon: AlertTriangle }))
+            incidentsChildren.push({ type: 'separator', label: t('nav.catalogsIncidents') })
+            incidentsChildren.push(inertiaNav('/incident-types', { label: t('nav.incidentTypes'), icon: Tags }))
+            incidentsChildren.push(inertiaNav('/incident-severities', { label: t('nav.severities'), icon: SignalHigh }))
+            incidentsChildren.push(inertiaNav('/incident-statuses', { label: t('nav.incidentStates'), icon: Workflow }))
+        }
+        if (canSeeIncidents && incidentsChildren.length > 0) {
+            moduleItems.push({
+                label: t('nav.incidents'),
+                icon: AlertTriangle,
+                emphasis: false,
+                children: incidentsChildren,
             })
         }
 
@@ -491,25 +505,43 @@ export function Sidebar({ collapsed, onToggle, onNavigate, currentPath: currentP
                     collapsed ? 'justify-center px-2' : 'justify-between px-3 gap-2'
                 )}
             >
+                {!collapsed && (
                 <div
                     className={cn(
                         'flex items-center gap-2 overflow-hidden min-w-0 flex-1 transition-opacity duration-200',
-                        collapsed
-                            ? 'justify-center opacity-100 w-auto min-w-0 relative static pointer-events-auto'
-                            : 'opacity-100 delay-75'
+                        'opacity-100 delay-75'
                     )}
                 >
-                    {collapsed ? (
-                        <TenantBrandMark tenant={tenant} className="h-8 w-8" fallbackName={t('brand.title')} />
-                    ) : (
+                    {isPortalBrand ? (
                         <TenantBrandHeader
                             tenant={tenant}
                             title={brandTitle}
                             subtitle={brandSubtitle}
                             markClassName="h-8 w-8"
                         />
+                    ) : (
+                        <div className="flex items-center gap-2 overflow-hidden min-w-0">
+                            <TenantBrandMark tenant={tenant} className="h-8 w-8" fallbackName={t('brand.title')} />
+                            <div className="flex flex-col min-w-0">
+                                <span className="text-base font-bold leading-none tracking-tight truncate">
+                                    {t('brand.title')}
+                                </span>
+                                {userClientLogoUrl ? (
+                                    <img
+                                        src={userClientLogoUrl}
+                                        alt={userClientName ?? ''}
+                                        className="mt-1 h-4 max-w-[110px] object-contain object-left"
+                                    />
+                                ) : userClientName ? (
+                                    <span className="mt-0.5 text-[10px] text-muted-foreground font-medium truncate">
+                                        {userClientName}
+                                    </span>
+                                ) : null}
+                            </div>
+                        </div>
                     )}
                 </div>
+                )}
                 <Tooltip delayDuration={0} open={toggleBtnTooltipOpen} onOpenChange={setToggleBtnTooltipOpen}>
                     <TooltipTrigger asChild>
                         <Button

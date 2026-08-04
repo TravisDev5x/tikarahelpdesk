@@ -48,7 +48,7 @@ class HandleInertiaRequests extends Middleware
             $user->loadMissing([
                 'area:id,name',
                 'site:id,name,client_id',
-                'site.client:id,name',
+                'site.client:id,name,logo_path',
             ]);
         }
 
@@ -79,6 +79,7 @@ class HandleInertiaRequests extends Middleware
                     'is_operator' => $user->is_operator,
                     'client_id' => $user->client_id ?? $user->site?->client_id,
                     'client_name' => $user->site?->client?->name,
+                    'client_logo_path' => $user->site?->client?->logo_path,
                     'onboarding_completed' => $user->onboarding_completed,
                     'onboarding_redirect' => $onboarding->redirectPath($user),
                     'is_blacklisted' => $user->is_blacklisted,
