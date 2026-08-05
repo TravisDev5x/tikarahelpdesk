@@ -143,30 +143,38 @@ Route::middleware(['auth:sanctum','locale','perm:users.manage|catalogs.manage'])
 Route::middleware(['auth:sanctum','locale','perm:catalogs.manage'])->group(function () {
     Route::post('geocode', \App\Http\Controllers\Api\GeocodeController::class)
         ->middleware('throttle:20,1');
-    Route::apiResource('campaigns', CampaignController::class)
-        ->only(['index', 'store', 'update', 'destroy']);
-    Route::apiResource('sites', \App\Http\Controllers\Api\SiteController::class)
-        ->only(['index', 'store', 'update', 'destroy']);
-    Route::apiResource('clients', \App\Http\Controllers\Api\ClientController::class)
-        ->only(['index', 'store', 'update', 'destroy']);
-    Route::apiResource('locations', \App\Http\Controllers\Api\LocationController::class)
-        ->only(['index', 'store', 'update', 'destroy']);
-    Route::apiResource('priorities', \App\Http\Controllers\Api\PriorityController::class)
-        ->only(['index', 'store', 'update', 'destroy']);
-    Route::apiResource('impact-levels', \App\Http\Controllers\Api\ImpactLevelController::class)
-        ->only(['index', 'store', 'update', 'destroy']);
-    Route::apiResource('urgency-levels', \App\Http\Controllers\Api\UrgencyLevelController::class)
-        ->only(['index', 'store', 'update', 'destroy']);
-    Route::apiResource('ticket-states', \App\Http\Controllers\Api\TicketStateController::class)
-        ->only(['index', 'store', 'update', 'destroy']);
-    Route::apiResource('ticket-types', \App\Http\Controllers\Api\TicketTypeController::class)
-        ->only(['index', 'store', 'update', 'destroy']);
-    Route::apiResource('incident-types', \App\Http\Controllers\Api\IncidentTypeController::class)
-        ->only(['index', 'store', 'update', 'destroy']);
-    Route::apiResource('incident-severities', \App\Http\Controllers\Api\IncidentSeverityController::class)
-        ->only(['index', 'store', 'update', 'destroy']);
-    Route::apiResource('incident-statuses', \App\Http\Controllers\Api\IncidentStatusController::class)
-        ->only(['index', 'store', 'update', 'destroy']);
+
+    // Nombres prefijados con "api." -- routes/web.php ya usa estos mismos
+    // nombres (clients.index, areas.index, etc.) para sus páginas Inertia;
+    // sin el prefijo, route('clients.index') en PHP resolvía a esta ruta
+    // JSON en vez de a la página. Ver docs/ROUTE_NAME_COLLISIONS.md.
+    Route::name('api.')->group(function () {
+        Route::apiResource('campaigns', CampaignController::class)
+            ->only(['index', 'store', 'update', 'destroy']);
+        Route::apiResource('sites', \App\Http\Controllers\Api\SiteController::class)
+            ->only(['index', 'store', 'update', 'destroy']);
+        Route::apiResource('clients', \App\Http\Controllers\Api\ClientController::class)
+            ->only(['index', 'store', 'update', 'destroy']);
+        Route::apiResource('locations', \App\Http\Controllers\Api\LocationController::class)
+            ->only(['index', 'store', 'update', 'destroy']);
+        Route::apiResource('priorities', \App\Http\Controllers\Api\PriorityController::class)
+            ->only(['index', 'store', 'update', 'destroy']);
+        Route::apiResource('impact-levels', \App\Http\Controllers\Api\ImpactLevelController::class)
+            ->only(['index', 'store', 'update', 'destroy']);
+        Route::apiResource('urgency-levels', \App\Http\Controllers\Api\UrgencyLevelController::class)
+            ->only(['index', 'store', 'update', 'destroy']);
+        Route::apiResource('ticket-states', \App\Http\Controllers\Api\TicketStateController::class)
+            ->only(['index', 'store', 'update', 'destroy']);
+        Route::apiResource('ticket-types', \App\Http\Controllers\Api\TicketTypeController::class)
+            ->only(['index', 'store', 'update', 'destroy']);
+        Route::apiResource('incident-types', \App\Http\Controllers\Api\IncidentTypeController::class)
+            ->only(['index', 'store', 'update', 'destroy']);
+        Route::apiResource('incident-severities', \App\Http\Controllers\Api\IncidentSeverityController::class)
+            ->only(['index', 'store', 'update', 'destroy']);
+        Route::apiResource('incident-statuses', \App\Http\Controllers\Api\IncidentStatusController::class)
+            ->only(['index', 'store', 'update', 'destroy']);
+    });
+
     Route::get('priority-matrix', [\App\Http\Controllers\Api\PriorityMatrixController::class, 'index']);
     Route::post('priority-matrix/bulk', [\App\Http\Controllers\Api\PriorityMatrixController::class, 'updateBulk']);
 });
@@ -220,8 +228,10 @@ Route::middleware(['auth:sanctum','locale','perm:incidents.manage_all|incidents.
     Route::post('incidents/{incident}/unassign', [\App\Http\Controllers\Api\IncidentController::class, 'unassign']);
     Route::post('incidents/{incident}/attachments', [\App\Http\Controllers\Api\IncidentAttachmentController::class, 'store']);
     Route::delete('incidents/{incident}/attachments/{attachment}', [\App\Http\Controllers\Api\IncidentAttachmentController::class, 'destroy']);
-    Route::apiResource('incidents', \App\Http\Controllers\Api\IncidentController::class)
-        ->only(['index', 'store', 'update', 'show']);
+    Route::name('api.')->group(function () {
+        Route::apiResource('incidents', \App\Http\Controllers\Api\IncidentController::class)
+            ->only(['index', 'store', 'update', 'show']);
+    });
 });
 
 // Notificaciones (in-app, sólo lectura)
@@ -235,7 +245,7 @@ Route::middleware(['auth:sanctum','locale'])->group(function () {
 // AREAS
 // ==========================
 
-Route::middleware(['auth:sanctum','locale','perm:catalogs.manage'])->group(function () {
+Route::middleware(['auth:sanctum','locale','perm:catalogs.manage'])->name('api.')->group(function () {
     Route::apiResource('areas', AreaController::class)
         ->only(['index', 'store', 'update', 'destroy']);
 });
@@ -244,7 +254,7 @@ Route::middleware(['auth:sanctum','locale','perm:catalogs.manage'])->group(funct
 // PUESTOS
 // ==========================
 
-Route::middleware(['auth:sanctum','locale','perm:catalogs.manage'])->group(function () {
+Route::middleware(['auth:sanctum','locale','perm:catalogs.manage'])->name('api.')->group(function () {
     Route::apiResource('positions', PositionController::class)
         ->only(['index', 'store', 'update', 'destroy']);
 });

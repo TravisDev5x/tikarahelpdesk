@@ -1,6 +1,6 @@
 # Pendientes — índice consolidado
 
-Estado al 2026-08-04. Este documento junta, en un solo lugar, todo lo que
+Estado al 2026-08-05. Este documento junta, en un solo lugar, todo lo que
 quedó fuera del alcance de las últimas sesiones de trabajo: qué está
 diseñado pero no construido, qué está construido pero requiere
 configuración externa que no puedo hacer yo, y bugs conocidos sin
@@ -29,11 +29,11 @@ muestra deshabilitado en vez de romper la app (`googleConfigured()` /
 | Cola de revisión manual para correos no reconocidos | [`PENDING_TICKET_REVIEW.md`](./PENDING_TICKET_REVIEW.md) | Hoy, un correo de alguien que no es usuario activo del tenant simplemente no genera ticket (solo un `Log::warning`, nadie se entera). Falta: tabla de correos pendientes + UI para que un agente los apruebe/rechace manualmente y cree el ticket/usuario según corresponda. |
 | Mejorar calendario de tickets (`resources/js/Inertia/Pages/Calendar.jsx`) | — | Ya existe y funciona (agrupa tickets por día usando `created_at`, filtra por estado y por asignado/creado por mí). Falta: (1) mostrar hora exacta, no solo fecha, tanto de creación como en la lista de resultados; (2) mostrar fecha **y hora de cierre** (`tickets.resolved_at`, ya existe en el backend, el frontend nunca lo lee ni lo pinta) — hoy el calendario solo marca días por fecha de creación; (3) idealmente un toggle "ver por fecha de creación / por fecha de cierre" para que se pueda usar como reporte de cierre, no solo de alta. |
 
-## 3. Bug conocido, documentado pero no arreglado
+## 3. Bugs resueltos recientemente
 
-| Bug | Doc | Severidad | Resumen |
-|---|---|---|---|
-| Colisión de nombres de ruta `api.php` vs `web.php` | [`ROUTE_NAME_COLLISIONS.md`](./ROUTE_NAME_COLLISIONS.md) | Alta (impacto real confirmado solo en `clients.index`) | 16 nombres de ruta duplicados entre `routes/api.php` (sin prefijo) y `routes/web.php`; como `api.php` carga después, `route('clients.index')` en PHP resuelve a `/api/clients` (JSON) en vez de la página Inertia `/clients`. Solo `clients.index` tiene un call-site real afectado hoy (`CompanyController::show()`); el resto son colisiones latentes. |
+| Bug | Doc | Resumen |
+|---|---|---|
+| Colisión de nombres de ruta `api.php` vs `web.php` | [`ROUTE_NAME_COLLISIONS.md`](./ROUTE_NAME_COLLISIONS.md) | Arreglado 2026-08-05. Los 13 `apiResource` de `routes/api.php` que colisionaban con nombres de página de `routes/web.php` (16 nombres en total) ahora se registran con prefijo `api.`. Verificado con `route:list` (0 colisiones) y `composer test`. |
 
 ## 4. Roadmaps vivos (referencia, no acción pendiente puntual)
 

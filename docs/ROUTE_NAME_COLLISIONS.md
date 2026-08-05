@@ -1,9 +1,19 @@
 # Colisión de nombres de ruta: `routes/api.php` vs `routes/web.php`
 
-**Severidad: alta.** Encontrado en vivo el 2026-08-04 probando el flujo de
-"Mi empresa" como `super_admin` (ver `docs/RBAC_ROADMAP.md` para el bug de
-`team_id` que destapó esta ruta de código por primera vez). Pendiente de
-arreglar — este documento es el registro para hacerlo después, no el fix.
+**Estado: arreglado (2026-08-05).** Encontrado en vivo el 2026-08-04
+probando el flujo de "Mi empresa" como `super_admin` (ver
+`docs/RBAC_ROADMAP.md` para el bug de `team_id` que destapó esta ruta de
+código por primera vez).
+
+Fix aplicado en `routes/api.php`: los 13 `apiResource(...)` que colisionaban
+con nombres de `routes/web.php` ahora están envueltos en
+`Route::name('api.')->group(...)`, anidado dentro del grupo de middleware
+existente (para no afectar las rutas sin nombre del mismo grupo, como
+`geocode` o `priority-matrix/bulk`). Verificado con
+`php artisan route:list` (0 colisiones de nombre en toda la app) y
+`composer test` (231 passed). Confirmado en vivo: `GET /company` como
+`super_admin` ahora redirige a `/clients` (página Inertia), no a
+`/api/clients` (JSON).
 
 ## El problema
 
