@@ -361,8 +361,12 @@ export function Sidebar({ collapsed, onToggle, onNavigate, currentPath: currentP
         hasRole('super_admin') ||
         can('clients.view')
 
+    // super_admin no tiene OperatorProfile propio -- /company siempre lo
+    // redirige a /clients (ver CompanyController::show()), que ya tiene su
+    // propio link en el sidebar. Ocultar "Mi empresa" evita un duplicado
+    // que aparenta ser un flujo roto.
     const canSeeCompany =
-        Boolean(user?.is_operator) || can('company.view')
+        (Boolean(user?.is_operator) || can('company.view')) && !hasRole('super_admin')
 
     const canSeeCatalogs = can('catalogs.manage') || can('tickets.view_area') || can('tickets.manage_all')
     const canSeeIncidents = can('incidents.view_own') || can('incidents.view_area') || can('incidents.manage_all')
@@ -442,18 +446,24 @@ export function Sidebar({ collapsed, onToggle, onNavigate, currentPath: currentP
         }
 
         // BLOQUE: CATÁLOGOS (colapsable como los demás módulos; sin Roles ni Permisos, van en Sistema)
-        const catalogChildren = [
-            inertiaNav('/campaigns', { label: t('nav.campaigns'), icon: Megaphone }),
-            inertiaNav('/areas', { label: t('nav.areas'), icon: Network }),
-            inertiaNav('/positions', { label: t('nav.positions'), icon: Briefcase }),
-            inertiaNav('/locations', { label: t('nav.locations'), icon: MapPin }),
-        ]
-        const catalogGroup = {
-            label: t('nav.catalogs'),
-            icon: Layers,
-            children: catalogChildren,
+        // campaigns/areas/positions/locations están gateados en el backend
+        // por perm:catalogs.manage (routes/api.php); sin este check el link
+        // se mostraba a cualquier usuario autenticado aunque el backend le
+        // negara el acceso real.
+        if (can('catalogs.manage')) {
+            const catalogChildren = [
+                inertiaNav('/campaigns', { label: t('nav.campaigns'), icon: Megaphone }),
+                inertiaNav('/areas', { label: t('nav.areas'), icon: Network }),
+                inertiaNav('/positions', { label: t('nav.positions'), icon: Briefcase }),
+                inertiaNav('/locations', { label: t('nav.locations'), icon: MapPin }),
+            ]
+            const catalogGroup = {
+                label: t('nav.catalogs'),
+                icon: Layers,
+                children: catalogChildren,
+            }
+            sections.push({ sectionId: 'catalogs', label: t('section.catalogs'), items: [catalogGroup] })
         }
-        sections.push({ sectionId: 'catalogs', label: t('section.catalogs'), items: [catalogGroup] })
 
         // BLOQUE 3: SISTEMA (solo administradores; colapsable; incluye Roles y Permisos)
         if (isAdmin) {
