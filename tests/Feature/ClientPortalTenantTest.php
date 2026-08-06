@@ -5,12 +5,15 @@ namespace Tests\Feature;
 use App\Models\AuditLog;
 use App\Models\Client;
 use App\Models\User;
+use App\Notifications\Security\TenantBoundaryViolationNotification;
 use App\Services\TenantContextService;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Notification;
+use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
 class ClientPortalTenantTest extends TestCase
@@ -136,6 +139,42 @@ class ClientPortalTenantTest extends TestCase
             'client_id' => $clientA->id,
             'user_id' => $userB->id,
         ]);
+    }
+
+    public function test_boundary_violation_notifies_operator_and_super_admin_once(): void
+    {
+        if (! \Schema::hasColumn('clients', 'portal_slug')) {
+            $this->markTestSkipped('Migración portal_slug no aplicada.');
+        }
+
+        Notification::fake();
+        Role::firstOrCreate(['name' => 'super_admin', 'guard_name' => 'web'], ['slug' => 'super_admin']);
+
+        $op = $this->bareUser(['email' => 'operator-notif@test.local', 'is_operator' => true]);
+        $clientA = Client::create(['name' => 'Empresa Atacada', 'portal_slug' => 'client-a-notif', 'operator_user_id' => $op->id, 'is_active' => true]);
+        $clientB = Client::create(['name' => 'B', 'portal_slug' => 'client-b-notif', 'operator_user_id' => $op->id, 'is_active' => true]);
+
+        $super = $this->bareUser(['email' => 'super-notif@test.local']);
+        setPermissionsTeamId(config('tenancy.super_admin_team_id'));
+        $super->assignRole('super_admin');
+
+        $siteB = DB::table('sites')->insertGetId([
+            'name' => 'Sede B', 'code' => 'SB4', 'type' => 'physical', 'is_active' => true,
+            'client_id' => $clientB->id, 'created_at' => now(), 'updated_at' => now(),
+        ]);
+        $userB = $this->bareUser(['email' => 'access-blocked-notif@test.local', 'site_id' => $siteB, 'client_id' => $clientB->id]);
+
+        config(['tenancy.base_domain' => 'tikara.test', 'tenancy.strict_client_portal' => true]);
+
+        // Dos intentos seguidos -- solo debe llegar UNA notificación por destinatario (dedup 5 min).
+        $this->actingAs($userB)->getJson('http://client-a-notif.tikara.test/api/ping')->assertStatus(403);
+        $this->actingAs($userB)->getJson('http://client-a-notif.tikara.test/api/ping')->assertStatus(403);
+
+        Notification::assertSentToTimes($op, TenantBoundaryViolationNotification::class, 1);
+        Notification::assertSentToTimes($super, TenantBoundaryViolationNotification::class, 1);
+        Notification::assertSentTo($op, function (TenantBoundaryViolationNotification $n) use ($clientA) {
+            return $n->clientId === $clientA->id && $n->event === 'access_blocked';
+        });
     }
 
     private function bareUser(array $overrides = []): User

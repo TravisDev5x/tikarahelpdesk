@@ -5,11 +5,14 @@ namespace App\Services;
 use App\Models\AuditLog;
 use App\Models\Client;
 use App\Models\User;
+use App\Notifications\Security\TenantBoundaryViolationNotification;
 use App\Support\Tenancy\TenantContext;
 use App\Support\Tenancy\TenantContext as Ctx;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
@@ -125,6 +128,61 @@ class TenantContextService
             ]);
         } catch (\Throwable $e) {
             Log::error('Tenant boundary audit log failed', [
+                'event' => $event,
+                'error' => $e->getMessage(),
+            ]);
+        }
+
+        $this->notifyBoundaryViolation($user, $event, $attemptedClientId);
+    }
+
+    /**
+     * Avisa a super_admin y al operador dueño del cliente atacado. Deduplicado
+     * 5 min por (evento, usuario, cliente) vía cache -- evita saturar de
+     * notificaciones si un cliente queda atorado reintentando (ej. bucle de
+     * redirect por sesión/cookie inválida).
+     */
+    private function notifyBoundaryViolation(?User $user, string $event, ?int $attemptedClientId): void
+    {
+        try {
+            $throttleKey = "tenant_boundary_alert:{$event}:".($user?->id ?? 'guest').':'.($attemptedClientId ?? 'none');
+            if (! Cache::add($throttleKey, true, 300)) {
+                return;
+            }
+
+            $client = $attemptedClientId ? Client::find($attemptedClientId) : null;
+
+            // No usar el scope role() de Spatie aquí: con teams activo (RBAC v2), ese
+            // scope filtra por el team_id ambiente del request actual, que casi nunca
+            // coincide con el team_id centinela con el que se asignó super_admin (ver
+            // docblock de SuperAdminCrossTenantTest). Consulta directa a la tabla pivote
+            // para encontrar el rol sin importar el contexto de team activo.
+            $superAdminRoleId = DB::table('roles')->where('name', 'super_admin')->value('id');
+            $superAdminIds = $superAdminRoleId
+                ? DB::table('model_has_roles')
+                    ->where('role_id', $superAdminRoleId)
+                    ->where('model_type', User::class)
+                    ->pluck('model_id')
+                : collect();
+            $recipients = $superAdminIds->isNotEmpty() ? User::whereIn('id', $superAdminIds)->get() : collect();
+            if ($client?->operator_user_id) {
+                $operator = User::find($client->operator_user_id);
+                if ($operator && ! $recipients->contains('id', $operator->id)) {
+                    $recipients->push($operator);
+                }
+            }
+            if ($recipients->isEmpty()) {
+                return;
+            }
+
+            Notification::send($recipients, new TenantBoundaryViolationNotification(
+                event: $event,
+                userLabel: $user?->name ?? $user?->email,
+                clientName: $client?->name,
+                clientId: $attemptedClientId,
+            ));
+        } catch (\Throwable $e) {
+            Log::error('Tenant boundary alert notification failed', [
                 'event' => $event,
                 'error' => $e->getMessage(),
             ]);
