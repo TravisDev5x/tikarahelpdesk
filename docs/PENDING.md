@@ -1,6 +1,6 @@
 # Pendientes — índice consolidado
 
-Estado al 2026-08-05. Este documento junta, en un solo lugar, todo lo que
+Estado al 2026-08-06. Este documento junta, en un solo lugar, todo lo que
 quedó fuera del alcance de las últimas sesiones de trabajo: qué está
 diseñado pero no construido, qué está construido pero requiere
 configuración externa que no puedo hacer yo, y bugs conocidos sin
@@ -40,6 +40,7 @@ muestra deshabilitado en vez de romper la app (`googleConfigured()` /
 | Alertas proactivas de seguridad cross-tenant | — | Construido 2026-08-06. `TenantContextService::notifyBoundaryViolation()` notifica (canal `database`, campanita existente) a todos los `super_admin` + al operador dueño del cliente atacado, cada vez que ocurre un `login_rejected` o `access_blocked`. Dedup 5 min por (evento, usuario, cliente) vía cache para no saturar si un cliente queda atorado reintentando. **Queda pendiente**: solo canal in-app — sin email/Slack (fácil de agregar: la notificación ya declara `via()`, solo falta sumar el canal). |
 | Tickets duplicados por reintento de webhook de correo | — | Arreglado 2026-08-06 (auditoría de concurrencia, hueco 1). Unique constraint en `tickets(client_id, origin_message_id)` + chequeo previo en `ProcessInboundTicket` + catch de `UniqueConstraintViolationException` como backstop. Verificado en SQLite y Postgres real. |
 | Condición de carrera en `take()`/`assign()` de tickets e incidencias | — | Arreglado 2026-08-06 (auditoría de concurrencia, hueco 2). El chequeo de "¿ya asignado?" corría antes de abrir la transacción, sin lock -- dos requests casi simultáneos podían pisarse en silencio (notificación duplicada, el otro agente creyendo dueño de algo que no era suyo). Ahora relee con `lockForUpdate()` y re-chequea adentro de la transacción, en `TicketController`/`IncidentController`. Verificado contra Postgres real que el `SELECT ... FOR UPDATE` se emite (SQLite no soporta row-locking real, se salta ahí). **Queda pendiente**: mismo patrón sin corregir en `unassign()` (menor severidad -- doble unassign es idempotente, solo duplica el registro de historial). |
+| Toasts: fondo oscuro unificado (los 4 tipos) | — | Arreglado 2026-08-06. `success`/`error`/`warning`/`info` ahora comparten fondo casi negro fijo (`--toast-*: 0 0% 9%`, independiente de tema claro/oscuro), acento de color por tipo en título/badge (mismo tono que `badgeStyles.js`), estilo referencia sileo.aaryan.design. De paso se corrigió un bug real de posicionamiento: el viewport de sileo (`fixed, top:0`) colisionaba con el header sticky de `AuthenticatedLayout`, dejando el toast pegado/cortado detrás de él -- ahora con offset `top: 4.5rem`. Verificado con Chromium headless real contra el dev server. |
 
 ## 4. Roadmaps vivos (referencia, no acción pendiente puntual)
 
