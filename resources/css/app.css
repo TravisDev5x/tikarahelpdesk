@@ -73,10 +73,12 @@
     --chart-8: 84 81% 44%;
 
     /* Toasts (HSL sin hsl()) */
-    --toast-success: 142 76% 96%;
-    --toast-error: 0 86% 97%;
-    --toast-warning: 38 92% 96%;
-    --toast-info: 214 95% 96%;
+    /* Fondo casi negro fijo para los 4 tipos (independiente del tema claro/
+       oscuro), estilo referencia sileo.aaryan.design -- ver notify.js */
+    --toast-success: 0 0% 9%;
+    --toast-error: 0 0% 9%;
+    --toast-warning: 0 0% 9%;
+    --toast-info: 0 0% 9%;
 }
 
 /* Modo oscuro */
@@ -132,10 +134,10 @@
     --chart-7: 187 80% 55%;
     --chart-8: 84 70% 55%;
 
-    --toast-success: 142 35% 16%;
-    --toast-error: 0 45% 18%;
-    --toast-warning: 38 45% 18%;
-    --toast-info: 214 45% 18%;
+    --toast-success: 0 0% 9%;
+    --toast-error: 0 0% 9%;
+    --toast-warning: 0 0% 9%;
+    --toast-info: 0 0% 9%;
 }
 
 /* Superficies (opción A — heredan :root / .dark del html) */
@@ -478,5 +480,16 @@ html {
 [data-no-transition],
 [data-no-transition] * {
     transition: none !important;
+}
+
+/* Toasts (sileo) top-center: el header sticky de AuthenticatedLayout
+   (h-16, sticky top-0 z-30) y el viewport de sileo (fixed, top: 0) compiten
+   por el mismo espacio -- sin este offset el toast queda pegado/tapando el
+   header en vez de flotar limpio arriba de todo. Todas las páginas que
+   disparan notify.* usan AuthenticatedLayout, así que el offset es seguro
+   de forma global. !important porque sileo/styles.css se importa después
+   de este archivo en inertia.jsx y gana el empate de especificidad. */
+[data-sileo-viewport][data-position^="top"] {
+    top: 4.5rem !important;
 }
 

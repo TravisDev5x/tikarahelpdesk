@@ -12,13 +12,34 @@ import { sileo } from "sileo";
 
 const DEFAULT_DURATION = { success: 4000, info: 4000, warning: 6000, error: 8000 };
 
-/** Fondos por tipo; siguen --toast-* en :root y .dark (app.css). */
+/** Fondos por tipo; siguen --toast-* en :root y .dark (app.css) -- casi negro fijo, los 4 tipos. */
 const FILL_BY_TYPE = {
     success: "hsl(var(--toast-success))",
     error: "hsl(var(--toast-error))",
     warning: "hsl(var(--toast-warning))",
     info: "hsl(var(--toast-info))",
 };
+
+/**
+ * Título/badge por tipo, mismo tono que ya usa el resto de la app para cada
+ * estado (badgeStyles.js: emerald/destructive/amber/blue). Descripción
+ * siempre gris neutro -- mismo patrón para los 4, estilo referencia
+ * sileo.aaryan.design (fondo casi negro fijo + texto claro a juego).
+ */
+const STYLES_BY_TYPE = {
+    success: { title: "text-emerald-400!", badge: "bg-emerald-500/20!" },
+    error: { title: "text-red-400!", badge: "bg-red-500/20!" },
+    warning: { title: "text-amber-400!", badge: "bg-amber-500/20!" },
+    info: { title: "text-blue-400!", badge: "bg-blue-500/20!" },
+};
+
+function stylesFor(type, overrides) {
+    return {
+        ...STYLES_BY_TYPE[type],
+        description: "text-neutral-400!",
+        ...overrides,
+    };
+}
 
 function normalizePayload(msgOrPayload, defaultTitle) {
     if (typeof msgOrPayload === "string") {
@@ -38,6 +59,7 @@ export const notify = {
             ...payload,
             fill: payload.fill ?? FILL_BY_TYPE.success,
             duration: payload.duration ?? DEFAULT_DURATION.success,
+            styles: stylesFor("success", payload.styles),
         });
     },
     error(msgOrPayload) {
@@ -46,6 +68,7 @@ export const notify = {
             ...payload,
             fill: payload.fill ?? FILL_BY_TYPE.error,
             duration: payload.duration ?? DEFAULT_DURATION.error,
+            styles: stylesFor("error", payload.styles),
         });
     },
     warning(msgOrPayload) {
@@ -54,6 +77,7 @@ export const notify = {
             ...payload,
             fill: payload.fill ?? FILL_BY_TYPE.warning,
             duration: payload.duration ?? DEFAULT_DURATION.warning,
+            styles: stylesFor("warning", payload.styles),
         });
     },
     info(msgOrPayload) {
@@ -62,6 +86,7 @@ export const notify = {
             ...payload,
             fill: payload.fill ?? FILL_BY_TYPE.info,
             duration: payload.duration ?? DEFAULT_DURATION.info,
+            styles: stylesFor("info", payload.styles),
         });
     },
     promise(promise, messages = {}) {
