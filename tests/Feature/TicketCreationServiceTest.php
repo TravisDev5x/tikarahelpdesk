@@ -101,4 +101,80 @@ class TicketCreationServiceTest extends TestCase
         $this->assertNotNull($ticket->folio);
         $this->assertMatchesRegularExpression('/^TK-[A-Z]\d{5}-[A-Z0-9]{1,10}-\d{5}$/', $ticket->folio);
     }
+
+    /**
+     * Mailgun reintenta el webhook si la respuesta tarda o no es 2xx -- el
+     * mismo correo (mismo Message-Id) puede llegar dos veces. No debe
+     * producir dos tickets.
+     */
+    public function test_duplicate_webhook_delivery_does_not_create_a_second_ticket(): void
+    {
+        $fixture = $this->createTenantFixtureSet();
+        $tenant = Client::find($fixture['client_id']);
+
+        DB::table('sites')->where('id', $fixture['site_id'])->update([
+            'client_id' => $tenant->id,
+            'is_active' => true,
+        ]);
+        DB::table('users')->where('id', $fixture['user_id'])->update(['client_id' => $tenant->id]);
+        $requesterEmail = \App\Models\User::find($fixture['user_id'])->email;
+
+        $now = now();
+        DB::table('ticket_types')->insertOrIgnore(['id' => 3, 'name' => 'Solicitud de cambio', 'code' => 'change_request', 'is_active' => true, 'created_at' => $now, 'updated_at' => $now]);
+        DB::table('priorities')->insertOrIgnore(['id' => 3, 'name' => 'Media', 'level' => 3, 'is_active' => true, 'created_at' => $now, 'updated_at' => $now]);
+
+        $payload = [
+            'from' => $requesterEmail,
+            'from_name' => 'Cliente Prueba',
+            'to' => 'soporte@'.$tenant->portal_slug.'.tikara.mx',
+            'subject' => 'Mi impresora no funciona',
+            'body_plain' => 'Detalle del problema.',
+            'message_id' => '<duplicado-webhook@empresa.test>',
+        ];
+
+        // Misma entrega procesada dos veces (retry de Mailgun).
+        ProcessInboundTicket::dispatch($tenant->id, $payload);
+        ProcessInboundTicket::dispatch($tenant->id, $payload);
+
+        $count = \App\Models\Ticket::where('client_id', $tenant->id)
+            ->where('origin_message_id', '<duplicado-webhook@empresa.test>')
+            ->count();
+
+        $this->assertSame(1, $count, 'El reintento del webhook no debe crear un segundo ticket.');
+    }
+
+    /** El unique constraint es el backstop real, independiente del chequeo previo del job. */
+    public function test_origin_message_id_is_unique_constraint_at_db_level(): void
+    {
+        $fixture = $this->createTenantFixtureSet();
+        $service = app(TicketCreationService::class);
+
+        $service->create([
+            'subject' => 'Uno',
+            'origin_message_id' => '<mismo@empresa.test>',
+            'area_origin_id' => $fixture['area_id'],
+            'area_current_id' => $fixture['area_id'],
+            'site_id' => $fixture['site_id'],
+            'client_id' => $fixture['client_id'],
+            'requester_id' => $fixture['user_id'],
+            'ticket_type_id' => $fixture['ticket_type_id'],
+            'priority_id' => $fixture['priority_id'],
+            'ticket_state_id' => $fixture['ticket_state_id'],
+        ]);
+
+        $this->expectException(\Illuminate\Database\UniqueConstraintViolationException::class);
+
+        $service->create([
+            'subject' => 'Dos (mismo Message-Id, sin pasar por el chequeo previo del job)',
+            'origin_message_id' => '<mismo@empresa.test>',
+            'area_origin_id' => $fixture['area_id'],
+            'area_current_id' => $fixture['area_id'],
+            'site_id' => $fixture['site_id'],
+            'client_id' => $fixture['client_id'],
+            'requester_id' => $fixture['user_id'],
+            'ticket_type_id' => $fixture['ticket_type_id'],
+            'priority_id' => $fixture['priority_id'],
+            'ticket_state_id' => $fixture['ticket_state_id'],
+        ]);
+    }
 }

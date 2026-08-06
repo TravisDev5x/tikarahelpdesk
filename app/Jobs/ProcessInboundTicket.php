@@ -4,12 +4,14 @@ namespace App\Jobs;
 
 use App\Mail\RegistrationRequiredMail;
 use App\Models\Client;
+use App\Models\Ticket;
 use App\Services\Classification\TicketClassifierService;
 use App\Services\Tenant\TenantContextService;
 use App\Services\TicketCreationService;
 use App\Support\Tenancy\PgsqlRowLevelSecurity;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
@@ -75,7 +77,24 @@ class ProcessInboundTicket implements ShouldQueue
 
         $requester = $resolution->user;
 
-        DB::transaction(function () use ($tenant, $classifier, $ticketCreation, $requester) {
+        // Dedup contra reintento de webhook (Mailgun reintenta si la respuesta
+        // tarda o no es 2xx -- misma entrega, mismo Message-Id, procesada dos
+        // veces). Chequeo temprano evita el trabajo de clasificación/lookup en
+        // el caso normal; el constraint único en la migración
+        // 2026_08_06_000001 es el backstop real contra la ventana de carrera
+        // entre dos entregas casi simultáneas (ver catch más abajo).
+        $originMessageId = $this->parsedEmail['message_id'] ?: null;
+        if ($originMessageId && Ticket::where('client_id', $this->clientId)->where('origin_message_id', $originMessageId)->exists()) {
+            Log::info('ProcessInboundTicket: correo duplicado (Message-Id ya procesado), no se crea ticket', [
+                'client_id' => $this->clientId,
+                'message_id' => $originMessageId,
+            ]);
+
+            return;
+        }
+
+        try {
+            DB::transaction(function () use ($tenant, $classifier, $ticketCreation, $requester, $originMessageId) {
             $classification = $classifier->classify(
                 subject:  $this->parsedEmail['subject'],
                 body:     $this->parsedEmail['body_plain'],
@@ -106,7 +125,7 @@ class ProcessInboundTicket implements ShouldQueue
             $ticket = $ticketCreation->create([
                 'client_id'        => $this->clientId,
                 'source'           => 'email',
-                'origin_message_id'=> $this->parsedEmail['message_id'] ?: null,
+                'origin_message_id'=> $originMessageId,
                 'subject'          => mb_substr($this->parsedEmail['subject'], 0, 255),
                 'description'      => $this->parsedEmail['body_plain'],
                 'requester_id'     => $requester->id,
@@ -130,7 +149,17 @@ class ProcessInboundTicket implements ShouldQueue
             // Antes solo el flujo de portal disparaba esto (MyTicketsController::store);
             // el de email nunca notificaba nada, ni siquiera in-app.
             \App\Events\TicketCreated::dispatch($ticket);
-        });
+            });
+        } catch (UniqueConstraintViolationException $e) {
+            // Backstop real: dos entregas del mismo webhook casi simultáneas
+            // pasaron ambas el chequeo previo (ventana de carrera) y el
+            // constraint de BD atajó la segunda. No es una falla real -- no
+            // reintentar (evita 2 intentos más idénticos hasta agotar tries).
+            Log::info('ProcessInboundTicket: constraint único atajó una carrera de webhook duplicado', [
+                'client_id' => $this->clientId,
+                'message_id' => $originMessageId,
+            ]);
+        }
     }
 
     public function failed(\Throwable $exception): void
