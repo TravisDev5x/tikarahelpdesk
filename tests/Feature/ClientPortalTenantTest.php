@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\AuditLog;
 use App\Models\Client;
 use App\Models\User;
 use App\Services\TenantContextService;
@@ -96,6 +97,45 @@ class ClientPortalTenantTest extends TestCase
 
         $response->assertStatus(403)
             ->assertJsonPath('errors.root', 'No tienes acceso a este portal. Inicia sesión en la URL de tu organización.');
+
+        $this->assertDatabaseHas('audit_logs', [
+            'auditable_type' => 'tenant_boundary',
+            'action' => 'login_rejected',
+            'client_id' => $clientA->id,
+            'user_id' => $userB->id,
+        ]);
+    }
+
+    public function test_authenticated_access_to_wrong_portal_is_logged(): void
+    {
+        if (! \Schema::hasColumn('clients', 'portal_slug')) {
+            $this->markTestSkipped('Migración portal_slug no aplicada.');
+        }
+
+        $op = $this->bareUser(['is_operator' => true]);
+        $clientA = Client::create(['name' => 'A', 'portal_slug' => 'client-a', 'operator_user_id' => $op->id, 'is_active' => true]);
+        $clientB = Client::create(['name' => 'B', 'portal_slug' => 'client-b', 'operator_user_id' => $op->id, 'is_active' => true]);
+
+        $siteB = DB::table('sites')->insertGetId([
+            'name' => 'Sede B', 'code' => 'SB3', 'type' => 'physical', 'is_active' => true,
+            'client_id' => $clientB->id, 'created_at' => now(), 'updated_at' => now(),
+        ]);
+
+        $userB = $this->bareUser(['email' => 'access-blocked@test.local', 'site_id' => $siteB, 'client_id' => $clientB->id]);
+
+        config(['tenancy.base_domain' => 'tikara.test', 'tenancy.strict_client_portal' => true]);
+
+        $response = $this->actingAs($userB)
+            ->getJson('http://client-a.tikara.test/api/ping');
+
+        $response->assertStatus(403);
+
+        $this->assertDatabaseHas('audit_logs', [
+            'auditable_type' => 'tenant_boundary',
+            'action' => 'access_blocked',
+            'client_id' => $clientA->id,
+            'user_id' => $userB->id,
+        ]);
     }
 
     private function bareUser(array $overrides = []): User

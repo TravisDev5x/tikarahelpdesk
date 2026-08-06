@@ -38,6 +38,11 @@ class EnforceTenantBoundary
         }
 
         if (! $this->tenantContext->userCanAccessCurrentPortal($user)) {
+            $this->tenantContext->logBoundaryViolation($user, 'access_blocked', $ctx->clientId, [
+                'host' => $request->getHost(),
+                'path' => $request->path(),
+            ]);
+
             if ($request->expectsJson()) {
                 return response()->json([
                     'message' => 'No tienes acceso a este portal. Inicia sesión en la URL de tu organización.',

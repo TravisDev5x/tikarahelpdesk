@@ -29,11 +29,14 @@ muestra deshabilitado en vez de romper la app (`googleConfigured()` /
 | Cola de revisión manual para correos no reconocidos | [`PENDING_TICKET_REVIEW.md`](./PENDING_TICKET_REVIEW.md) | Hoy, un correo de alguien que no es usuario activo del tenant simplemente no genera ticket (solo un `Log::warning`, nadie se entera). Falta: tabla de correos pendientes + UI para que un agente los apruebe/rechace manualmente y cree el ticket/usuario según corresponda. |
 | Mejorar calendario de tickets (`resources/js/Inertia/Pages/Calendar.jsx`) | — | Ya existe y funciona (agrupa tickets por día usando `created_at`, filtra por estado y por asignado/creado por mí). Falta: (1) mostrar hora exacta, no solo fecha, tanto de creación como en la lista de resultados; (2) mostrar fecha **y hora de cierre** (`tickets.resolved_at`, ya existe en el backend, el frontend nunca lo lee ni lo pinta) — hoy el calendario solo marca días por fecha de creación; (3) idealmente un toggle "ver por fecha de creación / por fecha de cierre" para que se pueda usar como reporte de cierre, no solo de alta. |
 
-## 3. Bugs resueltos recientemente
+## 3. Bugs/features resueltos recientemente
 
-| Bug | Doc | Resumen |
+| Ítem | Doc | Resumen |
 |---|---|---|
 | Colisión de nombres de ruta `api.php` vs `web.php` | [`ROUTE_NAME_COLLISIONS.md`](./ROUTE_NAME_COLLISIONS.md) | Arreglado 2026-08-05. Los 13 `apiResource` de `routes/api.php` que colisionaban con nombres de página de `routes/web.php` (16 nombres en total) ahora se registran con prefijo `api.`. Verificado con `route:list` (0 colisiones) y `composer test`. |
+| Sidebar: "Mi empresa" duplicaba "Clientes" para `super_admin` | — | Arreglado 2026-08-05. `/company` siempre redirige a `/clients` para `super_admin` (no tiene `OperatorProfile`); el link ya no se muestra para ese rol. |
+| Sidebar: sección "Catálogos" sin gate de permiso | — | Arreglado 2026-08-05. Ahora requiere `catalogs.manage`, igual que el backend. Antes cualquier usuario autenticado la veía aunque el backend le negara el acceso. |
+| Monitoreo cross-tenant (`MULTITENANT_ROADMAP.md` 5.5) | [`MULTITENANT_ROADMAP.md`](./MULTITENANT_ROADMAP.md) | Construido 2026-08-05. `EnforceTenantBoundary` y el login rechazado por portal incorrecto ahora escriben a `audit_logs`; pestaña "Seguridad" nueva en `/audit-command`. **Queda pendiente**: son solo pasivos (hay que entrar a revisarlos) — no hay alertas proactivas (email/Slack) cuando ocurre un evento. |
 
 ## 4. Roadmaps vivos (referencia, no acción pendiente puntual)
 

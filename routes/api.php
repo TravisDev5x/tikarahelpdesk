@@ -234,6 +234,12 @@ Route::middleware(['auth:sanctum','locale','perm:incidents.manage_all|incidents.
     });
 });
 
+// Seguridad: eventos de frontera de tenant (login/acceso cross-tenant rechazado).
+// Mismo permiso que el centro de auditoría de tickets (tickets.manage_all).
+Route::middleware(['auth:sanctum','locale','perm:tickets.manage_all'])->group(function () {
+    Route::get('security/tenant-boundary-events', [\App\Http\Controllers\Api\TenantSecurityController::class, 'index']);
+});
+
 // Notificaciones (in-app, sólo lectura)
 Route::middleware(['auth:sanctum','locale'])->group(function () {
     Route::get('notifications', [\App\Http\Controllers\Api\NotificationController::class, 'index']);

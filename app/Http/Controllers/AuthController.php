@@ -41,6 +41,9 @@ class AuthController extends Controller
                 'user_id' => $user->id,
                 'host'    => $request->getHost(),
             ]);
+            $tenantContext->logBoundaryViolation($user, 'login_rejected', $tenantContext->current()->clientId, [
+                'host' => $request->getHost(),
+            ]);
             // Solo revelamos el motivo exacto cuando las credenciales son correctas.
             // Si el password es incorrecto, devolvemos el mismo 422 genérico para
             // evitar enumeración cross-tenant.

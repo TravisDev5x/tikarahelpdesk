@@ -59,7 +59,7 @@ Estado base (2026-06): aislamiento en aplicación (MSP + portal + login tenant-a
 | 5.2 | Subdominio MSP (`operador.tikara.test`) | Modo `msp_console` |
 | 5.3 | SSO/OIDC por cliente (opcional) | Login federado en portal |
 | 5.4 | Panel “URL de portal” en ficha cliente + copiar enlace | UX operador |
-| 5.5 | Monitoreo: intentos login portal incorrecto, 403 tenant | Alertas |
+| 5.5 | ✅ Monitoreo: intentos login portal incorrecto, 403 tenant | Hecho 2026-08-05 — `TenantContextService::logBoundaryViolation()` escribe a `audit_logs`, pestaña "Seguridad" en `/audit-command`. Falta: alertas proactivas (hoy hay que entrar a verla, no notifica solo). |
 
 ## Definición de “100 % sólido”
 

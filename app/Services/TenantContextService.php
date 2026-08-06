@@ -2,12 +2,14 @@
 
 namespace App\Services;
 
+use App\Models\AuditLog;
 use App\Models\Client;
 use App\Models\User;
 use App\Support\Tenancy\TenantContext;
 use App\Support\Tenancy\TenantContext as Ctx;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
@@ -99,6 +101,34 @@ class TenantContextService
         }
 
         return false;
+    }
+
+    /**
+     * Registra en audit_logs un intento cross-tenant (login rechazado por portal
+     * incorrecto, o acceso bloqueado de una sesión ya autenticada). Nunca debe
+     * interrumpir la petición principal si falla -- mismo patrón que Auditable trait.
+     *
+     * @param 'login_rejected'|'access_blocked' $event
+     */
+    public function logBoundaryViolation(?User $user, string $event, ?int $attemptedClientId, array $context = []): void
+    {
+        try {
+            AuditLog::create([
+                'user_id' => $user?->id,
+                'client_id' => $attemptedClientId,
+                'auditable_type' => 'tenant_boundary',
+                'auditable_id' => $attemptedClientId ?? 0,
+                'action' => $event,
+                'new_values' => $context,
+                'ip_address' => request()?->ip(),
+                'user_agent' => request()?->userAgent(),
+            ]);
+        } catch (\Throwable $e) {
+            Log::error('Tenant boundary audit log failed', [
+                'event' => $event,
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 
     public function loginUrlForClient(Client $client): ?string

@@ -9,12 +9,109 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
 import { notify } from "@/lib/notify";
 import { getApiErrorMessage } from "@/lib/apiErrors";
-import { Download, Loader2, Search, Ticket } from "lucide-react";
+import { Download, Loader2, Search, ShieldAlert, Ticket } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const PER_PAGE = 20;
+
+const BOUNDARY_EVENT_LABELS = {
+    login_rejected: { label: "Login rechazado", variant: "destructive" },
+    access_blocked: { label: "Acceso bloqueado", variant: "outline" },
+};
+
+function TenantBoundaryEventsTab() {
+    const [events, setEvents] = useState([]);
+    const [loading, setLoading] = useState(true);
+
+    const load = useCallback(async () => {
+        setLoading(true);
+        try {
+            const { data } = await axios.get("/api/security/tenant-boundary-events");
+            setEvents(Array.isArray(data.data) ? data.data : []);
+        } catch (err) {
+            notify.error(getApiErrorMessage(err, "No se pudieron cargar los eventos de seguridad"));
+            setEvents([]);
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
+    useEffect(() => {
+        load();
+    }, [load]);
+
+    return (
+        <Card>
+            <CardHeader className="pb-2">
+                <CardTitle className="text-base">Accesos cross-tenant rechazados</CardTitle>
+                <CardDescription>
+                    Intentos de login o acceso a un portal de cliente que no corresponde al usuario
+                    ({events.length} evento{events.length !== 1 ? "s" : ""})
+                </CardDescription>
+            </CardHeader>
+            <CardContent>
+                {loading ? (
+                    <div className="space-y-2">
+                        {[1, 2, 3, 4].map((i) => (
+                            <Skeleton key={i} className="h-10 w-full" />
+                        ))}
+                    </div>
+                ) : events.length === 0 ? (
+                    <div className="flex flex-col items-center gap-2 py-16 text-center text-sm text-muted-foreground">
+                        <ShieldAlert className="h-8 w-8 opacity-40" />
+                        Sin eventos registrados
+                    </div>
+                ) : (
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>Fecha</TableHead>
+                                <TableHead>Evento</TableHead>
+                                <TableHead>Usuario</TableHead>
+                                <TableHead>Cliente objetivo</TableHead>
+                                <TableHead>IP</TableHead>
+                                <TableHead>Detalle</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {events.map((ev) => {
+                                const meta = BOUNDARY_EVENT_LABELS[ev.action] ?? { label: ev.action, variant: "secondary" };
+                                return (
+                                    <TableRow key={ev.id}>
+                                        <TableCell className="whitespace-nowrap text-xs text-muted-foreground">
+                                            {ev.created_at
+                                                ? formatDistanceToNow(new Date(ev.created_at), { addSuffix: true, locale: es })
+                                                : "—"}
+                                        </TableCell>
+                                        <TableCell>
+                                            <Badge variant={meta.variant}>{meta.label}</Badge>
+                                        </TableCell>
+                                        <TableCell className="text-sm">
+                                            {ev.user ? (ev.user.name || ev.user.email) : "—"}
+                                        </TableCell>
+                                        <TableCell className="text-sm">{ev.client?.name ?? "—"}</TableCell>
+                                        <TableCell className="text-xs text-muted-foreground">
+                                            {ev.ip_address ?? "—"}
+                                        </TableCell>
+                                        <TableCell className="text-xs text-muted-foreground">
+                                            {ev.new_values?.host ?? "—"}
+                                            {ev.new_values?.path ? ` /${ev.new_values.path}` : ""}
+                                        </TableCell>
+                                    </TableRow>
+                                );
+                            })}
+                        </TableBody>
+                    </Table>
+                )}
+            </CardContent>
+        </Card>
+    );
+}
 
 function subjectFromLogs(logs) {
     for (const log of logs) {
@@ -140,6 +237,13 @@ export default function AuditCommandCenter() {
 
     return (
         <InertiaPageShell className="space-y-6">
+            <Tabs defaultValue="tickets" className="space-y-4">
+                <TabsList>
+                    <TabsTrigger value="tickets">Tickets</TabsTrigger>
+                    <TabsTrigger value="security">Seguridad</TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="tickets" className="space-y-4">
             <p className="text-sm text-muted-foreground">
                 Selecciona un ticket para ver su línea de tiempo de cambios
             </p>
@@ -290,6 +394,12 @@ export default function AuditCommandCenter() {
                     )}
                 </div>
             </div>
+                </TabsContent>
+
+                <TabsContent value="security">
+                    <TenantBoundaryEventsTab />
+                </TabsContent>
+            </Tabs>
         </InertiaPageShell>
     );
 }
