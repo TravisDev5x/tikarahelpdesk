@@ -20,6 +20,49 @@ class ClientPortalTenantTest extends TestCase
 {
     use RefreshDatabase;
 
+    /** Roadmap 5.4: panel "URL de portal" en ficha cliente -- TenantContextService::loginUrlForClient() estaba sin usar. */
+    public function test_client_show_page_exposes_portal_login_url(): void
+    {
+        if (! \Schema::hasColumn('clients', 'portal_slug')) {
+            $this->markTestSkipped('Migración portal_slug no aplicada.');
+        }
+
+        $op = $this->bareUser(['is_operator' => true, 'onboarding_completed' => true]);
+        $client = Client::create([
+            'name' => 'Acme',
+            'portal_slug' => 'acme',
+            'operator_user_id' => $op->id,
+            'is_active' => true,
+        ]);
+
+        config(['tenancy.base_domain' => 'tikara.test', 'tenancy.portal_scheme' => 'https']);
+
+        $response = $this->actingAs($op, 'web')->get("/clients/{$client->id}");
+
+        $response->assertInertia(fn ($page) => $page
+            ->component('Clients/Show', shouldExist: false)
+            ->where('portal_url', 'https://acme.tikara.test/login')
+        );
+    }
+
+    /** Sin portal_slug (nunca se le generó, ej. insert crudo previo al backfill): el panel no debe aparecer, no un enlace roto. */
+    public function test_client_show_page_omits_portal_url_without_slug(): void
+    {
+        $op = $this->bareUser(['is_operator' => true, 'onboarding_completed' => true]);
+        $client = Client::create([
+            'name' => 'Sin Portal',
+            'operator_user_id' => $op->id,
+            'is_active' => true,
+        ]);
+
+        $response = $this->actingAs($op, 'web')->get("/clients/{$client->id}");
+
+        $response->assertInertia(fn ($page) => $page
+            ->component('Clients/Show', shouldExist: false)
+            ->where('portal_url', null)
+        );
+    }
+
     public function test_subdomain_resolves_client_portal_context(): void
     {
         if (! \Schema::hasColumn('clients', 'portal_slug')) {

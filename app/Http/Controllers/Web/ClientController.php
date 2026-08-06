@@ -20,7 +20,8 @@ use Inertia\Response;
 class ClientController extends Controller
 {
     public function __construct(
-        protected OperatorScopeService $operatorScope
+        protected OperatorScopeService $operatorScope,
+        protected TenantContextService $tenantContext
     ) {}
 
     protected const INDUSTRIES = [
@@ -185,6 +186,7 @@ class ClientController extends Controller
 
         return Inertia::render('Clients/Show', [
             'client' => $client,
+            'portal_url' => $this->tenantContext->loginUrlForClient($client),
             'tickets_summary' => $ticketsSummary,
             'sites' => $client->sites,
             'users' => $client->users,

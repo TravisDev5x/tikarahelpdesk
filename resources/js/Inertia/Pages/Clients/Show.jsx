@@ -9,7 +9,7 @@ import { Separator } from "@/components/ui/separator";
 import { PlanTypeBadge } from "@/components/badges/EntityBadges";
 import { notify } from "@/lib/notify";
 import { MapPreview } from "@/components/maps/MapPreview";
-import { Check, Copy, ExternalLink, Mail, Pencil, Trash2 } from "lucide-react";
+import { Check, Copy, ExternalLink, Globe, Mail, Pencil, Trash2 } from "lucide-react";
 
 function initials(name) {
     const parts = String(name || "").trim().split(/\s+/).filter(Boolean);
@@ -29,10 +29,11 @@ function userFullName(user) {
         .join(" ");
 }
 
-export default function Show({ client, tickets_summary, sites, users, can }) {
+export default function Show({ client, portal_url, tickets_summary, sites, users, can }) {
     useFlash();
     const name = client.business_name || client.name;
     const [copied, setCopied] = useState(false);
+    const [copiedPortal, setCopiedPortal] = useState(false);
 
     const confirmDelete = () => {
         if (!window.confirm(`¿Eliminar a ${name}? Esta acción no se puede deshacer.`)) return;
@@ -46,6 +47,18 @@ export default function Show({ client, tickets_summary, sites, users, can }) {
             setCopied(true);
             notify.success("Correo copiado");
             setTimeout(() => setCopied(false), 2000);
+        } catch {
+            notify.error("No se pudo copiar. Cópialo manualmente.");
+        }
+    };
+
+    const copyPortalUrl = async () => {
+        if (!portal_url) return;
+        try {
+            await navigator.clipboard.writeText(portal_url);
+            setCopiedPortal(true);
+            notify.success("Enlace del portal copiado");
+            setTimeout(() => setCopiedPortal(false), 2000);
         } catch {
             notify.error("No se pudo copiar. Cópialo manualmente.");
         }
@@ -106,6 +119,46 @@ export default function Show({ client, tickets_summary, sites, users, can }) {
                                 </div>
                                 <p className="text-[11px] text-muted-foreground">
                                     Único canal externo para crear tickets por correo — compártelo con todo el equipo de {name}.
+                                </p>
+                            </div>
+                        )}
+                        {portal_url && (
+                            <div className="rounded-lg border border-primary/20 bg-primary/5 p-3 space-y-1.5">
+                                <div className="flex items-center gap-1.5 text-xs font-medium text-primary">
+                                    <Globe className="h-3.5 w-3.5" />
+                                    Portal del cliente
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <code className="flex-1 truncate text-xs">{portal_url}</code>
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-6 w-6 shrink-0"
+                                        onClick={copyPortalUrl}
+                                        title="Copiar enlace"
+                                    >
+                                        {copiedPortal ? (
+                                            <Check className="h-3.5 w-3.5 text-primary" />
+                                        ) : (
+                                            <Copy className="h-3.5 w-3.5" />
+                                        )}
+                                    </Button>
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-6 w-6 shrink-0"
+                                        asChild
+                                        title="Abrir portal"
+                                    >
+                                        <a href={portal_url} target="_blank" rel="noopener noreferrer">
+                                            <ExternalLink className="h-3.5 w-3.5" />
+                                        </a>
+                                    </Button>
+                                </div>
+                                <p className="text-[11px] text-muted-foreground">
+                                    Comparte este enlace con {name} para que su equipo entre directo a su portal.
                                 </p>
                             </div>
                         )}
