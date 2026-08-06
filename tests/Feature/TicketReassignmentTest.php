@@ -174,6 +174,66 @@ class TicketReassignmentTest extends TestCase
         });
     }
 
+    /**
+     * Auditoría de concurrencia (2026-08-06): take()/assign() chequeaban
+     * "¿ya asignado?" ANTES de abrir la transacción, sobre la instancia
+     * cargada por route-model-binding -- sin lockForUpdate() ni re-chequeo
+     * adentro. Dos requests casi simultáneos podían pasar ambos ese chequeo
+     * y el que guardaba al final ganaba en silencio (notificación
+     * duplicada, el otro agente creyendo que el ticket era suyo sin serlo).
+     *
+     * SQLite no soporta locking real de fila (la grammar de Laravel no
+     * emite SELECT ... FOR UPDATE para ese driver) y simular dos conexiones
+     * concurrentes de verdad requiere multiproceso -- fuera de alcance
+     * aquí. Esta prueba verifica, contra Postgres real, que el mecanismo
+     * que cierra la ventana de carrera (el lock de fila) efectivamente se
+     * emite en cada llamada; la garantía de serialización en sí es
+     * comportamiento estándar de Postgres, no algo que este test deba
+     * reprobar.
+     */
+    public function test_take_and_assign_acquire_a_row_lock_before_checking_assignment(): void
+    {
+        if (DB::connection()->getDriverName() !== 'pgsql') {
+            $this->markTestSkipped('Row lock real solo se emite/verifica contra Postgres.');
+        }
+
+        $agentA = $this->makeStaff('agente', [$this->siteA->id]);
+        $agentB = $this->makeStaff('agente', [$this->siteA->id]);
+        $supervisor = $this->makeStaff('supervisor', [$this->siteA->id]);
+
+        $ticketForTake = $this->makeTicket($this->siteA->id);
+        $ticketForAssign = $this->makeTicket($this->siteA->id);
+
+        // enableQueryLog()/getQueryLog() en vez de DB::listen(): un listener
+        // registrado a mano queda vivo para el resto del proceso de PHPUnit
+        // (no hay forma pública de desregistrarlo) y contamina tests que
+        // corren después en la misma corrida -- ya causó un falso negativo
+        // en MailablesTest antes de este cambio. El query log es
+        // autocontenido y se limpia con disableQueryLog().
+        DB::enableQueryLog();
+
+        $this->actingAs($agentA, 'web')
+            ->postJson("/api/tickets/{$ticketForTake->id}/take")
+            ->assertStatus(200);
+
+        $this->assertTrue(
+            collect(DB::getQueryLog())->contains(fn ($q) => str_contains(strtolower($q['query']), 'for update')),
+            'take() debe adquirir lock de fila (SELECT ... FOR UPDATE) antes de asignar.'
+        );
+
+        DB::flushQueryLog();
+        $this->actingAs($supervisor, 'web')
+            ->postJson("/api/tickets/{$ticketForAssign->id}/assign", ['assigned_user_id' => $agentB->id])
+            ->assertStatus(200);
+
+        $this->assertTrue(
+            collect(DB::getQueryLog())->contains(fn ($q) => str_contains(strtolower($q['query']), 'for update')),
+            'assign() debe adquirir lock de fila (SELECT ... FOR UPDATE) antes de asignar.'
+        );
+
+        DB::disableQueryLog();
+    }
+
     // ── Helpers (mismo patrón que TicketSiteScopingTest) ─────────────────
 
     /**

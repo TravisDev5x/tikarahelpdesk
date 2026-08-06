@@ -744,6 +744,19 @@ class TicketController extends Controller
         }
 
         return DB::transaction(function () use ($ticket, $user) {
+            // Relee bajo lock de fila: serializa contra otro take()/assign()
+            // concurrente sobre el mismo ticket. El chequeo de arriba corre
+            // antes de abrir la transacción (evita tomar el lock en el caso
+            // común ya-asignado) -- esta relectura es la que realmente cierra
+            // la ventana de carrera: antes, dos requests casi simultáneos
+            // pasaban ambos ese chequeo y el que guardaba al final ganaba en
+            // silencio, con notificación duplicada y el otro agente creyendo
+            // que el ticket era suyo sin serlo.
+            $ticket = Ticket::whereKey($ticket->id)->lockForUpdate()->firstOrFail();
+            if ($ticket->assigned_user_id) {
+                return response()->json(['message' => 'Ticket ya asignado'], 409);
+            }
+
             $openStateId = TicketState::findIdByCode(TicketState::CODE_OPEN);
             $progressStateId = TicketState::findIdByCode(TicketState::CODE_IN_PROGRESS);
             $beforeStateId = $ticket->ticket_state_id;
@@ -830,6 +843,21 @@ class TicketController extends Controller
         }
 
         return DB::transaction(function () use ($ticket, $user, $newUser, $isReassignment) {
+            $ticket = Ticket::whereKey($ticket->id)->lockForUpdate()->firstOrFail();
+
+            if ((int) $ticket->assigned_user_id === (int) $newUser->id) {
+                return response()->json(['message' => 'Ticket ya asignado a ese usuario'], 409);
+            }
+
+            // El estado de asignación cambió entre el Gate::authorize() de
+            // arriba (fuera del lock, decide 'assign' vs 'reassign') y esta
+            // relectura -- la ability correcta pudo cambiar con él. Más
+            // seguro rechazar y forzar reintento que aplicar un cambio que
+            // la policy nunca autorizó para el estado real actual.
+            if ($isReassignment !== (bool) $ticket->assigned_user_id) {
+                return response()->json(['message' => 'El ticket cambió de estado, vuelve a intentarlo'], 409);
+            }
+
             $prevAssignee = $ticket->assigned_user_id;
 
             $ticket->assigned_user_id = $newUser->id;

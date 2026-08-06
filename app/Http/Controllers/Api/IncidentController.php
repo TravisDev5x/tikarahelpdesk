@@ -341,6 +341,14 @@ class IncidentController extends Controller
         }
 
         return DB::transaction(function () use ($incident, $user) {
+            // Relee bajo lock de fila -- mismo fix que TicketController::take():
+            // cierra la ventana de carrera entre dos take() casi simultáneos
+            // sobre la misma incidencia.
+            $incident = Incident::whereKey($incident->id)->lockForUpdate()->firstOrFail();
+            if ($incident->assigned_user_id) {
+                return response()->json(['message' => 'Incidencia ya asignada'], 409);
+            }
+
             $incident->assigned_user_id = $user->id;
             $incident->save();
 
@@ -393,6 +401,12 @@ class IncidentController extends Controller
         }
 
         return DB::transaction(function () use ($incident, $user, $newUser) {
+            $incident = Incident::whereKey($incident->id)->lockForUpdate()->firstOrFail();
+
+            if ((int) $incident->assigned_user_id === (int) $newUser->id) {
+                return response()->json(['message' => 'Incidencia ya asignada a ese usuario'], 409);
+            }
+
             $prevAssignee = $incident->assigned_user_id;
 
             $incident->assigned_user_id = $newUser->id;
