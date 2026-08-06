@@ -7,7 +7,7 @@ Modelo **MSP → empresas cliente** con aislamiento por tenant, portales por sub
 
 <br />
 
-[![Tests](https://github.com/TravisDev5x/ekindesk/actions/workflows/tests.yml/badge.svg)](https://github.com/TravisDev5x/ekindesk/actions/workflows/tests.yml)
+[![Tests](https://github.com/TravisDev5x/tikarahelpdesk/actions/workflows/tests.yml/badge.svg)](https://github.com/TravisDev5x/tikarahelpdesk/actions/workflows/tests.yml)
 ![License](https://img.shields.io/badge/License-Source_Available-lightgrey?style=for-the-badge)
 
 <br />
@@ -49,9 +49,12 @@ Tikara centraliza tickets, incidencias, catálogos, usuarios y permisos en una s
 | **Incidencias** | Flujo paralelo con tipos, severidades, estados y políticas de visibilidad por área o cliente. |
 | **Multi-tenant MSP** | Operadores MSP con varios clientes; portales por subdominio (`portal_slug`); scopes en API y RLS opcional en PostgreSQL. |
 | **RBAC** | Roles y permisos con [Spatie Laravel Permission](https://github.com/spatie/laravel-permission); políticas por ticket e incidencia. |
-| **Invitaciones** | Flujo por correo: el invitado activa su cuenta y un administrador asigna el rol; soporte opcional de Google OAuth. |
+| **Invitaciones** | Flujo por correo: el invitado activa su cuenta y un administrador asigna el rol; login opcional con Google o Microsoft 365 (Azure AD). |
 | **Catálogos** | Prioridades, estados, tipos, áreas, sedes, campañas, matriz de prioridad y más — scope plataforma + operador MSP. |
-| **Notificaciones y auditoría** | Alertas in-app, exportación de auditoría de tickets, monitor de sesiones y trazabilidad de cambios. |
+| **Notificaciones y auditoría** | Alertas in-app, exportación de auditoría de tickets, monitor de sesiones, trazabilidad de cambios y monitoreo proactivo de intentos de acceso cross-tenant (login/portal de otro cliente). |
+| **Ubicación y mapas** | Dirección y mapa embebido para clientes/sedes vía Google Maps (geocodificación, "cómo llegar" para técnicos) — requiere API keys, ver [`docs/GOOGLE_MAPS_SETUP.md`](docs/GOOGLE_MAPS_SETUP.md). |
+| **TimeDesk** | Asistencia y horarios de personal (attendance/HR). |
+| **SIGUA** | Módulo separado de gestión de cuentas, formularios CA-01, cruce con datos de RH y generación de alertas. |
 
 ---
 
@@ -63,7 +66,7 @@ Tikara centraliza tickets, incidencias, catálogos, usuarios y permisos en una s
 | Frontend | **React 19**, **Inertia.js 3**, Vite 7, Tailwind CSS 4 |
 | UI / datos | Radix UI, React Hook Form + Zod, Recharts, TanStack Table, Lucide Icons |
 | Datos | SQLite (dev/tests), PostgreSQL + RLS (staging/prod) |
-| Auth | Sesión stateful Sanctum (cookies), Google OAuth vía Socialite (opcional) |
+| Auth | Sesión stateful Sanctum (cookies); login opcional con Google OAuth (Socialite) o Microsoft 365/Azure AD |
 
 ---
 
@@ -100,7 +103,7 @@ Detalle completo: [`ARCHITECTURE.md`](ARCHITECTURE.md).
 ## Instalación rápida
 
 ```bash
-git clone https://github.com/TravisDev5x/ekindesk.git tikara
+git clone https://github.com/TravisDev5x/tikarahelpdesk.git tikara
 cd tikara
 
 composer install
@@ -122,9 +125,9 @@ npm run build
 composer dev
 ```
 
-Arranca servidor Laravel, cola, logs (Pail) y Vite en paralelo.
+Arranca servidor Laravel, cola, logs (Pail) y Vite en paralelo, en el puerto **8001**.
 
-Acceso local: [http://127.0.0.1:8000](http://127.0.0.1:8000)
+Acceso local: `http://tikara.test:8001` (requiere entrada en el hosts local, ver [`docs/SANCTUM_TENANCY.md`](docs/SANCTUM_TENANCY.md)). Usar `127.0.0.1:8001` en vez de `tikara.test:8001` rompe el login: `SESSION_DOMAIN=.tikara.test` hace que el navegador no guarde la cookie de sesión para ese host y la app entra en bucle de redirect a `/login`.
 
 ### Credenciales demo
 
@@ -210,7 +213,8 @@ tests/Feature/          Tests de tenant, catálogos, invitaciones, tickets
 | [`ARCHITECTURE.md`](ARCHITECTURE.md) | Arquitectura multi-módulo |
 | [`API_CONTRACT.md`](API_CONTRACT.md) | Contrato de endpoints API |
 | [`INSTALACION.md`](INSTALACION.md) | Guía de instalación detallada |
-| [`CLAUDE.md`](CLAUDE.md) | Convenciones para desarrollo asistido |
+| [`CLAUDE.md`](CLAUDE.md) | Convenciones para desarrollo asistido, mapa de docs, pendientes e ideas |
+| [`docs/PENDING.md`](docs/PENDING.md) | Índice consolidado de pendientes: bloqueado por config externa, diseñado sin construir, roadmaps vivos |
 | [`USUARIOS_DEMO.md`](USUARIOS_DEMO.md) | Usuarios y contraseñas de prueba |
 
 ---
