@@ -11,6 +11,7 @@ use App\Models\TicketType;
 use App\Models\User;
 use App\Policies\TicketPolicy;
 use App\Services\ClientScopeService;
+use App\Services\TicketQueryFilterService;
 use App\Support\Database\SqlDialect;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
@@ -29,7 +30,8 @@ use Illuminate\Support\Facades\Gate;
 class ResolbebController extends Controller
 {
     public function __construct(
-        protected ClientScopeService $clientScope
+        protected ClientScopeService $clientScope,
+        protected TicketQueryFilterService $filters
     ) {}
 
     /**
@@ -51,7 +53,7 @@ class ResolbebController extends Controller
 
         $policy = app(TicketPolicy::class);
         $base = $policy->scopeFor($user, Ticket::query());
-        $this->applyFilters($request, $user, $base);
+        $this->filters->apply($request, $user, $base);
 
         $cacheKey = 'dashboard.'.$user->id.'.'.md5(json_encode($request->query()));
 
@@ -202,23 +204,10 @@ class ResolbebController extends Controller
         // --- Top 3 resolvers: agentes que más cerraron tickets en los últimos 30 días ---
         $topResolvers = [];
         if ($hasScopedTickets && $resueltoCerradoIds->isNotEmpty()) {
-            $resolversRaw = TicketHistory::query()
-                ->whereIn('ticket_id', $ticketSubquery)
-                ->whereIn('ticket_state_id', $resueltoCerradoIds)
-                ->where('created_at', '>=', now()->subDays(30))
-                ->select('actor_id', DB::raw('count(*) as tickets_cerrados'))
-                ->groupBy('actor_id')
-                ->orderByDesc('tickets_cerrados')
-                ->limit(3)
-                ->get();
-            $actorIds = $resolversRaw->pluck('actor_id')->filter()->unique()->values()->all();
-            $actorNames = $actorIds ? User::whereIn('id', $actorIds)->pluck('name', 'id')->all() : [];
-            $topResolvers = $resolversRaw->map(function ($row) use ($actorNames) {
-                return [
-                    'nombre' => $actorNames[$row->actor_id] ?? 'Usuario #'.$row->actor_id,
-                    'tickets_cerrados' => (int) $row->tickets_cerrados,
-                ];
-            })->values()->all();
+            $topResolvers = $this->filters
+                ->topResolvers($ticketSubquery, $resueltoCerradoIds, 3, now()->subDays(30))
+                ->map(fn ($r) => ['nombre' => $r['name'], 'tickets_cerrados' => $r['total']])
+                ->all();
         }
 
         // --- Top sites: tickets creados este mes por sede ---
@@ -333,37 +322,4 @@ class ResolbebController extends Controller
         });
     }
 
-    protected function applyFilters(Request $request, $user, $query): void
-    {
-        $filters = [
-            'area_current_id' => 'area_current_id',
-            'area_origin_id' => 'area_origin_id',
-            'site_id' => 'site_id',
-            'ticket_type_id' => 'ticket_type_id',
-            'priority_id' => 'priority_id',
-            'ticket_state_id' => 'ticket_state_id',
-        ];
-        foreach ($filters as $param => $column) {
-            if ($request->filled($param)) {
-                if ($param === 'site_id' && ! $user->can('tickets.filter_by_site') && ! $user->can('tickets.manage_all')) {
-                    continue;
-                }
-                $query->where($column, $request->input($param));
-            }
-        }
-        if ($request->filled('assigned_user_id')) {
-            $assigneeId = (int) $request->input('assigned_user_id');
-            $allowed = $user->can('tickets.manage_all')
-                || DB::table('users')->where('id', $assigneeId)->where('area_id', $user->area_id)->exists();
-            if ($allowed) {
-                $query->where('assigned_user_id', $assigneeId);
-            }
-        }
-        if ($request->input('assigned_to') === 'me') {
-            $query->where('assigned_user_id', $user->id);
-        }
-        if ($request->input('assigned_status') === 'unassigned') {
-            $query->whereNull('assigned_user_id');
-        }
-    }
 }

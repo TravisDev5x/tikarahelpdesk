@@ -4,25 +4,25 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Ticket;
-use App\Models\TicketHistory;
 use App\Models\TicketState;
 use App\Models\Area;
 use App\Models\TicketType;
 use App\Models\User;
 use App\Policies\TicketPolicy;
-use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\DB;
 use App\Services\ClientScopeService;
+use App\Services\TicketQueryFilterService;
 use App\Support\Database\SqlDialect;
 
 class TicketAnalyticsController extends Controller
 {
     public function __construct(
-        protected ClientScopeService $clientScope
+        protected ClientScopeService $clientScope,
+        protected TicketQueryFilterService $filters
     ) {}
 
     public function __invoke(Request $request)
@@ -40,7 +40,7 @@ class TicketAnalyticsController extends Controller
             /** @var TicketPolicy $policy */
             $policy = app(TicketPolicy::class);
             $base = $policy->scopeFor($user, Ticket::query());
-            $this->applyFilters($request, $user, $base);
+            $this->filters->apply($request, $user, $base);
 
             if ($request->input('assigned_to') === 'me') {
                 $base->where('assigned_user_id', $user->id);
@@ -95,19 +95,9 @@ class TicketAnalyticsController extends Controller
                 ->map(fn($r) => ['label' => $areasMap[$r->area_current_id] ?? '-', 'value' => (int) $r->total]);
 
             // Usuarios que mas cierran (historial con estado cerrado)
-            $resolvers = collect();
-            if ($hasFinalStates && $ticketIds->isNotEmpty()) {
-                $resolvers = TicketHistory::query()
-                    ->select('actor_id', DB::raw('count(*) as total'))
-                    ->whereIn('ticket_state_id', $finalStateIds)
-                    ->whereIn('ticket_id', $ticketIds)
-                    ->groupBy('actor_id')
-                    ->orderByDesc('total')
-                    ->limit(5)
-                    ->with('actor:id,name')
-                    ->get()
-                    ->map(fn($r) => ['label' => $r->actor->name ?? '-', 'value' => (int) $r->total]);
-            }
+            $resolvers = $this->filters
+                ->topResolvers($ticketIds, $finalStateIds, 5)
+                ->map(fn ($r) => ['label' => $r['name'], 'value' => $r['total']]);
 
             // Tipos mas frecuentes (creacion)
             $typesMap = TicketType::pluck('name', 'id');
@@ -176,52 +166,5 @@ class TicketAnalyticsController extends Controller
         }
 
         return response()->json($payload);
-    }
-
-    protected function applyFilters(Request $request, $user, $query): void
-    {
-        $this->clientScope->applyClientFilter($request, $user, $query);
-
-        $filters = [
-            'area_current_id' => 'area_current_id',
-            'area_origin_id' => 'area_origin_id',
-            'location_id' => 'location_id',
-            'ticket_type_id' => 'ticket_type_id',
-            'priority_id' => 'priority_id',
-            'ticket_state_id' => 'ticket_state_id',
-        ];
-
-        foreach ($filters as $param => $column) {
-            if ($request->filled($param)) {
-                $query->where($column, $request->input($param));
-            }
-        }
-
-        if ($request->filled('site_id')) {
-            $canFilterSite = $user->can('tickets.filter_by_site')
-                || $user->can('tickets.manage_all')
-                || $user->can('tickets.view_area');
-            if ($canFilterSite) {
-                $this->clientScope->applySiteFilter($request, $user, $query);
-            }
-        }
-
-        if ($request->filled('date_from')) {
-            try {
-                $from = Carbon::parse($request->input('date_from'))->startOfDay();
-                $query->where('created_at', '>=', $from);
-            } catch (\Throwable $e) {
-                // ignore invalid date_from
-            }
-        }
-
-        if ($request->filled('date_to')) {
-            try {
-                $to = Carbon::parse($request->input('date_to'))->endOfDay();
-                $query->where('created_at', '<=', $to);
-            } catch (\Throwable $e) {
-                // ignore invalid date_to
-            }
-        }
     }
 }
