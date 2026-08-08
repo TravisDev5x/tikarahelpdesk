@@ -395,13 +395,20 @@ export default function ResolbebIndex({ mode = "tickets", catalogs: catalogsProp
     const summaryStates = (summary?.by_state || []).slice().sort((a, b) => Number(b.value || 0) - Number(a.value || 0));
     const summaryMax = summaryStates.length ? Math.max(...summaryStates.map((s) => Number(s.value || 0))) : 0;
 
+    // Un solicitante puro (sin tickets.manage_all ni tickets.view_area) no
+    // debe entrar a "Todos los tickets" (fuera de su alcance) -- pero SÍ a
+    // "Mis tickets" (mode=mis-tickets), que es justo esta misma página en
+    // otro modo: ya filtra por created_by=me más abajo (línea ~248) y el
+    // backend ya lo permite (tickets.view_own está en el OR de permisos de
+    // la ruta /api/tickets). Antes este guard los sacaba también de su
+    // propia página "Mis tickets", dejándolos sin forma de ver sus tickets.
     useEffect(() => {
-        if (isSolicitanteOnly) {
+        if (isSolicitanteOnly && !isMyTicketsPage) {
             router.visit(RESOLVE_BASE, { replace: true });
         }
-    }, [isSolicitanteOnly]);
+    }, [isSolicitanteOnly, isMyTicketsPage]);
 
-    if (isSolicitanteOnly) return null;
+    if (isSolicitanteOnly && !isMyTicketsPage) return null;
 
     const pageTitle = isMyTicketsPage ? "Mis tickets" : "Tickets";
 
