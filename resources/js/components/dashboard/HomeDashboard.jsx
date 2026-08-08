@@ -20,7 +20,6 @@ import { DashboardStackedBar } from "@/components/dashboard/DashboardStackedBar"
 import { ChartErrorBoundary } from "@/components/dashboard/ChartErrorBoundary";
 import { TinyVerticalBarChart } from "@/components/dashboard/TinyVerticalBarChart";
 import { DashboardOperativo } from "@/components/dashboard/DashboardOperativo";
-import { TicketCalendarPreview } from "@/components/dashboard/TicketCalendarPreview";
 import { getDashboardProfile } from "@/lib/dashboardProfile";
 import { chartColor } from "@/lib/chartColors";
 import {
@@ -596,8 +595,6 @@ function DashboardSolicitante() {
             {!canCreateTicket && (
                 <p className="text-sm text-muted-foreground">Modo solo lectura. Un administrador te asignará un rol para crear y gestionar solicitudes.</p>
             )}
-
-            <TicketCalendarPreview ticketLinkBase="/resolbeb/tickets" />
 
             {/* Respuestas y novedades sobre tus tickets */}
             <Card className="border-border/60">
