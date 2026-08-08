@@ -493,3 +493,21 @@ html {
     top: 4.5rem !important;
 }
 
+/* Centrado horizontal real del toast: sileo centra "top-center" sobre TODO
+   el viewport (left: 50%), pero el sidebar fijo (72px colapsado / 256px
+   expandido) desplaza visualmente el área de contenido -- el toast quedaba
+   corrido hacia la izquierda, montado sobre las tarjetas en vez de centrado
+   en lo que el usuario ve como su área de trabajo. --app-sidebar-width lo
+   fija AuthenticatedLayout.jsx (0 en mobile, donde el sidebar está oculto).
+   Solo aplica desde md: (768px) -- mismo breakpoint que "hidden md:flex"
+   del <aside>, así en mobile no hay desfase que compensar. */
+@media (min-width: 768px) {
+    [data-sileo-viewport][data-position$="center"] {
+        left: calc(50% + (var(--app-sidebar-width, 0px) / 2)) !important;
+    }
+
+    :root[data-sidebar-position="right"] [data-sileo-viewport][data-position$="center"] {
+        left: calc(50% - (var(--app-sidebar-width, 0px) / 2)) !important;
+    }
+}
+

@@ -274,6 +274,18 @@ export default function AuthenticatedLayout({ children, title: titleProp }) {
     const pageTitle = getPageTitle(currentPath, titleProp);
     const sidebarCollapsed = collapsed || focused;
 
+    // El Toaster (sileo) se monta en la raíz de la app (inertia.jsx), fuera
+    // de este layout -- "top-center" centra sobre TODO el viewport, no
+    // sobre el área de contenido, así que queda corrido hacia el sidebar
+    // (72px colapsado / 256px expandido; 0 en mobile, donde el <aside> está
+    // oculto). Exponemos el ancho real como variable CSS en <html> para que
+    // el toast pueda compensarlo -- ver la regla de app.css.
+    useEffect(() => {
+        const width = forceDeviceView ? 0 : (sidebarCollapsed ? 72 : 256);
+        document.documentElement.style.setProperty("--app-sidebar-width", `${width}px`);
+        document.documentElement.dataset.sidebarPosition = sidebarPosition;
+    }, [sidebarCollapsed, forceDeviceView, sidebarPosition]);
+
     return (
         <TooltipProvider>
             <div
