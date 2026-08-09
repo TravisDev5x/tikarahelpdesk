@@ -14,10 +14,58 @@ import { cn } from "@/lib/utils";
 import { kpiCardSurface, hintWarning, noticeWarningPanel } from "@/lib/badgeStyles";
 import { notify } from "@/lib/notify";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Loader2, MessageSquare, ArrowLeft, ChevronDown, ChevronUp, UserCheck, AlertTriangle, XCircle, BellRing, ArrowUpFromLine } from "lucide-react";
+import { Loader2, MessageSquare, ArrowLeft, ChevronDown, ChevronUp, UserCheck, AlertTriangle, XCircle, BellRing, ArrowUpFromLine, Paperclip, Download } from "lucide-react";
 import { TicketPriorityBadgeByName, TicketStateBadgeByName } from "@/components/badges/EntityBadges";
 
 const RESOLVE_BASE = "/resolbeb";
+
+/** Par etiqueta/valor legible -- reemplaza el <strong>Label:</strong> value en línea. */
+function Field({ label, value, className }) {
+    return (
+        <div className={cn("space-y-0.5", className)}>
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{label}</p>
+            <p className="text-sm text-foreground">{value ?? "—"}</p>
+        </div>
+    );
+}
+
+function formatBytes(bytes) {
+    if (!bytes && bytes !== 0) return "";
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+/** Adjuntos del ticket (ticket.attachments ya viene eager-loaded desde TicketController::show). */
+function TicketAttachments({ attachments }) {
+    if (!attachments || attachments.length === 0) return null;
+    return (
+        <div className="border-t pt-3 space-y-2">
+            <p className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
+                <Paperclip className="h-3.5 w-3.5" /> Adjuntos ({attachments.length})
+            </p>
+            <ul className="flex flex-wrap gap-2">
+                {attachments.map((a) => (
+                    <li key={a.id}>
+                        <a
+                            href={a.url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="flex items-center gap-2 rounded-md border border-border/60 bg-muted/20 px-2.5 py-1.5 text-xs hover:bg-muted/40 transition-colors max-w-[220px]"
+                            title={a.original_name}
+                        >
+                            <Download className="h-3.5 w-3.5 flex-shrink-0 text-muted-foreground" />
+                            <span className="truncate">{a.original_name}</span>
+                            {typeof a.size === "number" && (
+                                <span className="text-muted-foreground flex-shrink-0">{formatBytes(a.size)}</span>
+                            )}
+                        </a>
+                    </li>
+                ))}
+            </ul>
+        </div>
+    );
+}
 
 /** Pasos de la timeline: Creado -> Asignado -> En Proceso -> Resuelto. */
 const TIMELINE_STEPS = [
@@ -56,6 +104,7 @@ function RequesterView({
     isRequester,
     assignedUser,
     updating,
+    isCancelledState,
 }) {
     const descLong = (ticket.description || "").length > 280;
     return (
@@ -107,14 +156,24 @@ function RequesterView({
                                     ticket.description || "—"
                                 )}
                             </p>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1 text-xs text-muted-foreground border-t pt-3">
-                                <div><strong className="text-foreground/80">Área origen:</strong> {ticket.area_origin?.name ?? "—"}</div>
-                                <div><strong className="text-foreground/80">Tipo:</strong> {ticket.ticket_type?.name ?? "—"}</div>
-                                <div><strong className="text-foreground/80">Solicitante:</strong> {ticket.requester?.name ?? "—"}</div>
-                                <div><strong className="text-foreground/80">Responsable:</strong> {assignedUser ? assignedUser.name : "Sin asignar"}</div>
-                                <div><strong className="text-foreground/80">Fecha límite:</strong> {ticket.due_at ? new Date(ticket.due_at).toLocaleString() : "—"}</div>
-                                {ticket.sla_status_text && <div><strong className="text-foreground/80">SLA:</strong> <span className={ticket.is_overdue ? "text-destructive font-medium" : ""}>{ticket.sla_status_text}</span></div>}
+                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-3 border-t pt-3">
+                                <Field label="Área origen" value={ticket.area_origin?.name} />
+                                <Field label="Tipo" value={ticket.ticket_type?.name} />
+                                <Field label="Solicitante" value={ticket.requester?.name} />
+                                <Field label="Responsable" value={assignedUser ? assignedUser.name : "Sin asignar"} />
+                                <Field label="Fecha límite" value={ticket.due_at ? new Date(ticket.due_at).toLocaleString() : "—"} />
+                                {ticket.sla_status_text && (
+                                    <Field
+                                        label="SLA"
+                                        value={
+                                            <span className={ticket.is_overdue ? "text-destructive font-medium" : ""}>
+                                                {ticket.sla_status_text}
+                                            </span>
+                                        }
+                                    />
+                                )}
                             </div>
+                            <TicketAttachments attachments={ticket.attachments} />
                         </CardContent>
                     </Card>
                     <Card>
@@ -174,19 +233,28 @@ function RequesterView({
                     <Card>
                         <CardHeader className="pb-2"><CardTitle className="text-base">Progreso</CardTitle></CardHeader>
                         <CardContent>
-                            <div className="relative">
-                                <div className="absolute left-2 top-2 bottom-2 w-0.5 border-l-2 border-border" aria-hidden="true" />
-                                <ul className="space-y-0">
-                                    {timelineStepsWithStatus.map((step) => (
-                                        <li key={step.key} className="relative flex gap-3 pb-6 last:pb-0">
-                                            <div className={cn("relative z-10 h-4 w-4 rounded-full border-2 flex-shrink-0 mt-0.5", step.completed ? "bg-primary border-primary" : "bg-background border-muted-foreground/30")} />
-                                            <div className="flex-1 min-w-0 pt-0">
-                                                <p className={cn("text-sm font-medium", step.completed ? "text-foreground" : "text-muted-foreground")}>{step.label}</p>
-                                            </div>
-                                        </li>
-                                    ))}
-                                </ul>
-                            </div>
+                            {isCancelledState ? (
+                                <div className="flex items-center gap-2 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2.5">
+                                    <XCircle className="h-4 w-4 text-destructive flex-shrink-0" />
+                                    <p className="text-sm font-medium text-destructive">
+                                        {ticket.state?.name ?? "Cancelado"} — no continúa el flujo normal.
+                                    </p>
+                                </div>
+                            ) : (
+                                <div className="relative">
+                                    <div className="absolute left-2 top-2 bottom-2 w-0.5 border-l-2 border-border" aria-hidden="true" />
+                                    <ul className="space-y-0">
+                                        {timelineStepsWithStatus.map((step) => (
+                                            <li key={step.key} className="relative flex gap-3 pb-6 last:pb-0">
+                                                <div className={cn("relative z-10 h-4 w-4 rounded-full border-2 flex-shrink-0 mt-0.5", step.completed ? "bg-primary border-primary" : "bg-background border-muted-foreground/30")} />
+                                                <div className="flex-1 min-w-0 pt-0">
+                                                    <p className={cn("text-sm font-medium", step.completed ? "text-foreground" : "text-muted-foreground")}>{step.label}</p>
+                                                </div>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </div>
+                            )}
                         </CardContent>
                     </Card>
                 </div>
@@ -288,15 +356,27 @@ function ManagerView({
                     </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2 text-sm">
-                        <div><strong className="text-muted-foreground">Área actual:</strong> {ticket.area_current?.name}</div>
-                        <div><strong className="text-muted-foreground">Área origen:</strong> {ticket.area_origin?.name}</div>
-                        <div><strong className="text-muted-foreground">Tipo:</strong> {ticket.ticket_type?.name}</div>
-                        <div><strong className="text-muted-foreground">Prioridad:</strong> {ticket.priority?.name}</div>
-                        <div><strong className="text-muted-foreground">Solicitante:</strong> {ticket.requester?.name}</div>
-                        <div><strong className="text-muted-foreground">Responsable:</strong> {assignedUser ? `${assignedUser.name}${assignedUser.position?.name ? " — " + assignedUser.position.name : ""}` : "Sin asignar"}</div>
-                        <div><strong className="text-muted-foreground">Fecha límite:</strong> {ticket.due_at ? new Date(ticket.due_at).toLocaleString() : "—"}</div>
-                        {ticket.sla_status_text && <div><strong className="text-muted-foreground">SLA:</strong> <span className={ticket.is_overdue ? "text-destructive font-medium" : ""}>{ticket.sla_status_text}</span></div>}
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-6 gap-y-3">
+                        <Field label="Área actual" value={ticket.area_current?.name} />
+                        <Field label="Área origen" value={ticket.area_origin?.name} />
+                        <Field label="Tipo" value={ticket.ticket_type?.name} />
+                        <Field label="Prioridad" value={ticket.priority?.name} />
+                        <Field label="Solicitante" value={ticket.requester?.name} />
+                        <Field
+                            label="Responsable"
+                            value={assignedUser ? `${assignedUser.name}${assignedUser.position?.name ? " — " + assignedUser.position.name : ""}` : "Sin asignar"}
+                        />
+                        <Field label="Fecha límite" value={ticket.due_at ? new Date(ticket.due_at).toLocaleString() : "—"} />
+                        {ticket.sla_status_text && (
+                            <Field
+                                label="SLA"
+                                value={
+                                    <span className={ticket.is_overdue ? "text-destructive font-medium" : ""}>
+                                        {ticket.sla_status_text}
+                                    </span>
+                                }
+                            />
+                        )}
                     </div>
                     <div>
                         <strong className="text-muted-foreground text-sm block mb-1">Descripción</strong>
@@ -304,6 +384,7 @@ function ManagerView({
                             {descLong && !descExpanded ? <>{(ticket.description || "").slice(0, 280)}… <button type="button" onClick={() => setDescExpanded(true)} className="ml-2 text-primary hover:underline text-xs font-medium">Ver más <ChevronDown className="h-3 w-3" /></button></> : descLong && descExpanded ? <>{ticket.description} <button type="button" onClick={() => setDescExpanded(false)} className="ml-2 text-primary hover:underline text-xs font-medium">Ver menos <ChevronUp className="h-3 w-3" /></button></> : (ticket.description || "—")}
                         </div>
                     </div>
+                    <TicketAttachments attachments={ticket.attachments} />
                 </CardContent>
             </Card>
             {canEdit && (
@@ -570,17 +651,24 @@ export default function Resolvev1Detalle() {
         return names;
     }, [ticket]);
 
+    // Basado en state.code (abierto/en_progreso/en_espera/resuelto/cerrado/cancelado/rechazado),
+    // no en substrings del nombre -- "Abierto" ya no encendía por error el paso
+    // "En proceso" solo por contener la palabra "abierto".
     const completedStepKeys = useMemo(() => {
         if (!ticket) return new Set(["creado"]);
         const hasAssignee = Boolean(ticket.assigned_user_id);
+        const code = (ticket.state?.code || "").toLowerCase();
         const keys = new Set(["creado"]);
-        if (ticket.created_at) keys.add("creado");
         if (hasAssignee) keys.add("asignado");
-        const stateName = (ticket.state?.name || "").toLowerCase();
-        if (stateName.includes("proceso") || stateName.includes("abierto") || stateName.includes("asignado")) keys.add("en_proceso");
-        if (stateName.includes("resuelto") || stateName.includes("cerrado") || stateName.includes("cerrada")) keys.add("resuelto");
+        if (["en_progreso", "en_espera", "resuelto", "cerrado"].includes(code)) keys.add("en_proceso");
+        if (["resuelto", "cerrado"].includes(code)) keys.add("resuelto");
         return keys;
     }, [ticket]);
+
+    const isCancelledState = useMemo(
+        () => ["cancelado", "rechazado"].includes((ticket?.state?.code || "").toLowerCase()),
+        [ticket]
+    );
 
     const timelineStepsWithStatus = useMemo(() => TIMELINE_STEPS.map((step) => ({
         ...step,
@@ -589,7 +677,7 @@ export default function Resolvev1Detalle() {
 
     if (!ticket) {
         return (
-            <div className="space-y-6 max-w-4xl mx-auto">
+            <div className="space-y-6 w-full">
                 <div className="flex items-center gap-3">
                     <Skeleton className="h-9 w-9 rounded-md" />
                     <div className="space-y-2">
@@ -647,7 +735,7 @@ export default function Resolvev1Detalle() {
     const canEscalate = Boolean(ticket.abilities?.escalate);
 
     return (
-        <div className="space-y-6 max-w-5xl mx-auto pb-8">
+        <div className="space-y-6 w-full pb-8">
             <div className="flex items-center gap-3">
                 <Button variant="ghost" size="sm" asChild className="text-muted-foreground hover:text-foreground -ml-2">
                     <InertiaLink href={backToListLink}><ArrowLeft className="h-4 w-4 mr-1" /> Volver al listado</InertiaLink>
@@ -716,6 +804,7 @@ export default function Resolvev1Detalle() {
                     isRequester={isRequester}
                     assignedUser={assignedUser}
                     updating={updating}
+                    isCancelledState={isCancelledState}
                 />
             )}
         </div>

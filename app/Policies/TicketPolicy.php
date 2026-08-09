@@ -182,6 +182,26 @@ class TicketPolicy
     }
 
     /**
+     * Adjuntar evidencia: staff con update() (mismo alcance que editar el
+     * ticket), o el propio solicitante mientras el ticket no esté cerrado
+     * (mismo patrón que cancel() -- antes esto exigía update() a secas, así
+     * que el solicitante nunca podía adjuntar nada a su propio ticket, ni
+     * siquiera al crearlo desde el modal).
+     */
+    public function attach(User $user, Ticket $ticket): bool
+    {
+        if ($this->update($user, $ticket)) {
+            return true;
+        }
+        if ((int) $ticket->requester_id !== (int) $user->id) {
+            return false;
+        }
+        $ticket->loadMissing('state');
+
+        return ! ($ticket->state && $ticket->state->is_final);
+    }
+
+    /**
      * Alcance por site (Fase 4 -- reemplaza el alcance legacy por área).
      * Mismas reglas que view(): admin todo, supervisor sus sites completos,
      * agente sus sites solo asignados-a-él-o-sin-asignar, solicitante solo

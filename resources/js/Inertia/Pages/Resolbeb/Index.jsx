@@ -243,9 +243,24 @@ export default function ResolbebIndex({ mode = "tickets", catalogs: catalogsProp
                 if (filters.site !== "all") params.site_id = filters.site;
                 if (filters.type !== "all") params.ticket_type_id = filters.type;
             }
-            if (canViewArea && !canManageAll && user?.area_id) params.area_current_id = user.area_id;
+            // Nota: NO se fuerza area_current_id = user.area_id aquí para agente/supervisor.
+            // Era legacy de antes de Fase 4 (alcance por área) -- el backend ya escopa
+            // por site (site_user) + asignación vía TicketPolicy::scopeFor(), que
+            // deliberadamente permite ver TODA la cola del site, no solo el área propia.
+            // Forzarlo aquí ocultaba tickets de otras áreas del mismo site sin que
+            // existiera ningún control de UI para quitar ese filtro (no hay Select de
+            // área fuera de canManageAll) -- el usuario no podía saber por qué faltaban.
             if (!canViewArea && !canManageAll) params.created_by = "me";
-            if (isMyTicketsPage) params.created_by = "me";
+            // "Mis tickets" es genérico para cualquier rol (el link en el sidebar no
+            // está gateado por permiso). Para un solicitante puro significa "lo que yo
+            // reporté" (created_by). Para agente/supervisor/admin, forzar created_by
+            // dejaba esta vista vacía siempre -- ellos casi nunca son requester de sus
+            // propios tickets -- así que aquí significa "lo que tengo asignado para
+            // atender", su cola personal de trabajo.
+            if (isMyTicketsPage) {
+                if (canViewArea || canManageAll) params.assigned_to = "me";
+                else params.created_by = "me";
+            }
 
             const summaryParams = { ...params };
             delete summaryParams.page;
@@ -314,7 +329,7 @@ export default function ResolbebIndex({ mode = "tickets", catalogs: catalogsProp
         };
     }, [user, catalogs.sites, catalogs.clients]);
 
-    const handleSubmit = async (e) => {
+    const handleSubmit = async (e, pendingFiles = []) => {
         e.preventDefault();
         if (!ticketSiteContext) {
             notify.error("Tu usuario no tiene sede asignada. No puedes crear tickets hasta que un administrador te la asigne.");
@@ -343,7 +358,17 @@ export default function ResolbebIndex({ mode = "tickets", catalogs: catalogsProp
             error: "Error al crear el ticket",
         });
         try {
-            await promise;
+            const { data } = await promise;
+            const ticketId = data?.id ?? data?.ticket?.id;
+            if (ticketId && pendingFiles.length > 0) {
+                const attachmentsForm = new FormData();
+                pendingFiles.forEach((file) => attachmentsForm.append("attachments[]", file));
+                try {
+                    await axios.post(`/api/tickets/${ticketId}/attachments`, attachmentsForm);
+                } catch {
+                    notify.error("El ticket se creó, pero los adjuntos no se pudieron subir.");
+                }
+            }
             clearCatalogCache();
             setOpen(false);
             setCurrentPage(1);
@@ -427,7 +452,11 @@ export default function ResolbebIndex({ mode = "tickets", catalogs: catalogsProp
 
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-2">
                 <p className="text-sm text-muted-foreground">
-                    {isMyTicketsPage ? "Tus tickets como solicitante. Da seguimiento y agrega comentarios." : "Sistema centralizado de incidencias."}
+                    {isMyTicketsPage
+                        ? (canViewArea || canManageAll)
+                            ? "Tickets asignados a ti. Tu cola personal de trabajo."
+                            : "Tus tickets como solicitante. Da seguimiento y agrega comentarios."
+                        : "Sistema centralizado de incidencias."}
                 </p>
                 <div className="flex items-center gap-2">
                     {canManageAll && (
@@ -446,7 +475,9 @@ export default function ResolbebIndex({ mode = "tickets", catalogs: catalogsProp
                             </span>
                         )}
                     </div>
-                    {canCreate && (
+                    {/* Solicitante: único punto de creación es el modal del dashboard
+                        (Inicio) -- evita duplicar el botón "Crear ticket" en esta vista. */}
+                    {canCreate && !(isSolicitanteOnly && isMyTicketsPage) && (
                         <Button onClick={handleCreateOpen} className="shadow-sm">
                             <Plus className="mr-2 h-4 w-4" /> Nuevo Ticket
                         </Button>
@@ -653,10 +684,16 @@ export default function ResolbebIndex({ mode = "tickets", catalogs: catalogsProp
                                                 <div>
                                                     <p className="font-semibold text-foreground/90">No hay tickets</p>
                                                     <p className="text-sm mt-1 max-w-sm text-center">
-                                                        {hasActiveFilters ? "Ningún ticket coincide con los filtros. Prueba a limpiar filtros o ampliar la búsqueda." : "Aún no hay tickets registrados. Crea el primero para comenzar."}
+                                                        {hasActiveFilters
+                                                            ? "Ningún ticket coincide con los filtros. Prueba a limpiar filtros o ampliar la búsqueda."
+                                                            : isSolicitanteOnly && isMyTicketsPage
+                                                                ? "Aún no hay tickets registrados. Créalo desde Inicio."
+                                                                : isMyTicketsPage && (canViewArea || canManageAll)
+                                                                    ? "No tienes tickets asignados por ahora. Revisa \"Todos los tickets\" para tomar alguno de la cola."
+                                                                    : "Aún no hay tickets registrados. Crea el primero para comenzar."}
                                                     </p>
                                                 </div>
-                                                {canCreate && !hasActiveFilters && (
+                                                {canCreate && !hasActiveFilters && !(isSolicitanteOnly && isMyTicketsPage) && !(isMyTicketsPage && (canViewArea || canManageAll)) && (
                                                     <Button onClick={handleCreateOpen} size="sm" className="mt-2">
                                                         <Plus className="w-4 h-4 mr-2" /> Crear ticket
                                                     </Button>

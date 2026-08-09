@@ -18,7 +18,7 @@ class TicketAttachmentController extends Controller
         if (!$user) {
             return response()->json(['message' => 'No autorizado'], 401);
         }
-        Gate::authorize('update', $ticket);
+        Gate::authorize('attach', $ticket);
 
         $data = $request->validate([
             'attachments' => 'required|array',

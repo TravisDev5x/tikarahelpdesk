@@ -40,6 +40,38 @@ class TicketController extends Controller
         protected \App\Services\TicketCreationService $ticketCreation
     ) {}
 
+    /**
+     * Relaciones estándar para reload post-acción (update/take/assign/unassign/escalate).
+     * Antes cada método traía su propia copia de esta lista pegada a mano --
+     * las 5 copias faltaban 'requester', así que "Solicitante" quedaba en
+     * blanco en la respuesta justo después de tomar/asignar/escalar un
+     * ticket (hasta el próximo reload de página, que sí pasa por show()).
+     * Único punto de definición para que no vuelva a divergir.
+     */
+    protected function ticketDetailRelations(): array
+    {
+        return [
+            'areaOrigin:id,name',
+            'areaCurrent:id,name',
+            'site:id,name',
+            'location:id,name',
+            'requester:id,name,email',
+            'assignedUser:id,name,position_id',
+            'assignedUser.position:id,name',
+            'ticketType:id,name',
+            'priority:id,name,level',
+            'impactLevel:id,name',
+            'urgencyLevel:id,name',
+            'state:id,name',
+            'histories.actor:id,name,email',
+            'histories.fromAssignee:id,name,position_id',
+            'histories.toAssignee:id,name,position_id',
+            'histories.fromArea:id,name',
+            'histories.toArea:id,name',
+            'histories.state:id,name,code',
+        ];
+    }
+
     public function index(Request $request)
     {
         $user = Auth::user();
@@ -707,25 +739,7 @@ class TicketController extends Controller
 
             TicketUpdated::dispatch($ticket);
 
-            $ticket->load(
-                'areaOrigin:id,name',
-                'areaCurrent:id,name',
-                'site:id,name',
-                'location:id,name',
-                'assignedUser:id,name,position_id',
-                'assignedUser.position:id,name',
-                'ticketType:id,name',
-                'priority:id,name,level',
-                'impactLevel:id,name',
-                'urgencyLevel:id,name',
-                'state:id,name',
-                'histories.actor:id,name,email',
-                'histories.fromAssignee:id,name,position_id',
-                'histories.toAssignee:id,name,position_id',
-                'histories.fromArea:id,name',
-                'histories.toArea:id,name',
-                'histories.state:id,name,code',
-            );
+            $ticket->load($this->ticketDetailRelations());
             return response()->json($this->withAbilities($ticket));
         });
     }
@@ -791,25 +805,7 @@ class TicketController extends Controller
 
             $this->notifyAssignment($ticket, $user, $user->id, 'assigned');
 
-            $ticket->load(
-                'areaOrigin:id,name',
-                'areaCurrent:id,name',
-                'site:id,name',
-                'location:id,name',
-                'assignedUser:id,name,position_id',
-                'assignedUser.position:id,name',
-                'ticketType:id,name',
-                'priority:id,name,level',
-                'impactLevel:id,name',
-                'urgencyLevel:id,name',
-                'state:id,name',
-                'histories.actor:id,name,email',
-                'histories.fromAssignee:id,name,position_id',
-                'histories.toAssignee:id,name,position_id',
-                'histories.fromArea:id,name',
-                'histories.toArea:id,name',
-                'histories.state:id,name,code',
-            );
+            $ticket->load($this->ticketDetailRelations());
             return response()->json($this->withAbilities($ticket));
         });
     }
@@ -896,25 +892,7 @@ class TicketController extends Controller
                 $this->notifyAssignment($ticket, $user, $newUser->id, 'assigned');
             }
 
-            $ticket->load(
-                'areaOrigin:id,name',
-                'areaCurrent:id,name',
-                'site:id,name',
-                'location:id,name',
-                'assignedUser:id,name,position_id',
-                'assignedUser.position:id,name',
-                'ticketType:id,name',
-                'priority:id,name,level',
-                'impactLevel:id,name',
-                'urgencyLevel:id,name',
-                'state:id,name',
-                'histories.actor:id,name,email',
-                'histories.fromAssignee:id,name,position_id',
-                'histories.toAssignee:id,name,position_id',
-                'histories.fromArea:id,name',
-                'histories.toArea:id,name',
-                'histories.state:id,name,code',
-            );
+            $ticket->load($this->ticketDetailRelations());
             return response()->json($this->withAbilities($ticket));
         });
     }
@@ -952,25 +930,7 @@ class TicketController extends Controller
                 'assigned_user_id' => ['from' => $prevAssignee, 'to' => null],
             ]);
 
-            $ticket->load(
-                'areaOrigin:id,name',
-                'areaCurrent:id,name',
-                'site:id,name',
-                'location:id,name',
-                'assignedUser:id,name,position_id',
-                'assignedUser.position:id,name',
-                'ticketType:id,name',
-                'priority:id,name,level',
-                'impactLevel:id,name',
-                'urgencyLevel:id,name',
-                'state:id,name',
-                'histories.actor:id,name,email',
-                'histories.fromAssignee:id,name,position_id',
-                'histories.toAssignee:id,name,position_id',
-                'histories.fromArea:id,name',
-                'histories.toArea:id,name',
-                'histories.state:id,name,code',
-            );
+            $ticket->load($this->ticketDetailRelations());
             return response()->json($this->withAbilities($ticket));
         });
     }
@@ -1177,25 +1137,7 @@ class TicketController extends Controller
 
             $this->notifyEscalated($ticket, $user, $newArea);
 
-            $ticket->load(
-                'areaOrigin:id,name',
-                'areaCurrent:id,name',
-                'site:id,name',
-                'location:id,name',
-                'assignedUser:id,name,position_id',
-                'assignedUser.position:id,name',
-                'ticketType:id,name',
-                'priority:id,name,level',
-                'impactLevel:id,name',
-                'urgencyLevel:id,name',
-                'state:id,name',
-                'histories.actor:id,name,email',
-                'histories.fromAssignee:id,name,position_id',
-                'histories.toAssignee:id,name,position_id',
-                'histories.fromArea:id,name',
-                'histories.toArea:id,name',
-                'histories.state:id,name,code',
-            );
+            $ticket->load($this->ticketDetailRelations());
             return response()->json($this->withAbilities($ticket));
         });
     }
