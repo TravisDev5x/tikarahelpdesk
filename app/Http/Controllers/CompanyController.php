@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\OperatorProfile;
 use App\Models\Plan;
 use App\Services\OperatorScopeService;
+use App\Services\TenantClientResolver;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -13,7 +14,28 @@ use Inertia\Response;
 
 class CompanyController extends Controller
 {
-    public function __construct(protected OperatorScopeService $operatorScope) {}
+    public function __construct(
+        protected OperatorScopeService $operatorScope,
+        protected TenantClientResolver $tenantResolver,
+    ) {}
+
+    /**
+     * Staff de un cliente/tenant (no operador MSP): "Mi empresa" es su propio
+     * registro Client (la entidad del tenant), no el OperatorProfile del MSP
+     * que administra la plataforma -- son conceptos distintos aunque ambos
+     * respondan a "mi empresa" según quién pregunta.
+     */
+    private function tenantClientRedirect(): ?RedirectResponse
+    {
+        $user = auth()->user();
+        if ($user->is_operator) {
+            return null;
+        }
+
+        $clientId = $this->tenantResolver->resolve($user);
+
+        return $clientId ? redirect()->route('clients.show', $clientId) : null;
+    }
 
     /**
      * Perfil de la empresa (operador) al que pertenece el usuario autenticado —
@@ -40,6 +62,10 @@ class CompanyController extends Controller
         // no un perfil de operador que nunca tendrá.
         if ($user->hasRole('super_admin')) {
             return redirect()->route('clients.index');
+        }
+
+        if ($redirect = $this->tenantClientRedirect()) {
+            return $redirect;
         }
 
         [$operatorId, $profile] = $this->resolveOperatorAndProfile();
@@ -77,6 +103,14 @@ class CompanyController extends Controller
     public function edit(): Response|RedirectResponse
     {
         abort_unless(auth()->user()->can('company.edit'), 403);
+
+        $user = auth()->user();
+        if (! $user->is_operator) {
+            $clientId = $this->tenantResolver->resolve($user);
+            if ($clientId) {
+                return redirect()->route('clients.edit', $clientId);
+            }
+        }
 
         [$operatorId, $profile] = $this->resolveOperatorAndProfile();
 

@@ -309,6 +309,56 @@ class OperatorScopeService
     }
 
     /**
+     * Acciones destructivas/administrativas sobre un Client (borrar, cancelar,
+     * reactivar cuenta) NO son lo mismo que poder ver/editar los datos básicos:
+     * assertClientAccessible() permite el caso "es mi propio tenant" (staff de
+     * un cliente editando su propia info vía "Mi empresa"), pero ese mismo
+     * caso NUNCA debe poder autoadministrarse -- solo quien gestiona el
+     * cliente desde afuera (super_admin, u operador MSP dueño de ese client)
+     * puede borrarlo. Deliberadamente NO reusa assertClientAccessible().
+     */
+    public function canDeleteClient(User $user, Client $client): bool
+    {
+        if ($this->bypassesOperatorScope($user)) {
+            return true;
+        }
+
+        if ($this->usesOperatorMspWideScope($user)) {
+            if ($this->usesLegacyMspWideAccess($user)) {
+                return true;
+            }
+
+            $operatorId = $this->resolveOperatorUserId($user);
+
+            return $operatorId && (int) $client->operator_user_id === $operatorId;
+        }
+
+        return false;
+    }
+
+    /** Alta de un tenant NUEVO: mismo criterio que canDeleteClient -- nunca el propio staff del tenant. */
+    public function canCreateClients(User $user): bool
+    {
+        return $this->bypassesOperatorScope($user) || $user->is_operator;
+    }
+
+    /**
+     * True cuando quien ve este Client es staff DEL PROPIO tenant (ej. "Mi
+     * empresa"), no alguien administrándolo desde afuera (super_admin,
+     * operador MSP). Distingue el panel de autoservicio (sin métricas
+     * operativas, con "Solicitar cambio de plan" en vez de acciones
+     * administrativas directas) de la vista de supervisión de un operador.
+     */
+    public function viewsOwnCompany(User $user, Client $client): bool
+    {
+        if ($this->bypassesOperatorScope($user) || $user->is_operator) {
+            return false;
+        }
+
+        return $this->tenantResolver->resolve($user) === $client->id;
+    }
+
+    /**
      * @return array<int, \Illuminate\Contracts\Validation\ValidationRule|string>
      */
     public function nameRules(User $user, ?int $ignoreClientId = null): array

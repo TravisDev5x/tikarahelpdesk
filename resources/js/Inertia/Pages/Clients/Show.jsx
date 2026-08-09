@@ -29,7 +29,7 @@ function userFullName(user) {
         .join(" ");
 }
 
-export default function Show({ client, portal_url, tickets_summary, sites, users, can }) {
+export default function Show({ client, portal_url, tickets_summary, sites, users, can, is_own_company }) {
     useFlash();
     const name = client.business_name || client.name;
     const [copied, setCopied] = useState(false);
@@ -38,6 +38,13 @@ export default function Show({ client, portal_url, tickets_summary, sites, users
     const confirmDelete = () => {
         if (!window.confirm(`¿Eliminar a ${name}? Esta acción no se puede deshacer.`)) return;
         router.delete(`/clients/${client.id}`);
+    };
+
+    const requestPlanChange = (type) => {
+        const label = type === "cancellation" ? "cancelar tu cuenta" : "cambiar de plan";
+        const note = window.prompt(`Cuéntanos brevemente por qué quieres ${label} (opcional):`);
+        if (note === null) return;
+        router.post(`/clients/${client.id}/plan-request`, { type, note: note || null }, { preserveScroll: true });
     };
 
     const copySupportEmail = async () => {
@@ -224,15 +231,17 @@ export default function Show({ client, portal_url, tickets_summary, sites, users
                                     Editar
                                 </Link>
                             </Button>
-                            <Button
-                                variant="destructive"
-                                size="sm"
-                                className="w-full"
-                                onClick={confirmDelete}
-                            >
-                                <Trash2 className="h-4 w-4 mr-2" />
-                                Eliminar
-                            </Button>
+                            {can?.delete && (
+                                <Button
+                                    variant="destructive"
+                                    size="sm"
+                                    className="w-full"
+                                    onClick={confirmDelete}
+                                >
+                                    <Trash2 className="h-4 w-4 mr-2" />
+                                    Eliminar
+                                </Button>
+                            )}
                         </div>
                     </CardContent>
                 </Card>
@@ -295,6 +304,33 @@ export default function Show({ client, portal_url, tickets_summary, sites, users
                                         )}
                                     </span>
                                 </div>
+                            )}
+                            {is_own_company && (
+                                <>
+                                    <Separator className="my-4" />
+                                    <div className="flex flex-col sm:flex-row gap-2">
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() => requestPlanChange("plan_change")}
+                                        >
+                                            Solicitar cambio de plan
+                                        </Button>
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            size="sm"
+                                            className="text-destructive hover:text-destructive"
+                                            onClick={() => requestPlanChange("cancellation")}
+                                        >
+                                            Solicitar cancelación
+                                        </Button>
+                                    </div>
+                                    <p className="text-[11px] text-muted-foreground mt-2">
+                                        Le avisamos a tu proveedor -- no se cobra ni se cancela nada de inmediato.
+                                    </p>
+                                </>
                             )}
                         </CardContent>
                     </Card>

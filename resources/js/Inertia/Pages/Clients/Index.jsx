@@ -158,6 +158,7 @@ export default function Index({
     summary,
     showOperatorColumn = false,
     isPlatformAdmin = false,
+    canManageClients = false,
     portalBaseDomain,
     portalScheme = "http",
 }) {
@@ -273,12 +274,14 @@ export default function Index({
                             onChange={(e) => setSearch(e.target.value)}
                         />
                     </div>
-                    <Button asChild>
-                        <Link href="/clients/create">
-                            <Plus className="h-4 w-4 mr-2" />
-                            Nuevo cliente
-                        </Link>
-                    </Button>
+                    {canManageClients && (
+                        <Button asChild>
+                            <Link href="/clients/create">
+                                <Plus className="h-4 w-4 mr-2" />
+                                Nuevo cliente
+                            </Link>
+                        </Button>
+                    )}
                 </div>
 
                 {/* Table / empty */}
@@ -290,9 +293,11 @@ export default function Index({
                             <p className="text-sm text-muted-foreground mt-2 mb-6 max-w-sm">
                                 Agrega el primer cliente al que prestas servicios de soporte.
                             </p>
-                            <Button asChild>
-                                <Link href="/clients/create">Nuevo cliente</Link>
-                            </Button>
+                            {canManageClients && (
+                                <Button asChild>
+                                    <Link href="/clients/create">Nuevo cliente</Link>
+                                </Button>
+                            )}
                         </CardContent>
                     </Card>
                 ) : (
@@ -488,7 +493,7 @@ export default function Index({
                                                                     )
                                                                 )}
 
-                                                                {!isPlatformAdmin && (
+                                                                {!isPlatformAdmin && canManageClients && (
                                                                     <Tooltip>
                                                                         <TooltipTrigger asChild>
                                                                             <Button

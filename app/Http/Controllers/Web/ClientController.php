@@ -80,6 +80,7 @@ class ClientController extends Controller
             'summary'             => $summary,
             'showOperatorColumn'  => $showOperatorColumn,
             'isPlatformAdmin'     => $isPlatformAdmin,
+            'canManageClients'    => $this->operatorScope->canCreateClients($user),
             'portalBaseDomain'    => config('tenancy.base_domain'),
             'portalScheme'        => config('tenancy.portal_scheme', 'http'),
             'availablePlans'      => $isPlatformAdmin
@@ -90,6 +91,8 @@ class ClientController extends Controller
 
     public function create(): Response
     {
+        abort_unless($this->operatorScope->canCreateClients(auth()->user()), 403);
+
         return Inertia::render('Clients/Form', [
             'client' => null,
             'industries' => self::INDUSTRIES,
@@ -99,6 +102,8 @@ class ClientController extends Controller
 
     public function store(Request $request)
     {
+        abort_unless($this->operatorScope->canCreateClients(auth()->user()), 403);
+
         $validated = $this->validateClient($request);
 
         $client = DB::transaction(function () use ($request, $validated) {
@@ -157,15 +162,20 @@ class ClientController extends Controller
 
     public function show(Client $client): Response
     {
+        $user = auth()->user();
         $this->authorizeClient($client);
         $client->load(['sites', 'plan', 'users' => fn ($q) => $q->select(
             'id', 'first_name', 'paternal_last_name', 'maternal_last_name', 'email', 'status', 'client_id'
         )->with('roles:id,name')]);
 
-        $blockedFromInternals = $this->operatorScope->isPlatformAdminBlockedFromInternals(auth()->user());
+        $isOwnCompany = $this->operatorScope->viewsOwnCompany($user, $client);
+        $blockedFromInternals = $this->operatorScope->isPlatformAdminBlockedFromInternals($user);
 
+        // Autoservicio ("Mi empresa"): el tenant no necesita ver sus propias
+        // métricas de tickets aquí, ya las tiene en Dashboard/Resolbeb -- este
+        // panel es sobre la entidad (datos, plan, sedes, usuarios), no operación.
         $ticketsSummary = null;
-        if (! $blockedFromInternals) {
+        if (! $isOwnCompany && ! $blockedFromInternals) {
             $finalStateIds = TicketState::where('is_final', true)->pluck('id');
 
             $ticketsSummary = [
@@ -191,8 +201,10 @@ class ClientController extends Controller
             'sites' => $client->sites,
             'users' => $client->users,
             'industries' => self::INDUSTRIES,
+            'is_own_company' => $isOwnCompany,
             'can' => [
                 'view_internals' => ! $blockedFromInternals,
+                'delete' => $this->operatorScope->canDeleteClient($user, $client),
             ],
         ]);
     }
@@ -248,7 +260,7 @@ class ClientController extends Controller
 
     public function destroy(Client $client)
     {
-        $this->authorizeClient($client);
+        abort_unless($this->operatorScope->canDeleteClient(auth()->user(), $client), 403);
 
         $finalStateIds = TicketState::where('is_final', true)->pluck('id');
         $openTickets = $client->tickets()->whereNotIn('ticket_state_id', $finalStateIds)->count();
@@ -268,6 +280,28 @@ class ClientController extends Controller
         return redirect()
             ->route('clients.index')
             ->with('success', 'Cliente eliminado');
+    }
+
+    /**
+     * Autoservicio ("Mi empresa"): sin pasarela de pago integrada, así que
+     * esto NO cambia de plan ni cancela nada -- solo avisa a quien administra
+     * la cuenta (operador + super_admin) para que lo gestione manualmente.
+     * Ver docs/PENDING.md.
+     */
+    public function requestPlanChange(Request $request, Client $client): RedirectResponse
+    {
+        $user = auth()->user();
+        $this->authorizeClient($client);
+        abort_unless($this->operatorScope->viewsOwnCompany($user, $client), 403);
+
+        $validated = $request->validate([
+            'type' => 'required|in:plan_change,cancellation',
+            'note' => 'nullable|string|max:1000',
+        ]);
+
+        $this->tenantContext->notifyPlanRequest($client, $user, $validated['type'], $validated['note'] ?? null);
+
+        return back()->with('success', 'Solicitud enviada. Te contactaremos pronto.');
     }
 
     /** Solo super_admin: cancela la cuenta (desactiva) sin borrar datos. */
