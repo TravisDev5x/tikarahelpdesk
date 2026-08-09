@@ -1,4 +1,5 @@
 import axios from "axios";
+import { isExplicitLogoutInProgress } from "./authNavigation";
 
 // Cliente para obtener la cookie CSRF (misma base que la app para que la cookie se envíe después)
 const csrfClient = axios.create({
@@ -45,7 +46,15 @@ instance.interceptors.response.use(
             csrfPromise = null; // permitir obtener de nuevo la cookie CSRF en el siguiente intento
         }
         if (status === 401 || status === 419) {
-            window.dispatchEvent(new CustomEvent("navigate-to-login"));
+            if (isExplicitLogoutInProgress()) {
+                // El usuario cerró sesión a propósito -- este 401 es de un
+                // request que ya estaba en vuelo, no una sesión que expiró
+                // sola. redirectToLanding() (logout()) ya decide a dónde ir;
+                // no hay que redirigir a /login ni tratarlo como error real.
+                error.duringLogout = true;
+            } else {
+                window.dispatchEvent(new CustomEvent("navigate-to-login"));
+            }
         }
         return Promise.reject(error);
     }

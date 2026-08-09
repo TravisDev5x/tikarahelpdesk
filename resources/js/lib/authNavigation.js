@@ -22,11 +22,34 @@ export function isGuestOnlyPath(pathname) {
 let redirectInFlight = false;
 
 /**
+ * Cierre de sesión explícito en curso -- mientras esté activa, un 401/419
+ * disparado por requests que ya estaban en vuelo (o que llegan justo después
+ * del POST /api/logout) NO debe mandarnos a /login: es esperado, no una
+ * sesión que expiró sola. redirectToLanding() ya se encarga de a dónde ir.
+ * Sin esto, si el 401 de un request en vuelo gana la carrera, marca
+ * redirectInFlight=true vía redirectToLogin() y el redirectToLanding() de
+ * logout() queda como no-op -- el usuario termina en /login en vez de "/".
+ */
+let explicitLogoutInProgress = false;
+
+export function beginExplicitLogout() {
+    explicitLogoutInProgress = true;
+}
+
+export function endExplicitLogout() {
+    explicitLogoutInProgress = false;
+}
+
+export function isExplicitLogoutInProgress() {
+    return explicitLogoutInProgress;
+}
+
+/**
  * Navegación unificada a login tras logout o 401/419.
  * Usa Inertia (replace + sin estado previo) para evitar quedar en AuthenticatedLayout.
  */
 export function redirectToLogin() {
-    if (redirectInFlight || isGuestOnlyPath()) {
+    if (redirectInFlight || isGuestOnlyPath() || explicitLogoutInProgress) {
         return;
     }
 

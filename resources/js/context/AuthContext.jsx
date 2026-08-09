@@ -2,7 +2,13 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import { router } from "@inertiajs/react";
 import axios from "@/lib/axios";
 import { notify } from "@/lib/notify";
-import { isGuestOnlyPath, redirectToLanding, redirectToLogin } from "@/lib/authNavigation";
+import {
+    isGuestOnlyPath,
+    redirectToLanding,
+    redirectToLogin,
+    beginExplicitLogout,
+    endExplicitLogout,
+} from "@/lib/authNavigation";
 
 function showSessionFlash(flash) {
     const hasFlash = Object.values(flash ?? {}).some(Boolean);
@@ -104,6 +110,7 @@ export const AuthProvider = ({ children, initialAuthUser = null }) => {
     }, []);
 
     const logout = useCallback(async () => {
+        beginExplicitLogout();
         try {
             await axios.post("/api/logout");
         } catch (error) {
@@ -112,6 +119,10 @@ export const AuthProvider = ({ children, initialAuthUser = null }) => {
             setUser(null);
             delete window.__auth_user_id;
             redirectToLanding();
+            // Ventana de gracia para requests que ya estaban en vuelo y cuyo
+            // 401 llega después de este punto -- ver comentario en
+            // beginExplicitLogout() en authNavigation.js.
+            setTimeout(endExplicitLogout, 3000);
         }
     }, []);
 

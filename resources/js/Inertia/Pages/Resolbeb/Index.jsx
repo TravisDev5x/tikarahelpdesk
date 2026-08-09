@@ -278,7 +278,7 @@ export default function ResolbebIndex({ mode = "tickets", catalogs: catalogsProp
                     last_page: ticketResult.value.data.last_page,
                     total: ticketResult.value.data.total
                 });
-            } else {
+            } else if (!ticketResult.reason?.duringLogout) {
                 notify.error({ title: "Error", description: "No se pudieron cargar los tickets." });
             }
             if (summaryResult.status === "fulfilled") {
