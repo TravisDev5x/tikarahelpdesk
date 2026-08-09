@@ -140,6 +140,98 @@
     --toast-info: 0 0% 9%;
 }
 
+/*
+ * Paletas de acento estilo shadcn (ui.shadcn.com/themes), aplicadas por
+ * usuario vía data-theme-color en <html> (Configuración > Tema). "zinc" es
+ * el default y no necesita bloque propio: son los tokens --primary/--ring
+ * ya definidos arriba. Solo se sobreescribe --primary/--ring/--sidebar-*;
+ * --brand (login/landing) es independiente y no cambia con esto.
+ */
+:root {
+    /* Referencia fija para pintar los swatches en Configuración (no cambian
+       con la paleta activa, a diferencia de --primary). */
+    --theme-color-swatch-zinc: 222.2 47.4% 11.2%;
+    --theme-color-swatch-rose: 346.8 77.2% 49.8%;
+    --theme-color-swatch-blue: 221.2 83.2% 53.3%;
+    --theme-color-swatch-green: 142.1 76.2% 36.3%;
+    --theme-color-swatch-violet: 262.1 83.3% 57.8%;
+    --theme-color-swatch-orange: 24.6 95% 53.1%;
+}
+:root[data-theme-color="rose"] {
+    --primary: 346.8 77.2% 49.8%;
+    --primary-foreground: 355.7 100% 97.3%;
+    --ring: 346.8 77.2% 49.8%;
+    --sidebar-primary: 346.8 77.2% 49.8%;
+    --sidebar-ring: 346.8 77.2% 49.8%;
+}
+.dark[data-theme-color="rose"] {
+    --primary: 346.8 77.2% 49.8%;
+    --primary-foreground: 355.7 100% 97.3%;
+    --ring: 346.8 77.2% 49.8%;
+    --sidebar-primary: 346.8 77.2% 49.8%;
+    --sidebar-ring: 346.8 77.2% 49.8%;
+}
+
+:root[data-theme-color="blue"] {
+    --primary: 221.2 83.2% 53.3%;
+    --primary-foreground: 210 40% 98%;
+    --ring: 221.2 83.2% 53.3%;
+    --sidebar-primary: 221.2 83.2% 53.3%;
+    --sidebar-ring: 221.2 83.2% 53.3%;
+}
+.dark[data-theme-color="blue"] {
+    --primary: 217.2 91.2% 59.8%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+    --ring: 224.3 76.3% 48%;
+    --sidebar-primary: 217.2 91.2% 59.8%;
+    --sidebar-ring: 224.3 76.3% 48%;
+}
+
+:root[data-theme-color="green"] {
+    --primary: 142.1 76.2% 36.3%;
+    --primary-foreground: 355.7 100% 97.3%;
+    --ring: 142.1 76.2% 36.3%;
+    --sidebar-primary: 142.1 76.2% 36.3%;
+    --sidebar-ring: 142.1 76.2% 36.3%;
+}
+.dark[data-theme-color="green"] {
+    --primary: 142.1 70.6% 45.3%;
+    --primary-foreground: 144.9 80.4% 10%;
+    --ring: 142.4 71.8% 29.2%;
+    --sidebar-primary: 142.1 70.6% 45.3%;
+    --sidebar-ring: 142.4 71.8% 29.2%;
+}
+
+:root[data-theme-color="violet"] {
+    --primary: 262.1 83.3% 57.8%;
+    --primary-foreground: 210 40% 98%;
+    --ring: 262.1 83.3% 57.8%;
+    --sidebar-primary: 262.1 83.3% 57.8%;
+    --sidebar-ring: 262.1 83.3% 57.8%;
+}
+.dark[data-theme-color="violet"] {
+    --primary: 263.4 70% 50.4%;
+    --primary-foreground: 210 40% 98%;
+    --ring: 263.4 70% 50.4%;
+    --sidebar-primary: 263.4 70% 50.4%;
+    --sidebar-ring: 263.4 70% 50.4%;
+}
+
+:root[data-theme-color="orange"] {
+    --primary: 24.6 95% 53.1%;
+    --primary-foreground: 60 9.1% 97.8%;
+    --ring: 24.6 95% 53.1%;
+    --sidebar-primary: 24.6 95% 53.1%;
+    --sidebar-ring: 24.6 95% 53.1%;
+}
+.dark[data-theme-color="orange"] {
+    --primary: 20.5 90.2% 48.2%;
+    --primary-foreground: 60 9.1% 97.8%;
+    --ring: 20.5 90.2% 48.2%;
+    --sidebar-primary: 20.5 90.2% 48.2%;
+    --sidebar-ring: 20.5 90.2% 48.2%;
+}
+
 /* Superficies (opción A — heredan :root / .dark del html) */
 .surface-app,
 .surface-auth,
@@ -509,5 +601,119 @@ html {
     :root[data-sidebar-position="right"] [data-sileo-viewport][data-position$="center"] {
         left: calc(50% - (var(--app-sidebar-width, 0px) / 2)) !important;
     }
+}
+
+/*
+ * Calendario (react-big-calendar) estilo Teams/Outlook -- reskin de sus
+ * clases .rbc-* con tokens shadcn (respeta claro/oscuro sin CSS propio del
+ * paquete, que trae colores fijos claros). Toolbar propio (CustomToolbar en
+ * Calendar.jsx) reemplaza el suyo, así que no hace falta tocar .rbc-toolbar.
+ * Eventos usan un componente propio (CalendarEvent), por eso .rbc-event se
+ * deja "vacío" (transparente, sin padding) para que ese contenido llene el bloque.
+ */
+.tikara-calendar .rbc-calendar {
+    font-family: inherit;
+    color: hsl(var(--foreground));
+}
+
+.tikara-calendar .rbc-month-view,
+.tikara-calendar .rbc-time-view,
+.tikara-calendar .rbc-agenda-view table.rbc-agenda-table {
+    border-color: hsl(var(--border));
+    border-radius: 0.5rem;
+    overflow: hidden;
+}
+
+.tikara-calendar .rbc-header,
+.tikara-calendar .rbc-time-header-content,
+.tikara-calendar .rbc-time-gutter,
+.tikara-calendar .rbc-timeslot-group,
+.tikara-calendar .rbc-day-bg + .rbc-day-bg,
+.tikara-calendar .rbc-month-row + .rbc-month-row,
+.tikara-calendar .rbc-header + .rbc-header,
+.tikara-calendar .rbc-agenda-table thead > tr > th,
+.tikara-calendar .rbc-agenda-table tbody > tr > td,
+.tikara-calendar .rbc-time-content,
+.tikara-calendar .rbc-time-content > * + * > *,
+.tikara-calendar .rbc-day-slot .rbc-time-slot {
+    border-color: hsl(var(--border) / 0.7);
+}
+
+.tikara-calendar .rbc-header {
+    padding: 0.5rem 0.25rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+    color: hsl(var(--muted-foreground));
+    background: hsl(var(--muted) / 0.3);
+}
+
+.tikara-calendar .rbc-off-range-bg {
+    background: hsl(var(--muted) / 0.4);
+}
+
+.tikara-calendar .rbc-off-range {
+    color: hsl(var(--muted-foreground) / 0.6);
+}
+
+.tikara-calendar .rbc-today {
+    background: hsl(var(--primary) / 0.06);
+}
+
+.tikara-calendar .rbc-time-gutter .rbc-timeslot-group,
+.tikara-calendar .rbc-label {
+    color: hsl(var(--muted-foreground));
+    font-size: 0.7rem;
+}
+
+.tikara-calendar .rbc-current-time-indicator {
+    background-color: hsl(var(--destructive));
+    height: 2px;
+}
+
+.tikara-calendar .rbc-event {
+    background: transparent;
+    border: none;
+    padding: 0;
+    margin: 1px 0;
+}
+
+.tikara-calendar .rbc-event.rbc-selected,
+.tikara-calendar .rbc-event:focus {
+    background: transparent;
+    outline: 2px solid hsl(var(--ring));
+    outline-offset: -1px;
+}
+
+.tikara-calendar .rbc-event-label {
+    display: none;
+}
+
+.tikara-calendar .rbc-show-more {
+    color: hsl(var(--primary));
+    background: transparent;
+    font-size: 0.7rem;
+    font-weight: 600;
+}
+
+.tikara-calendar .rbc-slot-selection {
+    background: hsl(var(--primary) / 0.15);
+}
+
+.tikara-calendar .rbc-agenda-table thead > tr > th {
+    padding: 0.5rem;
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    color: hsl(var(--muted-foreground));
+    background: hsl(var(--muted) / 0.3);
+}
+
+.tikara-calendar .rbc-agenda-table tbody > tr > td {
+    padding: 0.5rem;
+}
+
+.tikara-calendar .rbc-agenda-empty {
+    color: hsl(var(--muted-foreground));
 }
 
