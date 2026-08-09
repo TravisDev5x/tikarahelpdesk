@@ -45,7 +45,13 @@ class HandleInertiaRequests extends Middleware
         $user = $request->user();
 
         if ($user) {
-            $user->loadMissing([
+            // load() en vez de loadMissing(): otros servicios en el pipeline
+            // (p.ej. TenantClientResolver) ya pueden haber cargado 'site' con
+            // un subconjunto de columnas (sin 'name'); loadMissing() no
+            // recarga relaciones ya marcadas como cargadas, dejando 'name'
+            // ausente aquí. load() siempre trae el set completo que este
+            // middleware necesita para los props compartidos.
+            $user->load([
                 'area:id,name',
                 'site:id,name,client_id',
                 'site.client:id,name,logo_path',
@@ -71,6 +77,7 @@ class HandleInertiaRequests extends Middleware
                     'avatar_url' => $user->avatar_url,
                     'status' => $user->status,
                     'theme' => $user->theme,
+                    'theme_color' => $user->theme_color,
                     'locale' => $user->locale,
                     'ui_density' => $user->ui_density,
                     'sidebar_state' => $user->sidebar_state,
@@ -86,6 +93,8 @@ class HandleInertiaRequests extends Middleware
                     'force_password_change' => $user->force_password_change ?? false,
                     'area' => $user->area?->name,
                     'area_id' => $user->area_id,
+                    'google_linked' => (bool) $user->google_id,
+                    'microsoft_linked' => (bool) $user->microsoft_id,
                     'site' => $user->site?->name,
                     'site_id' => $user->site_id,
                     'availability' => $user->availability,

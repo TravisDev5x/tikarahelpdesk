@@ -7,26 +7,23 @@ import { notify } from "@/lib/notify";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DatePickerField } from "@/components/date-picker-field";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { UserAvatar } from "@/components/user-avatar";
 import { DashboardStackedBar } from "@/components/dashboard/DashboardStackedBar";
 import { ChartErrorBoundary } from "@/components/dashboard/ChartErrorBoundary";
 import { TinyVerticalBarChart } from "@/components/dashboard/TinyVerticalBarChart";
 import { DashboardOperativo } from "@/components/dashboard/DashboardOperativo";
+import { TicketCreateDialog } from "@/components/tickets/TicketCreateDialog";
 import { getDashboardProfile } from "@/lib/dashboardProfile";
 import { chartColor } from "@/lib/chartColors";
 import {
     metricCardVariant,
     noticeWarningRow,
-    dialogSuccessHeader,
-    dialogSuccessTitle,
     hintWarning,
 } from "@/lib/badgeStyles";
 import { cn } from "@/lib/utils";
@@ -43,14 +40,11 @@ import {
     BarChart3,
     CheckCircle2,
     X,
-    LayoutDashboard,
     CheckCircle,
     XCircle,
     TrendingUp,
     UserCheck,
     Plus,
-    MapPin,
-    User,
     ListChecks,
     AlertCircle,
     Clock,
@@ -58,7 +52,6 @@ import {
     BellOff,
     Maximize2,
     Info,
-    Loader2,
 } from "lucide-react";
 
 // --- CONSTANTES ---
@@ -469,7 +462,7 @@ function DashboardSolicitante() {
             .finally(() => setCreateCatalogsLoading(false));
     }, [user?.site_id, user?.site?.id, user?.area_id, createCatalogs]);
 
-    const handleCreateSubmit = async (e) => {
+    const handleCreateSubmit = async (e, pendingFiles = []) => {
         e.preventDefault();
         if (!createForm.subject?.trim()) {
             notify.error("El asunto es obligatorio");
@@ -493,10 +486,20 @@ function DashboardSolicitante() {
                 created_at: new Date().toISOString(),
             };
             const { data } = await axios.post("/api/tickets", payload);
+            const ticketId = data?.id ?? null;
+            if (ticketId && pendingFiles.length > 0) {
+                const attachmentsForm = new FormData();
+                pendingFiles.forEach((file) => attachmentsForm.append("attachments[]", file));
+                try {
+                    await axios.post(`/api/tickets/${ticketId}/attachments`, attachmentsForm);
+                } catch {
+                    notify.error("El ticket se creó, pero los adjuntos no se pudieron subir.");
+                }
+            }
             clearCatalogCache();
             loadTickets();
             loadActivity();
-            setCreateSuccessTicketId(data?.id ?? null);
+            setCreateSuccessTicketId(ticketId);
         } catch (err) {
             notify.error(err?.response?.data?.message || "Error al crear el ticket");
         } finally {
@@ -573,7 +576,7 @@ function DashboardSolicitante() {
     }, [tickets]);
 
     return (
-        <div className="w-full max-w-4xl mx-auto space-y-6">
+        <div className="w-full space-y-6">
             <DashboardWelcome user={user}>
                 <p className="text-sm text-foreground/90 mt-2">
                     Tienes <strong>{openCount}</strong> {openCount === 1 ? "solicitud abierta" : "solicitudes abiertas"}
@@ -801,8 +804,10 @@ function DashboardSolicitante() {
                 </CardContent>
             </Card>
 
-            {/* Modal crear ticket: sin salir del dashboard */}
-            <Dialog
+            {/* Modal crear ticket: sin salir del dashboard. Mismo componente que
+                usan agentes/supervisores desde "Todos los tickets" -- un solo
+                formulario enriquecido (markdown, adjuntos) para mantener, no dos. */}
+            <TicketCreateDialog
                 open={createModalOpen}
                 onOpenChange={(open) => {
                     if (!open) {
@@ -811,138 +816,19 @@ function DashboardSolicitante() {
                     }
                     setCreateModalOpen(open);
                 }}
-            >
-                <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto p-0 gap-0">
-                    {createSuccessTicketId ? (
-                        <>
-                            <DialogHeader className={dialogSuccessHeader}>
-                                <DialogTitle className={dialogSuccessTitle}>
-                                    <CheckCircle2 className="h-5 w-5" /> Solicitud registrada
-                                </DialogTitle>
-                                <DialogDescription>
-                                    Tu solicitud <strong>#{String(createSuccessTicketId).padStart(5, "0")}</strong> fue registrada. Te avisaremos cuando haya novedades.
-                                </DialogDescription>
-                            </DialogHeader>
-                            <div className="p-5 flex flex-wrap items-center gap-2">
-                                <Button asChild size="sm">
-                                    <NavLink href={`/resolbeb/tickets/${createSuccessTicketId}`} onClick={() => { setCreateModalOpen(false); setCreateSuccessTicketId(null); setCreateForm(CREATE_FORM_INITIAL); }}>
-                                        Ver solicitud
-                                    </NavLink>
-                                </Button>
-                                <Button type="button" variant="outline" size="sm" onClick={() => { setCreateModalOpen(false); setCreateSuccessTicketId(null); setCreateForm(CREATE_FORM_INITIAL); }}>
-                                    Cerrar
-                                </Button>
-                            </div>
-                        </>
-                    ) : (
-                        <>
-                            <DialogHeader className="p-5 pb-2 bg-primary text-primary-foreground border-b border-primary-foreground/10">
-                                <DialogTitle className="text-lg flex items-center gap-2 text-primary-foreground">
-                                    <Plus className="h-5 w-5" /> Nuevo ticket
-                                </DialogTitle>
-                                <DialogDescription className="text-primary-foreground/85">Completa los datos para registrar tu solicitud. No sales del inicio.</DialogDescription>
-                            </DialogHeader>
-                            <form onSubmit={handleCreateSubmit} className="flex flex-col">
-                                <div className="p-5 space-y-4 max-h-[60vh] overflow-y-auto">
-                                    <div className="space-y-2">
-                                        <Label className="text-xs">Asunto <span className="text-destructive">*</span></Label>
-                                        <Input
-                                            required
-                                            placeholder="Ej: Fallo en impresora de recepción"
-                                            value={createForm.subject}
-                                            onChange={(e) => setCreateForm((f) => ({ ...f, subject: e.target.value }))}
-                                            disabled={createCatalogsLoading}
-                                            className="bg-muted/40 border-border/60"
-                                        />
-                                    </div>
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                        <div className="space-y-2">
-                                            <Label className="flex items-center gap-1 text-xs">Tipo <span className="text-destructive">*</span></Label>
-                                            <Select value={createForm.ticket_type_id} onValueChange={(v) => setCreateForm((f) => ({ ...f, ticket_type_id: v }))} disabled={createCatalogsLoading}>
-                                                <SelectTrigger className="bg-muted/40 border-border/60"><SelectValue placeholder="Seleccionar" /></SelectTrigger>
-                                                <SelectContent>
-                                                    {(createCatalogs.ticket_types || []).map((t) => (
-                                                        <SelectItem key={t.id} value={String(t.id)}>{t.name}</SelectItem>
-                                                    ))}
-                                                </SelectContent>
-                                            </Select>
-                                        </div>
-                                        <div className="space-y-2">
-                                            <Label className="flex items-center gap-1 text-xs">Prioridad <span className="text-destructive">*</span></Label>
-                                            <Select value={createForm.priority_id} onValueChange={(v) => setCreateForm((f) => ({ ...f, priority_id: v }))} disabled={createCatalogsLoading}>
-                                                <SelectTrigger className="bg-muted/40 border-border/60"><SelectValue placeholder="Seleccionar" /></SelectTrigger>
-                                                <SelectContent>
-                                                    {(createCatalogs.priorities || []).map((p) => (
-                                                        <SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>
-                                                    ))}
-                                                </SelectContent>
-                                            </Select>
-                                        </div>
-                                    </div>
-                                    <Separator />
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-muted/20 p-3 rounded-lg border border-border/50">
-                                        <div className="space-y-2">
-                                            <Label className="flex items-center gap-1 text-xs"><MapPin className="w-3 h-3" /> Sede <span className="text-destructive">*</span></Label>
-                                            <Select value={createForm.site_id} onValueChange={(v) => setCreateForm((f) => ({ ...f, site_id: v }))} disabled={createCatalogsLoading}>
-                                                <SelectTrigger className="bg-muted/40 border-border/60"><SelectValue placeholder="Sede" /></SelectTrigger>
-                                                <SelectContent>
-                                                    {(createCatalogs.sites || []).map((s) => (
-                                                        <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>
-                                                    ))}
-                                                </SelectContent>
-                                            </Select>
-                                            <p className="text-[11px] text-muted-foreground">Elige tu sede o ubicación.</p>
-                                        </div>
-                                        <div className="space-y-2">
-                                            <Label className="flex items-center gap-1 text-xs"><User className="w-3 h-3" /> Área responsable <span className="text-destructive">*</span></Label>
-                                            <Select value={createForm.area_current_id} onValueChange={(v) => setCreateForm((f) => ({ ...f, area_current_id: v }))} disabled={createCatalogsLoading}>
-                                                <SelectTrigger className="bg-muted/40 border-border/60"><SelectValue placeholder="Área que atenderá" /></SelectTrigger>
-                                                <SelectContent>
-                                                    {(createCatalogs.areas || []).map((a) => (
-                                                        <SelectItem key={a.id} value={String(a.id)}>{a.name}</SelectItem>
-                                                    ))}
-                                                </SelectContent>
-                                            </Select>
-                                            <p className="text-[11px] text-muted-foreground">Elige el área que debe atender tu solicitud.</p>
-                                        </div>
-                                        <div className="space-y-2 sm:col-span-2">
-                                            <Label className="flex items-center gap-1 text-xs"><Network className="w-3 h-3" /> Área de origen (tu área) <span className="text-destructive">*</span></Label>
-                                            <Select value={createForm.area_origin_id} onValueChange={(v) => setCreateForm((f) => ({ ...f, area_origin_id: v }))} disabled={createCatalogsLoading}>
-                                                <SelectTrigger className="bg-muted/40 border-border/60"><SelectValue placeholder="Tu área" /></SelectTrigger>
-                                                <SelectContent>
-                                                    {(createCatalogs.areas || []).map((a) => (
-                                                        <SelectItem key={a.id} value={String(a.id)}>{a.name}</SelectItem>
-                                                    ))}
-                                                </SelectContent>
-                                            </Select>
-                                            <p className="text-[11px] text-muted-foreground">Tu área o departamento.</p>
-                                        </div>
-                                    </div>
-                                    <div className="space-y-2">
-                                        <Label className="text-xs">Descripción del problema <span className="text-muted-foreground font-normal">(opcional)</span></Label>
-                                        <Textarea
-                                            placeholder="Describe qué ocurrió, cuándo y si hay mensajes de error..."
-                                            className="min-h-[100px] resize-y bg-muted/40 border-border/60"
-                                            value={createForm.description}
-                                            onChange={(e) => setCreateForm((f) => ({ ...f, description: e.target.value }))}
-                                            disabled={createCatalogsLoading}
-                                        />
-                                        <p className="text-[11px] text-muted-foreground/90">No incluyas contraseñas ni datos sensibles en la descripción.</p>
-                                    </div>
-                                </div>
-                                <DialogFooter className="p-4 border-t bg-muted/10 flex-shrink-0 gap-2">
-                                    <Button type="button" variant="outline" onClick={() => setCreateModalOpen(false)} disabled={createSaving}>
-                                        Cancelar
-                                    </Button>
-                                    <Button type="submit" disabled={createSaving || createCatalogsLoading}>
-                                        {createSaving ? <span className="inline-flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin" /> Creando…</span> : <span className="inline-flex items-center gap-2"><CheckCircle2 className="h-4 w-4" /> Crear ticket</span>}
-                                    </Button>
-                                </DialogFooter>
-                            </form>
-                        </>
-                    )}
-                </DialogContent>
-            </Dialog>
+                form={createForm}
+                setForm={setCreateForm}
+                catalogs={createCatalogs}
+                saving={createSaving || createCatalogsLoading}
+                onSubmit={handleCreateSubmit}
+                siteContext={{ siteName: user?.site?.name || user?.site, clientName: user?.client_name }}
+                successTicketId={createSuccessTicketId}
+                onSuccessClose={() => {
+                    setCreateModalOpen(false);
+                    setCreateSuccessTicketId(null);
+                    setCreateForm(CREATE_FORM_INITIAL);
+                }}
+            />
         </div>
     );
 }

@@ -374,6 +374,12 @@ export function Sidebar({ collapsed, onToggle, onNavigate, currentPath: currentP
     const canSeeMyTickets =
         (can('tickets.create') || can('tickets.view_own')) &&
         (can('tickets.manage_all') || can('tickets.view_area'))
+    // Solicitante puro: un solo punto de creación (modal del dashboard en
+    // Inicio) en vez de duplicar el link "Crear ticket" hacia la página
+    // completa -- agentes/admins sí la conservan.
+    const isSolicitanteOnly =
+        !can('tickets.manage_all') && !can('tickets.view_area') &&
+        (can('tickets.create') || can('tickets.view_own'))
     const isAdmin = can('users.manage')
     const NAV = useMemo(() => {
         const sections = []
@@ -389,7 +395,9 @@ export function Sidebar({ collapsed, onToggle, onNavigate, currentPath: currentP
                 : []),
             inertiaNav('/calendar', { label: t('nav.calendar'), icon: CalendarDays, emphasis: true }),
             inertiaNav('/resolbeb/mis-tickets', { label: t('nav.myTickets'), icon: Ticket, emphasis: true }),
-            inertiaNav('/resolbeb/tickets/new', { label: t('nav.createTicket'), icon: Layers, emphasis: true }),
+            ...(isSolicitanteOnly
+                ? []
+                : [inertiaNav('/resolbeb/tickets/new', { label: t('nav.createTicket'), icon: Layers, emphasis: true })]),
         ]
         sections.push({ sectionId: 'general', label: t('section.general'), items: generalItems })
 
@@ -492,6 +500,7 @@ export function Sidebar({ collapsed, onToggle, onNavigate, currentPath: currentP
         canSeeIncidents,
         canSeeTicketsModule,
         canSeeMyTickets,
+        isSolicitanteOnly,
         isAdmin,
         user?.permissions,
         can,
@@ -830,6 +839,12 @@ export function Sidebar({ collapsed, onToggle, onNavigate, currentPath: currentP
                                 <InertiaLink href="/profile" preserveScroll className="flex items-center gap-2">
                                     <UserCircle className="h-4 w-4 shrink-0" />
                                     <span>{t('layout.profile')}</span>
+                                </InertiaLink>
+                            </DropdownMenuItem>
+                            <DropdownMenuItem asChild className="cursor-pointer gap-2">
+                                <InertiaLink href="/settings" preserveScroll className="flex items-center gap-2">
+                                    <Settings className="h-4 w-4 shrink-0" />
+                                    <span>{t('nav.settings')}</span>
                                 </InertiaLink>
                             </DropdownMenuItem>
                             <DropdownMenuSeparator className="bg-border/50" />
