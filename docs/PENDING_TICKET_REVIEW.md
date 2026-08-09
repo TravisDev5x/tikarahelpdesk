@@ -1,7 +1,10 @@
-# Pendiente: cola de revisión manual para correos no reconocidos
+# Cola de revisión manual para correos no reconocidos
 
-**Estado: diseñado, no construido.** Decisión tomada el 2026-08-04, queda documentado
-para no perder el hilo antes de implementarlo.
+**Estado: construido 2026-08-09.** Diseño original decidido el 2026-08-04 (más
+abajo, sin editar — sigue siendo la referencia de intención). Ver
+`docs/PENDING.md` sección 3 para el resumen de qué se construyó y qué quedó
+fuera de alcance (MVP: "crear usuario nuevo" reusa `/users` en vez de un
+formulario embebido).
 
 ## Comportamiento actual (ya construido, funcionando)
 
