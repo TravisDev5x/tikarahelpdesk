@@ -347,6 +347,28 @@ export default function Index({ users, catalogs, filters: serverFilters = {} }) 
         setDialogOpen(true);
     };
 
+    // Prellenado desde la cola de revisión de correos no reconocidos
+    // (Resolbeb/PendingRequests.jsx, botón "Crear usuario nuevo con este
+    // correo"): ?create=1&first_name=...&email=... abre el mismo diálogo de
+    // "Nuevo usuario" ya con esos dos campos listos -- el resto (rol, sede,
+    // contraseña) lo completa quien revisa, misma validación de siempre.
+    useEffect(() => {
+        const params = new URLSearchParams(window.location.search);
+        if (params.get("create") !== "1") return;
+
+        openCreate();
+        setForm((f) => ({
+            ...f,
+            first_name: params.get("first_name") ?? f.first_name,
+            email: params.get("email") ?? f.email,
+        }));
+
+        const url = new URL(window.location.href);
+        url.search = "";
+        window.history.replaceState({}, "", url);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
     const reloadUsers = () =>
         router.reload({ only: ["users"], preserveScroll: true });
 

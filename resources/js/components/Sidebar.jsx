@@ -70,6 +70,7 @@ import {
     KeyRound,
     Grid3X3,
     FileText,
+    Inbox,
 } from 'lucide-react'
 
 const ICON_SIZE = 20
@@ -371,6 +372,7 @@ export function Sidebar({ collapsed, onToggle, onNavigate, currentPath: currentP
     const canSeeCatalogs = can('catalogs.manage') || can('tickets.view_area') || can('tickets.manage_all')
     const canSeeIncidents = can('incidents.view_own') || can('incidents.view_area') || can('incidents.manage_all')
     const canSeeTicketsModule = can('tickets.manage_all') || can('tickets.view_area')
+    const canSeeReviewPending = can('tickets.review_pending') || can('tickets.manage_all')
     const canSeeMyTickets =
         (can('tickets.create') || can('tickets.view_own')) &&
         (can('tickets.manage_all') || can('tickets.view_area'))
@@ -412,6 +414,7 @@ export function Sidebar({ collapsed, onToggle, onNavigate, currentPath: currentP
         if (canSeeResolbeb) {
             ticketsChildren.push(inertiaNav('/resolbeb', { label: t('nav.dashboard'), icon: LayoutDashboard }))
             if (canSeeTicketsModule) ticketsChildren.push(inertiaNav('/resolbeb/tickets', { label: t('nav.allTickets'), icon: Ticket }))
+            if (canSeeReviewPending) ticketsChildren.push(inertiaNav('/resolbeb/pending-requests', { label: t('nav.pendingRequests'), icon: Inbox }))
             if (canSeeCatalogs) {
                 ticketsChildren.push({ type: 'separator', label: t('nav.catalogsTickets') })
                 ticketsChildren.push(inertiaNav('/resolbeb/estados', { label: t('nav.ticketStates'), icon: Workflow }))

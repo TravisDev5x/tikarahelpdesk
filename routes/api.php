@@ -241,6 +241,13 @@ Route::middleware(['auth:sanctum','locale','perm:tickets.manage_all'])->group(fu
     Route::get('security/tenant-boundary-events', [\App\Http\Controllers\Api\TenantSecurityController::class, 'index']);
 });
 
+// Cola de revisión manual de correos no reconocidos (docs/PENDING_TICKET_REVIEW.md).
+Route::middleware(['auth:sanctum','locale','perm:tickets.review_pending|tickets.manage_all'])->group(function () {
+    Route::get('pending-ticket-requests', [\App\Http\Controllers\Api\PendingTicketRequestController::class, 'index']);
+    Route::post('pending-ticket-requests/{pendingTicketRequest}/approve', [\App\Http\Controllers\Api\PendingTicketRequestController::class, 'approve']);
+    Route::post('pending-ticket-requests/{pendingTicketRequest}/reject', [\App\Http\Controllers\Api\PendingTicketRequestController::class, 'reject']);
+});
+
 // Notificaciones (in-app, sólo lectura)
 Route::middleware(['auth:sanctum','locale'])->group(function () {
     Route::get('notifications', [\App\Http\Controllers\Api\NotificationController::class, 'index']);

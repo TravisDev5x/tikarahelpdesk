@@ -48,6 +48,7 @@ class AuthorizationObjectSeeder extends Seeder
             ['key' => 'tickets.change_status', 'label' => 'Cambiar estado', 'full_permission' => 'tickets.change_status'],
             ['key' => 'tickets.escalate', 'label' => 'Escalar de área', 'full_permission' => 'tickets.escalate'],
             ['key' => 'tickets.filter_by_site', 'label' => 'Filtrar por site', 'full_permission' => 'tickets.filter_by_site'],
+            ['key' => 'tickets.review_pending', 'label' => 'Revisar solicitudes pendientes de correo', 'full_permission' => 'tickets.review_pending'],
         ]);
 
         $this->seedModule('incidents', 'Incidencias', [

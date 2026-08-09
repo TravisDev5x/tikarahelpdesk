@@ -132,6 +132,7 @@ Route::middleware('auth')->group(function () {
         Route::patch('/{client}/cancel', [ClientController::class, 'cancel'])->name('cancel');
         Route::patch('/{client}/reactivate', [ClientController::class, 'reactivate'])->name('reactivate');
         Route::patch('/{client}/plan', [ClientController::class, 'updatePlan'])->name('plan.update');
+        Route::post('/{client}/plan-request', [ClientController::class, 'requestPlanChange'])->name('plan.request');
     });
 
     Route::prefix('company')->name('company.')->group(function () {
@@ -184,6 +185,10 @@ Route::middleware('auth')->group(function () {
     Route::get('/resolbeb/mis-tickets', [ResolbebIndexController::class, 'misTickets'])
         ->middleware('onboarding')
         ->name('resolbeb.mis-tickets');
+
+    Route::get('/resolbeb/pending-requests', fn () => Inertia::render('Resolbeb/PendingRequests'))
+        ->middleware(['onboarding', 'perm:tickets.review_pending|tickets.manage_all'])
+        ->name('resolbeb.pending-requests');
 
     Route::get('/resolbeb/tickets/{id}', function (int $id, CatalogPageController $catalogs) {
         return Inertia::render('Resolbeb/Detalle', [

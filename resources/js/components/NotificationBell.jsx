@@ -109,8 +109,7 @@ export function NotificationBell({
         }
     };
 
-    const renderTicketLink = (ticketId, content, key) => {
-        const href = `/resolbeb/tickets/${ticketId}`;
+    const renderLink = (href, content, key) => {
         const onClick = () => {
             markOneRead(key);
             setOpen(false);
@@ -158,6 +157,7 @@ export function NotificationBell({
                         <div className="flex flex-col">
                             {notifications.map((n) => {
                                 const ticketId = n.data?.ticket_id;
+                                const href = n.data?.href || (ticketId ? `/resolbeb/tickets/${ticketId}` : null);
                                 const content = (
                                     <div
                                         className={cn(
@@ -177,8 +177,8 @@ export function NotificationBell({
                                     </div>
                                 );
 
-                                if (ticketId) {
-                                    return renderTicketLink(ticketId, content, n.id);
+                                if (href) {
+                                    return renderLink(href, content, n.id);
                                 }
 
                                 return (

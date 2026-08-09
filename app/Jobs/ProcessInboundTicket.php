@@ -6,6 +6,7 @@ use App\Mail\RegistrationRequiredMail;
 use App\Models\Client;
 use App\Models\Ticket;
 use App\Services\Classification\TicketClassifierService;
+use App\Services\PendingTicketReviewService;
 use App\Services\Tenant\TenantContextService;
 use App\Services\TicketCreationService;
 use App\Support\Tenancy\PgsqlRowLevelSecurity;
@@ -32,7 +33,7 @@ class ProcessInboundTicket implements ShouldQueue
         private array $parsedEmail
     ) {}
 
-    public function handle(TicketClassifierService $classifier, TicketCreationService $ticketCreation): void
+    public function handle(TicketClassifierService $classifier, TicketCreationService $ticketCreation, PendingTicketReviewService $pendingReview): void
     {
         $tenant = Client::find($this->clientId);
         if (! $tenant) {
@@ -72,6 +73,11 @@ class ProcessInboundTicket implements ShouldQueue
 
             Mail::to($this->parsedEmail['from'])->queue(new RegistrationRequiredMail($this->parsedEmail['from'], $tenant));
 
+            $outcome = $pendingReview->recordRejection($tenant, $this->parsedEmail, $resolution);
+            if ($outcome['isNew']) {
+                $pendingReview->notifyReviewers($outcome['request']);
+            }
+
             return;
         }
 
@@ -101,24 +107,10 @@ class ProcessInboundTicket implements ShouldQueue
                 clientId: $this->clientId
             );
 
-            // Lookup required NOT-NULL catalog IDs
-            $defaultAreaId = DB::table('areas')
-                ->where(fn ($q) => $q->whereNull('client_id')->orWhere('client_id', $this->clientId))
-                ->orderByRaw('client_id IS NULL')  // tenant-specific first, then global
-                ->orderBy('id')
-                ->value('id');
-
-            $defaultStateId = DB::table('ticket_states')
-                ->where(fn ($q) => $q->whereNull('client_id')->orWhere('client_id', $this->clientId))
-                ->where(fn ($q) => $q->whereNull('is_final')->orWhere('is_final', false))
-                ->orderBy('id')
-                ->value('id');
-
-            if (! $defaultAreaId || ! $defaultStateId) {
-                throw new \RuntimeException(
-                    "Tenant {$this->clientId}: sin área o estado disponible para el ticket."
-                );
-            }
+            // Lookup required NOT-NULL catalog IDs (compartido con
+            // PendingTicketReviewService::approveWithExistingUser() -- mismos
+            // defaults en ambos flujos, un solo lugar que los calcula).
+            [$defaultAreaId, $defaultStateId] = $ticketCreation->resolveDefaultAreaAndState($this->clientId);
 
             // Folio atómico vía TicketSequence::nextFor(), a través del mismo
             // servicio que usa el flujo de portal (MyTicketsController::store).

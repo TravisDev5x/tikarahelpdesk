@@ -528,6 +528,36 @@ class OperatorScopeService
         return $query->whereRaw('0 = 1');
     }
 
+    /** Misma forma que applyOnAuditLogs() -- pending_ticket_requests también tiene client_id plano. */
+    public function applyOnPendingTicketRequests(Builder $query, User $user): Builder
+    {
+        if ($enforced = $this->tenantContext->enforcedClientId()) {
+            return $query->where('client_id', $enforced);
+        }
+
+        if ($this->bypassesOperatorScope($user)) {
+            return $query;
+        }
+
+        if ($this->usesOperatorMspWideScope($user)) {
+            $operatorId = $this->resolveOperatorUserId($user);
+            if (! $operatorId) {
+                return $this->usesLegacyMspWideAccess($user) ? $query : $query->whereRaw('0 = 1');
+            }
+
+            return $query->whereIn('client_id', function ($sub) use ($operatorId) {
+                $sub->select('id')->from('clients')->where('operator_user_id', $operatorId);
+            });
+        }
+
+        $clientId = $this->tenantResolver->resolve($user);
+        if ($clientId) {
+            return $query->where('client_id', $clientId);
+        }
+
+        return $query->whereRaw('0 = 1');
+    }
+
     private function applyTicketsWithoutTenant(Builder $query, User $user): Builder
     {
         if ($this->tenantResolver->isAreaScopedWithoutTenant($user, 'tickets')) {

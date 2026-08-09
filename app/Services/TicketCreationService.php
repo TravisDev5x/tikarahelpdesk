@@ -7,6 +7,7 @@ use App\Models\Ticket;
 use App\Models\TicketSequence;
 use App\Models\User;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use InvalidArgumentException;
 use RuntimeException;
@@ -130,6 +131,38 @@ class TicketCreationService
         }
 
         return [chr(ord('A') + $block), $n - $block * 100000];
+    }
+
+    /**
+     * Área y estado por defecto para un ticket nuevo de un tenant -- ambas
+     * columnas son NOT NULL en `tickets`. Extraído de ProcessInboundTicket
+     * (antes inline en su transacción) para que el flujo de aprobación de
+     * PendingTicketReviewService use exactamente los mismos defaults sin
+     * duplicar el lookup.
+     *
+     * @return array{0: int, 1: int} [area_id, ticket_state_id]
+     */
+    public function resolveDefaultAreaAndState(int $clientId): array
+    {
+        $defaultAreaId = DB::table('areas')
+            ->where(fn ($q) => $q->whereNull('client_id')->orWhere('client_id', $clientId))
+            ->orderByRaw('client_id IS NULL')  // tenant-specific first, then global
+            ->orderBy('id')
+            ->value('id');
+
+        $defaultStateId = DB::table('ticket_states')
+            ->where(fn ($q) => $q->whereNull('client_id')->orWhere('client_id', $clientId))
+            ->where(fn ($q) => $q->whereNull('is_final')->orWhere('is_final', false))
+            ->orderBy('id')
+            ->value('id');
+
+        if (! $defaultAreaId || ! $defaultStateId) {
+            throw new RuntimeException(
+                "Tenant {$clientId}: sin área o estado disponible para el ticket."
+            );
+        }
+
+        return [$defaultAreaId, $defaultStateId];
     }
 
     /**
