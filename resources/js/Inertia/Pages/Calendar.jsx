@@ -68,6 +68,9 @@ function CalendarEvent({ event }) {
     if (!ticket) return null;
     const accent = priorityAccent(ticket?.priority?.level);
     const unassigned = !(ticket.assigned_user || ticket.assignedUser);
+    const time = event.start
+        ? event.start.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+        : null;
     return (
         <div
             className={cn(
@@ -78,6 +81,7 @@ function CalendarEvent({ event }) {
         >
             <p className={cn("truncate text-[11px] font-semibold", accent.text)}>
                 #{String(ticket.id).padStart(5, "0")}
+                {time && <span className="ml-1 font-normal text-foreground/60">· {time}</span>}
             </p>
             <p className="truncate text-[11px] text-foreground/90">{ticket.subject}</p>
             {unassigned && (
@@ -185,6 +189,9 @@ export default function Calendario() {
             .get("/api/tickets", { params: buildParams() })
             .then((res) => setTickets(res.data?.data ?? []))
             .catch((err) => {
+                if (err?.duringLogout) {
+                    return;
+                }
                 if (err?.response?.status === 403) {
                     setError("no_permission");
                     setTickets([]);
