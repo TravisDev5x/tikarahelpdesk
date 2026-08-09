@@ -40,12 +40,14 @@ const OPTIONS_LOCALE = [
 ];
 
 export default function Settings() {
-    const { theme, setTheme, density, setDensity, locale, setLocale } = useTheme();
-    const { user, updateUserPrefs } = useAuth();
+    const { theme, setTheme, density, setDensity, locale, setLocale, themeColor, setThemeColor, themeColors } = useTheme();
+    const { user, updateUserPrefs, can } = useAuth();
+    const canManagePasswordResets = can('notifications.manage');
     const { position: sidebarPosition, setPosition: setSidebarPosition } = useSidebarPosition();
     const { t } = useI18n();
 
     const [pendingTheme, setPendingTheme] = useState(() => theme || DEFAULT_PREFS.theme);
+    const [pendingThemeColor, setPendingThemeColor] = useState(() => themeColor || "zinc");
     const [pendingDensity, setPendingDensity] = useState(() => density || DEFAULT_PREFS.ui_density);
     const [pendingLocale, setPendingLocale] = useState(() => locale || DEFAULT_PREFS.locale);
     const [sidebarState, setSidebarState] = useState(() => user?.sidebar_state ?? DEFAULT_PREFS.sidebar_state);
@@ -64,6 +66,9 @@ export default function Settings() {
     useEffect(() => {
         setPendingTheme(theme || DEFAULT_PREFS.theme);
     }, [theme]);
+    useEffect(() => {
+        setPendingThemeColor(themeColor || "zinc");
+    }, [themeColor]);
     useEffect(() => {
         setPendingDensity(density || DEFAULT_PREFS.ui_density);
     }, [density]);
@@ -88,8 +93,10 @@ export default function Settings() {
                 : DEFAULT_PREFS.sidebar_hover_preview;
         const baseSidebarPosition = user?.sidebar_position ?? "left";
         const baseLocale = user?.locale ?? DEFAULT_PREFS.locale;
+        const baseThemeColor = user?.theme_color ?? "zinc";
         return (
             pendingTheme !== theme ||
+            pendingThemeColor !== baseThemeColor ||
             pendingDensity !== density ||
             pendingLocale !== baseLocale ||
             sidebarState !== baseSidebarState ||
@@ -99,6 +106,7 @@ export default function Settings() {
     }, [
         pendingTheme,
         theme,
+        pendingThemeColor,
         pendingDensity,
         density,
         pendingLocale,
@@ -110,6 +118,7 @@ export default function Settings() {
         user?.sidebar_hover_preview,
         user?.sidebar_position,
         user?.locale,
+        user?.theme_color,
     ]);
 
     const saveAll = async () => {
@@ -118,6 +127,7 @@ export default function Settings() {
         try {
             const payload = {
                 theme: pendingTheme,
+                theme_color: pendingThemeColor,
                 ui_density: pendingDensity,
                 sidebar_state: sidebarState,
                 sidebar_hover_preview: sidebarState === "collapsed" ? hoverPreview : false,
@@ -126,6 +136,7 @@ export default function Settings() {
             };
             await axios.put("/api/profile/preferences", { ...payload });
             setTheme(pendingTheme, { persist: false });
+            setThemeColor(pendingThemeColor, { persist: false });
             setDensity(pendingDensity, { persist: false });
             setLocale(pendingLocale, { persist: false });
             updateUserPrefs({ ...payload });
@@ -187,11 +198,12 @@ export default function Settings() {
     };
 
     useEffect(() => {
-        loadNotifications();
-    }, []);
+        if (canManagePasswordResets) loadNotifications();
+    }, [canManagePasswordResets]);
 
     const resetDefaults = () => {
         setPendingTheme(DEFAULT_PREFS.theme);
+        setPendingThemeColor("zinc");
         setPendingDensity(DEFAULT_PREFS.ui_density);
         setPendingLocale(DEFAULT_PREFS.locale);
         setSidebarState(DEFAULT_PREFS.sidebar_state);
@@ -249,7 +261,7 @@ export default function Settings() {
                                     <CardTitle className="text-lg">{t("settings.theme.title")}</CardTitle>
                                 </div>
                             </CardHeader>
-                            <CardContent className="pt-6 space-y-4">
+                            <CardContent className="pt-6 space-y-5">
                                 <ThemeToggle
                                     variant="select"
                                     value={pendingTheme}
@@ -258,6 +270,33 @@ export default function Settings() {
                                         setTheme(v, { persist: false });
                                     }}
                                 />
+                                <div className="space-y-2">
+                                    <p className="text-sm font-semibold">{t("settings.themeColor.title")}</p>
+                                    <div className="flex flex-wrap gap-2">
+                                        {themeColors.map((c) => (
+                                            <button
+                                                key={c}
+                                                type="button"
+                                                onClick={() => {
+                                                    setPendingThemeColor(c);
+                                                    setThemeColor(c, { persist: false });
+                                                }}
+                                                title={t(`settings.themeColor.${c}`)}
+                                                aria-pressed={pendingThemeColor === c}
+                                                className={`h-9 w-9 rounded-full border-2 transition-all flex items-center justify-center ${
+                                                    pendingThemeColor === c
+                                                        ? "border-foreground scale-110 shadow-sm"
+                                                        : "border-transparent hover:scale-105"
+                                                }`}
+                                                style={{ backgroundColor: `hsl(var(--theme-color-swatch-${c}))` }}
+                                            >
+                                                {pendingThemeColor === c && (
+                                                    <CheckCircle2 className="h-4 w-4 text-white drop-shadow" />
+                                                )}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
                             </CardContent>
                         </Card>
 
@@ -376,6 +415,7 @@ export default function Settings() {
                     </div>
                 </div>
 
+                {canManagePasswordResets && (
                 <Card className="overflow-hidden border-primary/20 bg-primary/[0.01] shadow-xl">
                         <CardHeader className="bg-primary/5 pb-6 border-b border-primary/10">
                             <div className="flex items-center justify-between">
@@ -535,7 +575,9 @@ export default function Settings() {
                                                                         ? "Solicitud de restablecimiento (sin correo o por número de empleado)"
                                                                         : n.type === "password_reset_missing_email"
                                                                           ? "Restablecimiento solicitado (correo no encontrado)"
-                                                                          : n.type}
+                                                                          : n.type === "account_deletion_request"
+                                                                            ? "Solicitud de eliminación de cuenta"
+                                                                            : n.type}
                                                                 </span>
                                                                 {payload.user_email && (
                                                                     <span className="underline decoration-primary/30">
@@ -545,6 +587,11 @@ export default function Settings() {
                                                                 {!payload.user_email && payload.requested_email && (
                                                                     <span className={hintWarning}>
                                                                         Solicitado: {payload.requested_email}
+                                                                    </span>
+                                                                )}
+                                                                {n.type === "account_deletion_request" && payload.reason && (
+                                                                    <span className="not-italic text-foreground/80">
+                                                                        Motivo: {payload.reason}
                                                                     </span>
                                                                 )}
                                                             </div>
@@ -564,13 +611,15 @@ export default function Settings() {
                                                         </div>
                                                     </div>
                                                     <div className="flex gap-2 w-full sm:w-auto">
-                                                        <Button
-                                                            size="sm"
-                                                            onClick={() => resolveNotification(n)}
-                                                            className="flex-1 sm:flex-none h-10 rounded-xl bg-primary/10 text-primary hover:bg-primary hover:text-white border-none transition-all"
-                                                        >
-                                                            Resolver
-                                                        </Button>
+                                                        {n.type !== "account_deletion_request" && (
+                                                            <Button
+                                                                size="sm"
+                                                                onClick={() => resolveNotification(n)}
+                                                                className="flex-1 sm:flex-none h-10 rounded-xl bg-primary/10 text-primary hover:bg-primary hover:text-white border-none transition-all"
+                                                            >
+                                                                Resolver
+                                                            </Button>
+                                                        )}
                                                         {!n.read_at && (
                                                             <Button
                                                                 size="icon"
@@ -596,6 +645,7 @@ export default function Settings() {
                             </div>
                         </CardContent>
                     </Card>
+                )}
             </div>
         </AuthenticatedLayout>
     );

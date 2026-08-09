@@ -165,6 +165,7 @@ class ProfileController extends Controller
     {
         $data = $request->validate([
             'theme' => 'nullable|in:light,dark,system',
+            'theme_color' => 'nullable|in:zinc,rose,blue,green,violet,orange',
             'ui_density' => 'nullable|in:normal,compact',
             'sidebar_state' => 'nullable|in:expanded,collapsed',
             'sidebar_hover_preview' => 'nullable|boolean',
@@ -177,6 +178,9 @@ class ProfileController extends Controller
 
         if (array_key_exists('theme', $data) && $data['theme'] !== null) {
             $user->theme = $data['theme'];
+        }
+        if (array_key_exists('theme_color', $data) && $data['theme_color'] !== null) {
+            $user->theme_color = $data['theme_color'];
         }
         if (array_key_exists('ui_density', $data) && $data['ui_density'] !== null) {
             $user->ui_density = $data['ui_density'];

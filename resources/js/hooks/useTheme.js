@@ -43,6 +43,13 @@ export function useTheme() {
         [ctx]
     );
 
+    const setThemeColor = useCallback(
+        (next, opts = { persist: true }) => {
+            ctx.setThemeColor(next, { persist: opts.persist !== false });
+        },
+        [ctx]
+    );
+
     useEffect(() => {
         if (user?.ui_density && user.ui_density !== density) {
             setDensityState(user.ui_density);
@@ -119,6 +126,9 @@ export function useTheme() {
         locale,
         setLocale: (next, opts) => applyLocale(next, opts),
         themes: ctx.themes ?? ["light", "dark", "system"],
+        themeColor: ctx.themeColor,
+        setThemeColor,
+        themeColors: ctx.themeColors ?? ["zinc", "rose", "blue", "green", "violet", "orange"],
         defaults: DEFAULT_PREFS,
     };
 }

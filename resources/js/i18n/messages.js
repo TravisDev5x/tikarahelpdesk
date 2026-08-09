@@ -79,6 +79,14 @@ const messages = {
         'settings.theme.subtitle': 'Selecciona uno de los modos disponibles.',
         'settings.theme.reset': 'Restablecer a claro',
 
+        'settings.themeColor.title': 'Paleta de color',
+        'settings.themeColor.zinc': 'Zinc (por defecto)',
+        'settings.themeColor.rose': 'Rosa',
+        'settings.themeColor.blue': 'Azul',
+        'settings.themeColor.green': 'Verde',
+        'settings.themeColor.violet': 'Violeta',
+        'settings.themeColor.orange': 'Naranja',
+
         'settings.locale.title': 'Idioma',
         'settings.locale.subtitle': 'Elige el idioma de la interfaz (beta).',
 
@@ -211,6 +219,14 @@ const messages = {
         'settings.theme.subtitle': 'Choose one of the available modes.',
         'settings.theme.reset': 'Reset to light',
 
+        'settings.themeColor.title': 'Color palette',
+        'settings.themeColor.zinc': 'Zinc (default)',
+        'settings.themeColor.rose': 'Rose',
+        'settings.themeColor.blue': 'Blue',
+        'settings.themeColor.green': 'Green',
+        'settings.themeColor.violet': 'Violet',
+        'settings.themeColor.orange': 'Orange',
+
         'settings.locale.title': 'Language',
         'settings.locale.subtitle': 'Select the UI language (beta).',
 
@@ -339,6 +355,13 @@ const messages = {
         'settings.theme.title': 'テーマ',
         'settings.theme.subtitle': '利用可能なモードを選択してください。',
         'settings.theme.reset': 'ライトに戻す',
+        'settings.themeColor.title': 'カラーパレット',
+        'settings.themeColor.zinc': 'ジンク（デフォルト）',
+        'settings.themeColor.rose': 'ローズ',
+        'settings.themeColor.blue': 'ブルー',
+        'settings.themeColor.green': 'グリーン',
+        'settings.themeColor.violet': 'バイオレット',
+        'settings.themeColor.orange': 'オレンジ',
         'settings.locale.title': '言語',
         'settings.locale.subtitle': 'インターフェースの言語を選択（ベータ）。',
         'settings.density.title': '表示密度',
