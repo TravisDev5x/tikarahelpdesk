@@ -7,14 +7,17 @@ use Database\Seeders\TenantRoleSeeder;
 use Illuminate\Console\Command;
 
 /**
- * RBAC v2 (Fase 6), Paso 2: punto de entrada real para sembrar las 4
- * plantillas por defecto (admin/supervisor/agente/solicitante) de un
- * tenant específico, dentro de su team_id. Reemplaza a la invocación
- * global de TenantRoleSeeder (que ya no tiene sentido bajo teams -- ver
- * migración 2026_07_15_000001).
+ * RBAC v2 (Fase 6), Paso 2: punto de entrada real para sembrar las
+ * plantillas por defecto (admin/supervisor/agente/solicitante, y desde
+ * Fase 7 también Encargado TI) de un tenant específico, dentro de su
+ * team_id. Reemplaza a la invocación global de TenantRoleSeeder (que ya
+ * no tiene sentido bajo teams -- ver migración 2026_07_15_000001).
  *
  * Idempotente: correrlo dos veces para el mismo tenant no duplica nada
- * (TenantRoleSeeder ya hace lookup explícito por team_id antes de crear).
+ * (TenantRoleSeeder ya hace lookup explícito por team_id antes de crear) --
+ * también sirve para BACKFILL: correrlo de nuevo para un tenant ya
+ * existente solo agrega los roles nuevos que falten (ej. Encargado TI),
+ * sin tocar los que ya tenía.
  *
  * Es exactamente lo que Fase 7 (onboarding) va a invocar al completar el
  * alta de un tenant nuevo -- deliberadamente NO conectado a onboarding

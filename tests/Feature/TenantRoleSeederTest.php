@@ -85,6 +85,28 @@ class TenantRoleSeederTest extends TestCase
         $this->assertTrue($admin->hasPermissionTo('tickets.reassign'));
     }
 
+    /**
+     * Fase 7 (2026-08-09): 5ta plantilla, "Encargado TI" -- mismo scope_archetype
+     * que agente (para poder trabajar el ticket que resulte de aprobar una
+     * solicitud), más tickets.review_pending. Nombre libre (con espacio,
+     * mayúsculas) a diferencia de los 4 originales -- el slug se deriva con
+     * Str::slug(), no se reusa el name crudo.
+     */
+    public function test_seeds_encargado_ti_role_with_review_pending_permission(): void
+    {
+        $this->seed(TenantRoleSeeder::class);
+
+        $role = Role::where('team_id', $this->client->id)->where('name', 'Encargado TI')->where('guard_name', 'web')->first();
+
+        $this->assertNotNull($role);
+        $this->assertSame('encargado-ti', $role->slug);
+        $this->assertSame('agente', $role->scope_archetype);
+        $this->assertTrue($role->hasPermissionTo('tickets.review_pending'));
+        $this->assertTrue($role->hasPermissionTo('tickets.view_area'));
+        $this->assertTrue($role->hasPermissionTo('tickets.assign'));
+        $this->assertFalse($role->hasPermissionTo('tickets.manage_all'));
+    }
+
     public function test_tickets_reassign_permission_exists_for_web_and_sanctum_guards(): void
     {
         $this->seed(TenantRoleSeeder::class);
@@ -99,6 +121,7 @@ class TenantRoleSeederTest extends TestCase
         $this->seed(TenantRoleSeeder::class);
 
         $this->assertSame(1, Role::where('team_id', $this->client->id)->where('name', 'agente')->where('guard_name', 'web')->count());
+        $this->assertSame(1, Role::where('team_id', $this->client->id)->where('name', 'Encargado TI')->where('guard_name', 'web')->count());
         $this->assertSame(1, DB::table('permissions')->where('name', 'tickets.reassign')->where('guard_name', 'web')->count());
     }
 

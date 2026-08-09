@@ -190,7 +190,7 @@ Este archivo es la guía rápida. Para detalle, cada doc vive en `docs/` (o raí
 - Calendario de tickets: falta hora exacta (no solo fecha), usar `tickets.resolved_at` (existe en backend, el frontend nunca lo pinta), toggle fecha de alta/cierre.
 
 **Roadmaps vivos, sin fecha objetivo**:
-- `RBAC_ROADMAP.md`: fase 6 (roles por equipo/Spatie teams) cerrada 2026-08-04; fase 7 sin definir.
+- `RBAC_ROADMAP.md`: fase 6 (roles por equipo/Spatie teams) cerrada 2026-08-04; fase 7 (plantilla "Encargado TI") cerrada 2026-08-09. Queda anotado ahí un hallazgo relacionado sin resolver: onboarding de un tenant nuevo no siembra roles de RBAC v2 automáticamente.
 - `MULTITENANT_ROADMAP.md`: fases 0-4 (aislamiento estructural: RLS en prod, índices únicos por tenant, revisión de queries raw) sin empezar. Fase 5 (producto/operaciones): 5.5 (monitoreo cross-tenant) **hecho 2026-08-05**; quedan 5.1 (aislar SIGUA), 5.2 (subdominio MSP `operador.tikara.test`), 5.3 (SSO/OIDC por cliente), 5.4 (panel "URL de portal" + copiar enlace en ficha cliente).
 
 ---

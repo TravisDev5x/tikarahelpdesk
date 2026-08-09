@@ -41,6 +41,28 @@
 |---|---|
 | `2caab15` (2026-08-04) | Activa `teams` de spatie/laravel-permission (`team_id` = `clients.id`, `super_admin_team_id=0` como centinela cross-tenant) para aislar roles/permisos por operador. Agrega catálogo `AuthorizationObject`, plantillas de rol editables (`RoleTemplateController`/`Service`) con `scope_archetype` + permisos por objeto, y overrides directos de permiso por usuario (`UserPermissionOverrideController`). Esto **es** la tarea 3.1 de `docs/MULTITENANT_ROADMAP.md` ("Roles Spatie por operador — `operator_user_id` o teams"), completada bajo la numeración de este hilo, no la del roadmap. |
 
+## Fase 7 — Plantilla "Encargado TI"
+
+| Commit | Qué se hizo |
+|---|---|
+| (pendiente de commit, 2026-08-09) | `TenantRoleSeeder` agrega una 5ta plantilla por defecto, "Encargado TI" (`scope_archetype='agente'` + `tickets.review_pending`), para revisar la cola de correos no reconocidos (`docs/PENDING_TICKET_REVIEW.md`) sin necesitar `tickets.manage_all` completo. A diferencia de los 4 originales (nombres código en minúscula), el nombre de esta plantilla es libre/legible ("Encargado TI") — el slug se deriva con `Str::slug()`. Backfill para tenants ya existentes: `php artisan tenants:seed-default-roles {portal_slug}` (idempotente, solo agrega lo que falte). Verificado con test nuevo en `TenantRoleSeederTest` + `composer test` completo (249 pass) + verificación manual contra el tenant `testco` real. |
+
+## Hallazgo relacionado, sin resolver (candidato a una futura fase)
+
+`App\Console\Commands\SeedDefaultTenantRoles`'s docblock ya decía, desde
+Fase 6: *"Es exactamente lo que Fase 7 (onboarding) va a invocar al
+completar el alta de un tenant nuevo -- deliberadamente NO conectado a
+onboarding todavía"*. Confirmado en esta sesión que sigue sin conectar:
+`OperatorOnboardingController::store()`/`storeClient()` no invocan
+`TenantRoleSeeder` ni `tenants:seed-default-roles` en ningún punto — un
+tenant nuevo dado de alta hoy vía onboarding queda **sin ningún rol de
+RBAC v2 sembrado** hasta que alguien corra el comando a mano. No se tocó
+en esta fase (el alcance acordado fue solo la plantilla nueva) pero es la
+pieza más grande que falta de este hilo.
+
 ## Próximas fases (sin empezar)
 
-Ninguna definida todavía. Cuando arranque la Fase 7 de este hilo, agregarla aquí con el mismo formato antes de hacer el commit correspondiente — no después — para no repetir el problema que motivó este documento.
+Ninguna definida todavía más allá del hallazgo de arriba. Cuando arranque
+la siguiente fase de este hilo, agregarla aquí con el mismo formato antes
+de hacer el commit correspondiente — no después — para no repetir el
+problema que motivó este documento.

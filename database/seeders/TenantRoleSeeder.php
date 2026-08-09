@@ -14,6 +14,16 @@ use Illuminate\Support\Facades\DB;
  * usuarios y retirar los legacy) es un paso aparte y explícito, ver
  * App\Console\Commands\MigrateLegacyRoles.
  *
+ * RBAC v2 (Fase 7, 2026-08-09): se agrega "Encargado TI" como 5ta plantilla
+ * por defecto -- mismo permiso base que agente (puede trabajar los tickets
+ * que resulten) más tickets.review_pending, para revisar la cola de
+ * correos no reconocidos (docs/PENDING_TICKET_REVIEW.md) sin necesitar
+ * tickets.manage_all completo. A diferencia de los 4 originales (nombres
+ * código en minúscula, referenciados en varios lugares del código), esta
+ * es una plantilla "sugerida" más -- su nombre es libre igual que
+ * cualquier plantilla creada a mano vía RoleTemplateController, no hay
+ * lógica que dependa de su name exacto.
+ *
  * RBAC v2 (Fase 6, Paso 2): DEJÓ de crear roles GLOBALES una sola vez.
  * Ahora crea plantillas DENTRO del team_id vigente (spatie/laravel-permission
  * teams = clients.id) -- requiere que el llamador ya haya fijado el
@@ -51,7 +61,7 @@ class TenantRoleSeeder extends Seeder
             );
         }
 
-        $this->command?->info("TenantRoleSeeder: admin, supervisor, agente, solicitante (team_id={$teamId}).");
+        $this->command?->info("TenantRoleSeeder: admin, supervisor, agente, solicitante, Encargado TI (team_id={$teamId}).");
 
         DB::transaction(function () use ($teamId) {
             $this->seedPermissions();
@@ -109,6 +119,15 @@ class TenantRoleSeeder extends Seeder
             ]
         )));
 
+        // Fase 7: mismo alcance que agente (scope_archetype 'agente' --
+        // puede ver/trabajar el site del ticket que resulte de aprobar una
+        // solicitud) más la habilidad de revisar la cola. No usa
+        // tickets.manage_all a propósito, mismo motivo que supervisor.
+        $encargadoTiPerms = array_values(array_unique(array_merge(
+            $agentePerms,
+            ['tickets.review_pending']
+        )));
+
         $roles = [
             // Admin: todos los permisos (igual que el admin legacy).
             'admin' => ['perms' => $allWebPermissions, 'archetype' => 'admin'],
@@ -121,6 +140,8 @@ class TenantRoleSeeder extends Seeder
             'agente' => ['perms' => $agentePerms, 'archetype' => 'agente'],
             // Solicitante: igual que usuario legacy.
             'solicitante' => ['perms' => ['tickets.create', 'tickets.view_own'], 'archetype' => 'solicitante'],
+            // Encargado TI (Fase 7): revisa la cola de correos no reconocidos.
+            'Encargado TI' => ['perms' => $encargadoTiPerms, 'archetype' => 'agente'],
         ];
 
         foreach ($roles as $roleName => $def) {
@@ -145,7 +166,7 @@ class TenantRoleSeeder extends Seeder
                     'team_id' => $teamId,
                     'name' => $roleName,
                     'guard_name' => 'web',
-                    'slug' => $roleName,
+                    'slug' => \Illuminate\Support\Str::slug($roleName),
                     'scope_archetype' => $def['archetype'],
                 ]);
             } elseif ($role->scope_archetype !== $def['archetype']) {
