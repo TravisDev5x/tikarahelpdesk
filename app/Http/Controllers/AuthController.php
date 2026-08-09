@@ -97,6 +97,7 @@ class AuthController extends Controller
             'last_login_at' => now(),
             'last_login_ip' => $request->ip(),
         ])->save();
+        \App\Http\Controllers\Api\ProfileSecurityController::logLogin($user, 'password', $request->ip(), $request->userAgent());
 
         $authUser = Auth::user()->load([
             'roles:id,name,guard_name',

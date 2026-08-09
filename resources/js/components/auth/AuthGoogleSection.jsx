@@ -2,7 +2,7 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { btnBrandOutline } from "@/lib/marketingTheme";
 
-function GoogleIcon() {
+export function GoogleIcon() {
     return (
         <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden className="shrink-0">
             <path

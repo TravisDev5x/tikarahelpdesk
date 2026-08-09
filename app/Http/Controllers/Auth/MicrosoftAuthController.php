@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Auth;
 
+use App\Http\Controllers\Api\ProfileSecurityController;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Models\UserInvitation;
@@ -33,6 +34,21 @@ class MicrosoftAuthController extends Controller
             ->redirect();
     }
 
+    /** Ver GoogleAuthController::linkRedirect -- mismo patrón. */
+    public function linkRedirect(Request $request)
+    {
+        if (! $this->microsoftConfigured()) {
+            abort(503, 'Microsoft no está configurado.');
+        }
+
+        $request->session()->put('microsoft_oauth_intent', 'link');
+        $request->session()->put('microsoft_oauth_link_user_id', $request->user()->id);
+
+        return Socialite::driver('azure')
+            ->scopes(['openid', 'profile', 'email', 'User.Read'])
+            ->redirect();
+    }
+
     public function callback(
         Request $request,
         TenantContextService $tenantContext,
@@ -57,6 +73,11 @@ class MicrosoftAuthController extends Controller
 
         $intent = (string) $request->session()->pull('microsoft_oauth_intent', 'login');
         $invitationToken = $request->session()->pull('microsoft_oauth_invitation_token');
+        $linkUserId = $request->session()->pull('microsoft_oauth_link_user_id');
+
+        if ($intent === 'link') {
+            return $this->handleLink($request, $microsoftUser, $linkUserId);
+        }
 
         if ($intent === 'invitation' && is_string($invitationToken) && $invitationToken !== '') {
             return $this->handleInvitation($request, $acceptance, $tenantContext, $microsoftUser, $email, $invitationToken);
@@ -65,14 +86,36 @@ class MicrosoftAuthController extends Controller
         return $this->handleLogin($request, $tenantContext, $microsoftUser, $email);
     }
 
+    protected function handleLink(Request $request, $microsoftUser, $linkUserId)
+    {
+        if (! $linkUserId) {
+            return redirect()->route('profile.index')->with('error', 'La sesión para vincular Microsoft expiró. Intenta de nuevo.');
+        }
+
+        $user = User::find($linkUserId);
+        if (! $user) {
+            return redirect()->route('login');
+        }
+
+        $claimedBy = User::where('microsoft_id', $microsoftUser->getId())->first();
+        if ($claimedBy && $claimedBy->id !== $user->id) {
+            return redirect()->route('profile.index')->with('error', 'Esta cuenta de Microsoft ya está vinculada a otro usuario.');
+        }
+
+        $user->forceFill(['microsoft_id' => $microsoftUser->getId()])->save();
+        ProfileSecurityController::logOauthLink($user, 'microsoft', viaLogin: false, ip: $request->ip());
+
+        return redirect()->route('profile.index')->with('success', 'Cuenta de Microsoft vinculada.');
+    }
+
     protected function handleLogin(
         Request $request,
         TenantContextService $tenantContext,
         $microsoftUser,
         string $email
     ) {
-        $user = User::where('microsoft_id', $microsoftUser->getId())->first()
-            ?? User::where('email', $email)->first();
+        $byMicrosoftId = User::where('microsoft_id', $microsoftUser->getId())->first();
+        $user = $byMicrosoftId ?? User::where('email', $email)->first();
 
         if (! $user) {
             return redirect()->route('login')->with(
@@ -89,8 +132,15 @@ class MicrosoftAuthController extends Controller
             return redirect()->route('login')->with('error', 'Verifica tu correo para activar la cuenta.');
         }
 
-        if (! $user->microsoft_id) {
+        // A diferencia de Google, Microsoft Graph (/me) no expone un claim de
+        // "correo verificado" -- no hay chequeo equivalente que hacer aquí.
+        // El riesgo es menor por construcción: en Azure AD el correo ya está
+        // verificado a nivel de directorio por el tenant, no es autoservicio
+        // como una cuenta de Google nueva. Igual se audita y notifica el
+        // vínculo nuevo (mismo tratamiento que Google) para no dejarlo silencioso.
+        if (! $byMicrosoftId) {
             $user->forceFill(['microsoft_id' => $microsoftUser->getId()])->save();
+            ProfileSecurityController::logOauthLink($user, 'microsoft', viaLogin: true, ip: $request->ip());
         }
 
         $tenantContext->resolve($request);
@@ -108,6 +158,7 @@ class MicrosoftAuthController extends Controller
 
         Auth::login($user);
         $request->session()->regenerate();
+        ProfileSecurityController::logLogin($user, 'microsoft', $request->ip(), $request->userAgent());
 
         return redirect()->intended('/');
     }

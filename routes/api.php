@@ -11,6 +11,7 @@ use App\Http\Controllers\Api\InvitationController;
 use App\Http\Controllers\Api\UserRoleController;
 use App\Http\Controllers\Api\CatalogController;
 use App\Http\Controllers\Api\ProfileController;
+use App\Http\Controllers\Api\ProfileSecurityController;
 use App\Http\Controllers\Api\PasswordResetController;
 use App\Http\Controllers\Api\AdminNotificationController;
 use App\Http\Controllers\Api\PermissionController;
@@ -297,6 +298,14 @@ Route::middleware(['auth:sanctum','locale'])->group(function () {
     Route::put('profile/density', [ProfileController::class, 'updateDensity']);
     Route::put('profile/sidebar', [ProfileController::class, 'updateSidebar']);
     Route::put('profile/preferences', [ProfileController::class, 'updatePreferences']);
+
+    // Seguridad de cuenta (self-service: solo lo propio, sin scope de cliente)
+    Route::get('profile/sessions', [ProfileSecurityController::class, 'sessions']);
+    Route::delete('profile/sessions/{id}', [ProfileSecurityController::class, 'revokeSession']);
+    Route::post('profile/sessions/revoke-others', [ProfileSecurityController::class, 'revokeOtherSessions']);
+    Route::get('profile/login-history', [ProfileSecurityController::class, 'loginHistory']);
+    Route::delete('profile/connections/{provider}', [ProfileSecurityController::class, 'unlinkConnection']);
+    Route::post('profile/request-deletion', [ProfileSecurityController::class, 'requestDeletion']);
 
     // Admin notifications (básico)
     Route::middleware('perm:notifications.manage')->group(function () {

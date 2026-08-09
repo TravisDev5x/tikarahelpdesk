@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Services\ClientScopeService;
+use App\Support\UserAgentParser;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -89,7 +90,7 @@ class SessionMonitorController extends Controller
                 'last_login_at' => $lastLoginAt ? $lastLoginAt->getTimestamp() : null,
                 'last_login_iso' => $lastLoginAt ? $lastLoginAt->toIso8601String() : null,
                 'ip_address' => $row->ip_address ?? '',
-                'browser' => $this->parseBrowser($row->user_agent ?? ''),
+                'browser' => UserAgentParser::browser($row->user_agent ?? ''),
             ];
         });
 
@@ -135,37 +136,4 @@ class SessionMonitorController extends Controller
         ]);
     }
 
-    /**
-     * Extrae nombre corto del navegador desde user_agent (sin exponer UA completo).
-     */
-    private function parseBrowser(?string $ua): string
-    {
-        if ($ua === null || $ua === '') {
-            return '—';
-        }
-        $ua = trim($ua);
-        if (stripos($ua, 'Edg/') !== false) {
-            return 'Edge';
-        }
-        if (stripos($ua, 'Chrome') !== false && stripos($ua, 'Chromium') !== false) {
-            return 'Chrome';
-        }
-        if (stripos($ua, 'Chrome') !== false) {
-            return 'Chrome';
-        }
-        if (stripos($ua, 'Firefox') !== false || stripos($ua, 'FxiOS') !== false) {
-            return 'Firefox';
-        }
-        if (stripos($ua, 'Safari') !== false && stripos($ua, 'Chrome') === false) {
-            return 'Safari';
-        }
-        if (stripos($ua, 'Opera') !== false || stripos($ua, 'OPR/') !== false) {
-            return 'Opera';
-        }
-        if (stripos($ua, 'MSIE') !== false || stripos($ua, 'Trident/') !== false) {
-            return 'Internet Explorer';
-        }
-
-        return 'Otro';
-    }
 }

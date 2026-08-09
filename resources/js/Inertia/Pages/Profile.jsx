@@ -1,13 +1,18 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { router, usePage } from "@inertiajs/react";
+import { formatDistanceToNow } from "date-fns";
+import { es } from "date-fns/locale";
 import axios from "@/lib/axios";
 import AuthenticatedLayout from "@/Inertia/Layouts/AuthenticatedLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
     Select,
     SelectContent,
@@ -15,10 +20,37 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { GoogleIcon } from "@/components/auth/AuthGoogleSection";
+import { MicrosoftIcon } from "@/components/auth/AuthMicrosoftSection";
 import { notify } from "@/lib/notify";
 import { getApiErrorMessage } from "@/lib/apiErrors";
 import { strongPasswordSchema } from "@/lib/passwordSchema";
-import { Camera, CircleDot, KeyRound, Loader2, Save } from "lucide-react";
+import {
+    AlertTriangle,
+    Camera,
+    CircleDot,
+    History,
+    KeyRound,
+    Laptop,
+    LogOut,
+    Loader2,
+    Save,
+    ShieldAlert,
+    Smartphone,
+    Trash2,
+    UserCog,
+} from "lucide-react";
 
 function initials(name) {
     const parts = String(name || "")
@@ -51,8 +83,32 @@ function validatePassword(form) {
     return errors;
 }
 
+function formatLastActivity(unixSeconds) {
+    if (!unixSeconds) return "—";
+    try {
+        return formatDistanceToNow(new Date(unixSeconds * 1000), { addSuffix: true, locale: es });
+    } catch {
+        return "—";
+    }
+}
+
+function formatEventDate(iso) {
+    if (!iso) return "—";
+    try {
+        return formatDistanceToNow(new Date(iso), { addSuffix: true, locale: es });
+    } catch {
+        return "—";
+    }
+}
+
+const LOGIN_METHOD_LABEL = {
+    password: "Contraseña",
+    google: "Google",
+    microsoft: "Microsoft",
+};
+
 export default function Profile() {
-    const { user: pageUser, auth } = usePage().props;
+    const { user: pageUser, auth, authProviders = {} } = usePage().props;
     const user = pageUser ?? auth?.user;
 
     const fileInputRef = useRef(null);
@@ -76,6 +132,23 @@ export default function Profile() {
     });
     const [passwordErrors, setPasswordErrors] = useState({});
 
+    // Sesiones activas (self-service: solo las del usuario actual)
+    const [sessions, setSessions] = useState([]);
+    const [sessionsLoading, setSessionsLoading] = useState(true);
+    const [revokingId, setRevokingId] = useState(null);
+    const [revokingOthers, setRevokingOthers] = useState(false);
+
+    // Actividad reciente (últimos accesos: contraseña / Google / Microsoft)
+    const [loginHistory, setLoginHistory] = useState([]);
+    const [historyLoading, setHistoryLoading] = useState(true);
+
+    // Cuentas conectadas
+    const [unlinkingProvider, setUnlinkingProvider] = useState(null);
+
+    // Zona de peligro
+    const [deletionReason, setDeletionReason] = useState("");
+    const [requestingDeletion, setRequestingDeletion] = useState(false);
+
     useEffect(() => {
         if (!user) return;
         setProfileForm({
@@ -93,6 +166,35 @@ export default function Profile() {
             if (preview) URL.revokeObjectURL(preview);
         };
     }, [preview]);
+
+    const loadSessions = useCallback(async () => {
+        setSessionsLoading(true);
+        try {
+            const { data } = await axios.get("/api/profile/sessions");
+            setSessions(data.sessions ?? []);
+        } catch {
+            setSessions([]);
+        } finally {
+            setSessionsLoading(false);
+        }
+    }, []);
+
+    const loadLoginHistory = useCallback(async () => {
+        setHistoryLoading(true);
+        try {
+            const { data } = await axios.get("/api/profile/login-history");
+            setLoginHistory(data.history ?? []);
+        } catch {
+            setLoginHistory([]);
+        } finally {
+            setHistoryLoading(false);
+        }
+    }, []);
+
+    useEffect(() => {
+        loadSessions();
+        loadLoginHistory();
+    }, [loadSessions, loadLoginHistory]);
 
     const handleFileChange = (e) => {
         const file = e.target.files?.[0];
@@ -168,18 +270,90 @@ export default function Profile() {
         }
     };
 
+    const revokeSession = async (id) => {
+        setRevokingId(id);
+        try {
+            await axios.delete(`/api/profile/sessions/${id}`);
+            setSessions((prev) => prev.filter((s) => s.id !== id));
+            notify.success("Sesión cerrada");
+        } catch (err) {
+            notify.error(getApiErrorMessage(err, "No se pudo cerrar la sesión"));
+        } finally {
+            setRevokingId(null);
+        }
+    };
+
+    const revokeOtherSessions = async () => {
+        setRevokingOthers(true);
+        try {
+            await axios.post("/api/profile/sessions/revoke-others");
+            notify.success("Se cerraron las demás sesiones");
+            await loadSessions();
+        } catch (err) {
+            notify.error(getApiErrorMessage(err, "No se pudieron cerrar las sesiones"));
+        } finally {
+            setRevokingOthers(false);
+        }
+    };
+
+    const unlinkConnection = async (provider) => {
+        setUnlinkingProvider(provider);
+        try {
+            await axios.delete(`/api/profile/connections/${provider}`);
+            notify.success("Cuenta desvinculada");
+            router.reload({ only: ["user"] });
+        } catch (err) {
+            notify.error(getApiErrorMessage(err, "No se pudo desvincular la cuenta"));
+        } finally {
+            setUnlinkingProvider(null);
+        }
+    };
+
+    const requestAccountDeletion = async () => {
+        setRequestingDeletion(true);
+        try {
+            await axios.post("/api/profile/request-deletion", { reason: deletionReason.trim() || undefined });
+            notify.success("Tu solicitud fue enviada. Un administrador la revisará.");
+            setDeletionReason("");
+        } catch (err) {
+            notify.error(getApiErrorMessage(err, "No se pudo enviar la solicitud"));
+        } finally {
+            setRequestingDeletion(false);
+        }
+    };
+
     const displayName =
         [user?.first_name, user?.paternal_last_name].filter(Boolean).join(" ") ||
         user?.name ||
         "Usuario";
 
+    const connections = [
+        {
+            key: "google",
+            label: "Google",
+            icon: <GoogleIcon />,
+            linked: Boolean(user?.google_linked),
+            enabled: Boolean(authProviders?.google),
+            connectHref: "/auth/google/link",
+        },
+        {
+            key: "microsoft",
+            label: "Microsoft",
+            icon: <MicrosoftIcon />,
+            linked: Boolean(user?.microsoft_linked),
+            enabled: Boolean(authProviders?.microsoft),
+            connectHref: "/auth/microsoft/link",
+        },
+    ];
+
     return (
-        <div className="max-w-4xl mx-auto space-y-8 animate-in fade-in pb-content-mobile">
-            <div className="grid gap-8 md:grid-cols-2">
-                <Card className="border-border/60 bg-card/10 backdrop-blur-sm shadow-sm">
+        <div className="w-full space-y-6 animate-in fade-in pb-content-mobile">
+            <div className="grid gap-6 lg:grid-cols-[380px_1fr] items-start">
+                {/* Columna izquierda: identidad */}
+                <Card className="border-border/60 bg-card/10 backdrop-blur-sm shadow-sm lg:sticky lg:top-4">
                     <CardHeader>
-                        <CardTitle className="uppercase font-bold text-sm">
-                            INFORMACIÓN PERSONAL
+                        <CardTitle className="uppercase font-bold text-sm flex items-center gap-2">
+                            <UserCog className="h-4 w-4" /> Información personal
                         </CardTitle>
                         <CardDescription>Actualiza tu foto y datos de contacto.</CardDescription>
                     </CardHeader>
@@ -345,97 +519,332 @@ export default function Profile() {
                     </CardContent>
                 </Card>
 
-                <Card className="border-border/60 bg-card/10 backdrop-blur-sm shadow-sm h-fit">
-                    <CardHeader>
-                        <CardTitle className="uppercase font-bold text-sm text-destructive flex items-center gap-2">
-                            <KeyRound className="h-4 w-4" /> Seguridad
-                        </CardTitle>
-                        <CardDescription>CAMBIAR CONTRASEÑA</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                        <form onSubmit={savePassword} className="space-y-4">
-                            <div className="space-y-1.5">
-                                <Label
-                                    htmlFor="current_password"
-                                    className="text-[10px] font-black uppercase"
+                {/* Columna derecha: seguridad y gobernanza de cuenta */}
+                <div className="space-y-6">
+                    <Card className="border-border/60 bg-card/10 backdrop-blur-sm shadow-sm">
+                        <CardHeader>
+                            <CardTitle className="uppercase font-bold text-sm flex items-center gap-2">
+                                <KeyRound className="h-4 w-4" /> Seguridad
+                            </CardTitle>
+                            <CardDescription>Cambiar contraseña</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            <form onSubmit={savePassword} className="grid gap-4 sm:grid-cols-3">
+                                <div className="space-y-1.5">
+                                    <Label
+                                        htmlFor="current_password"
+                                        className="text-[10px] font-black uppercase"
+                                    >
+                                        Contraseña actual
+                                    </Label>
+                                    <Input
+                                        id="current_password"
+                                        type="password"
+                                        className="bg-muted/20"
+                                        value={passwordForm.current_password}
+                                        onChange={(e) =>
+                                            setPasswordForm((p) => ({
+                                                ...p,
+                                                current_password: e.target.value,
+                                            }))
+                                        }
+                                    />
+                                    {passwordErrors.current_password && (
+                                        <p className="text-xs text-destructive">
+                                            {passwordErrors.current_password}
+                                        </p>
+                                    )}
+                                </div>
+                                <div className="space-y-1.5">
+                                    <Label htmlFor="password" className="text-[10px] font-black uppercase">
+                                        Nueva contraseña
+                                    </Label>
+                                    <Input
+                                        id="password"
+                                        type="password"
+                                        className="bg-muted/20"
+                                        value={passwordForm.password}
+                                        onChange={(e) =>
+                                            setPasswordForm((p) => ({ ...p, password: e.target.value }))
+                                        }
+                                    />
+                                    {passwordErrors.password && (
+                                        <p className="text-xs text-destructive">{passwordErrors.password}</p>
+                                    )}
+                                </div>
+                                <div className="space-y-1.5">
+                                    <Label
+                                        htmlFor="password_confirmation"
+                                        className="text-[10px] font-black uppercase"
+                                    >
+                                        Confirmar nueva contraseña
+                                    </Label>
+                                    <Input
+                                        id="password_confirmation"
+                                        type="password"
+                                        className="bg-muted/20"
+                                        value={passwordForm.password_confirmation}
+                                        onChange={(e) =>
+                                            setPasswordForm((p) => ({
+                                                ...p,
+                                                password_confirmation: e.target.value,
+                                            }))
+                                        }
+                                    />
+                                    {passwordErrors.password_confirmation && (
+                                        <p className="text-xs text-destructive">
+                                            {passwordErrors.password_confirmation}
+                                        </p>
+                                    )}
+                                </div>
+                                <Button
+                                    type="submit"
+                                    variant="secondary"
+                                    disabled={passwordLoading}
+                                    className="font-black uppercase tracking-widest text-xs sm:col-span-3 sm:w-fit sm:justify-self-end"
                                 >
-                                    Contraseña actual
-                                </Label>
-                                <Input
-                                    id="current_password"
-                                    type="password"
-                                    className="bg-muted/20"
-                                    value={passwordForm.current_password}
-                                    onChange={(e) =>
-                                        setPasswordForm((p) => ({
-                                            ...p,
-                                            current_password: e.target.value,
-                                        }))
-                                    }
-                                />
-                                {passwordErrors.current_password && (
-                                    <p className="text-xs text-destructive">
-                                        {passwordErrors.current_password}
-                                    </p>
-                                )}
+                                    {passwordLoading && (
+                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                    )}
+                                    Actualizar contraseña
+                                </Button>
+                            </form>
+                        </CardContent>
+                    </Card>
+
+                    <Card className="border-border/60 bg-card/10 backdrop-blur-sm shadow-sm">
+                        <CardHeader className="flex flex-row items-center justify-between space-y-0">
+                            <div>
+                                <CardTitle className="uppercase font-bold text-sm flex items-center gap-2">
+                                    <Laptop className="h-4 w-4" /> Sesiones activas
+                                </CardTitle>
+                                <CardDescription>Dispositivos con tu sesión abierta.</CardDescription>
                             </div>
-                            <Separator className="my-2 bg-border/40" />
-                            <div className="space-y-1.5">
-                                <Label htmlFor="password" className="text-[10px] font-black uppercase">
-                                    Nueva contraseña
-                                </Label>
-                                <Input
-                                    id="password"
-                                    type="password"
-                                    className="bg-muted/20"
-                                    value={passwordForm.password}
-                                    onChange={(e) =>
-                                        setPasswordForm((p) => ({ ...p, password: e.target.value }))
-                                    }
-                                />
-                                {passwordErrors.password && (
-                                    <p className="text-xs text-destructive">{passwordErrors.password}</p>
-                                )}
-                            </div>
-                            <div className="space-y-1.5">
-                                <Label
-                                    htmlFor="password_confirmation"
-                                    className="text-[10px] font-black uppercase"
+                            {sessions.length > 1 && (
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={revokeOtherSessions}
+                                    disabled={revokingOthers}
                                 >
-                                    Confirmar nueva contraseña
-                                </Label>
-                                <Input
-                                    id="password_confirmation"
-                                    type="password"
-                                    className="bg-muted/20"
-                                    value={passwordForm.password_confirmation}
-                                    onChange={(e) =>
-                                        setPasswordForm((p) => ({
-                                            ...p,
-                                            password_confirmation: e.target.value,
-                                        }))
-                                    }
-                                />
-                                {passwordErrors.password_confirmation && (
-                                    <p className="text-xs text-destructive">
-                                        {passwordErrors.password_confirmation}
+                                    {revokingOthers ? (
+                                        <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />
+                                    ) : (
+                                        <LogOut className="h-3.5 w-3.5 mr-1.5" />
+                                    )}
+                                    Cerrar las demás
+                                </Button>
+                            )}
+                        </CardHeader>
+                        <CardContent>
+                            {sessionsLoading ? (
+                                <div className="space-y-2">
+                                    {[1, 2].map((i) => (
+                                        <Skeleton key={i} className="h-14 w-full rounded-md" />
+                                    ))}
+                                </div>
+                            ) : sessions.length === 0 ? (
+                                <p className="text-sm text-muted-foreground py-4 text-center">
+                                    No se pudieron determinar tus sesiones activas.
+                                </p>
+                            ) : (
+                                <ul className="divide-y divide-border/60">
+                                    {sessions.map((s) => {
+                                        const DeviceIcon = s.is_mobile ? Smartphone : Laptop;
+                                        return (
+                                            <li key={s.id} className="flex items-center justify-between gap-3 py-3">
+                                                <div className="flex items-center gap-3 min-w-0">
+                                                    <div className="h-9 w-9 rounded-full bg-muted flex items-center justify-center shrink-0">
+                                                        <DeviceIcon className="h-4 w-4 text-muted-foreground" />
+                                                    </div>
+                                                    <div className="min-w-0">
+                                                        <span className="text-sm font-medium flex items-center gap-2">
+                                                            {s.browser}
+                                                            {s.is_current && (
+                                                                <Badge variant="secondary" className="text-[10px]">
+                                                                    Sesión actual
+                                                                </Badge>
+                                                            )}
+                                                        </span>
+                                                        <p className="text-xs text-muted-foreground truncate">
+                                                            {s.ip_address || "IP desconocida"} ·{" "}
+                                                            {formatLastActivity(s.last_activity)}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                                {!s.is_current && (
+                                                    <Button
+                                                        type="button"
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        onClick={() => revokeSession(s.id)}
+                                                        disabled={revokingId === s.id}
+                                                        className="text-muted-foreground hover:text-destructive"
+                                                    >
+                                                        {revokingId === s.id ? (
+                                                            <Loader2 className="h-4 w-4 animate-spin" />
+                                                        ) : (
+                                                            <LogOut className="h-4 w-4" />
+                                                        )}
+                                                    </Button>
+                                                )}
+                                            </li>
+                                        );
+                                    })}
+                                </ul>
+                            )}
+                        </CardContent>
+                    </Card>
+
+                    <Card className="border-border/60 bg-card/10 backdrop-blur-sm shadow-sm">
+                        <CardHeader>
+                            <CardTitle className="uppercase font-bold text-sm flex items-center gap-2">
+                                <ShieldAlert className="h-4 w-4" /> Cuentas conectadas
+                            </CardTitle>
+                            <CardDescription>Inicia sesión más rápido vinculando tu correo.</CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-3">
+                            {connections.map((p) => (
+                                <div
+                                    key={p.key}
+                                    className="flex items-center justify-between gap-3 p-3 rounded-lg border border-border/50 bg-muted/10"
+                                >
+                                    <div className="flex items-center gap-3 min-w-0">
+                                        <div className="h-9 w-9 rounded-full bg-background border border-border/50 flex items-center justify-center shrink-0">
+                                            {p.icon}
+                                        </div>
+                                        <div className="min-w-0">
+                                            <p className="text-sm font-medium">{p.label}</p>
+                                            <p className="text-xs text-muted-foreground">
+                                                {p.linked
+                                                    ? "Conectada"
+                                                    : p.enabled
+                                                      ? "No conectada"
+                                                      : "No configurado por el administrador"}
+                                            </p>
+                                        </div>
+                                    </div>
+                                    {p.linked ? (
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() => unlinkConnection(p.key)}
+                                            disabled={unlinkingProvider === p.key}
+                                        >
+                                            {unlinkingProvider === p.key && (
+                                                <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />
+                                            )}
+                                            Desvincular
+                                        </Button>
+                                    ) : p.enabled ? (
+                                        <Button type="button" variant="outline" size="sm" asChild>
+                                            <a href={p.connectHref}>Conectar</a>
+                                        </Button>
+                                    ) : (
+                                        <Button type="button" variant="outline" size="sm" disabled>
+                                            Conectar
+                                        </Button>
+                                    )}
+                                </div>
+                            ))}
+                        </CardContent>
+                    </Card>
+
+                    <Card className="border-border/60 bg-card/10 backdrop-blur-sm shadow-sm">
+                        <CardHeader>
+                            <CardTitle className="uppercase font-bold text-sm flex items-center gap-2">
+                                <History className="h-4 w-4" /> Actividad reciente
+                            </CardTitle>
+                            <CardDescription>Tus últimos inicios de sesión.</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            {historyLoading ? (
+                                <div className="space-y-2">
+                                    {[1, 2, 3].map((i) => (
+                                        <Skeleton key={i} className="h-9 w-full rounded-md" />
+                                    ))}
+                                </div>
+                            ) : loginHistory.length === 0 ? (
+                                <p className="text-sm text-muted-foreground py-4 text-center">
+                                    Aún no hay actividad registrada.
+                                </p>
+                            ) : (
+                                <ul className="divide-y divide-border/60">
+                                    {loginHistory.map((h, i) => (
+                                        <li key={i} className="flex items-center justify-between gap-2 py-2.5 text-sm">
+                                            <span className="flex items-center gap-2 min-w-0">
+                                                <Badge variant="outline" className="text-[10px] shrink-0">
+                                                    {LOGIN_METHOD_LABEL[h.method] ?? h.method}
+                                                </Badge>
+                                                <span className="text-muted-foreground truncate">
+                                                    {h.ip_address || "IP desconocida"}
+                                                </span>
+                                            </span>
+                                            <span className="text-xs text-muted-foreground shrink-0">
+                                                {formatEventDate(h.created_at)}
+                                            </span>
+                                        </li>
+                                    ))}
+                                </ul>
+                            )}
+                        </CardContent>
+                    </Card>
+
+                    <Card className="border-destructive/30 bg-destructive/[0.02] shadow-sm">
+                        <CardHeader>
+                            <CardTitle className="uppercase font-bold text-sm text-destructive flex items-center gap-2">
+                                <AlertTriangle className="h-4 w-4" /> Zona de peligro
+                            </CardTitle>
+                            <CardDescription>Acciones irreversibles sobre tu cuenta.</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="flex flex-wrap items-center justify-between gap-4">
+                                <div>
+                                    <p className="text-sm font-medium">Eliminar mi cuenta</p>
+                                    <p className="text-xs text-muted-foreground max-w-md">
+                                        Se envía una solicitud a un administrador para revisarla y ejecutarla. No borra tus datos de inmediato.
                                     </p>
-                                )}
+                                </div>
+                                <AlertDialog>
+                                    <AlertDialogTrigger asChild>
+                                        <Button type="button" variant="destructive" size="sm">
+                                            <Trash2 className="h-4 w-4 mr-2" /> Solicitar eliminación
+                                        </Button>
+                                    </AlertDialogTrigger>
+                                    <AlertDialogContent>
+                                        <AlertDialogHeader>
+                                            <AlertDialogTitle>¿Solicitar eliminación de tu cuenta?</AlertDialogTitle>
+                                            <AlertDialogDescription>
+                                                Un administrador revisará la solicitud antes de ejecutarla. Puedes indicar el motivo (opcional).
+                                            </AlertDialogDescription>
+                                        </AlertDialogHeader>
+                                        <Textarea
+                                            value={deletionReason}
+                                            onChange={(e) => setDeletionReason(e.target.value)}
+                                            placeholder="Motivo (opcional)"
+                                            className="mt-1"
+                                        />
+                                        <AlertDialogFooter>
+                                            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                            <AlertDialogAction
+                                                onClick={requestAccountDeletion}
+                                                disabled={requestingDeletion}
+                                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                            >
+                                                {requestingDeletion && (
+                                                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                                                )}
+                                                Enviar solicitud
+                                            </AlertDialogAction>
+                                        </AlertDialogFooter>
+                                    </AlertDialogContent>
+                                </AlertDialog>
                             </div>
-                            <Button
-                                type="submit"
-                                variant="secondary"
-                                disabled={passwordLoading}
-                                className="w-full font-black uppercase tracking-widest text-xs mt-4"
-                            >
-                                {passwordLoading && (
-                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                )}
-                                Actualizar contraseña
-                            </Button>
-                        </form>
-                    </CardContent>
-                </Card>
+                        </CardContent>
+                    </Card>
+                </div>
             </div>
         </div>
     );

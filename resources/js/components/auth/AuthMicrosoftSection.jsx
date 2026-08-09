@@ -2,7 +2,7 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { btnBrandOutline } from "@/lib/marketingTheme";
 
-function MicrosoftIcon() {
+export function MicrosoftIcon() {
     return (
         <svg viewBox="0 0 21 21" width="18" height="18" aria-hidden className="shrink-0">
             <rect x="1" y="1" width="9" height="9" fill="#F25022" />

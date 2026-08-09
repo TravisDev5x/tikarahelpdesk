@@ -52,15 +52,24 @@ Route::get('/login', fn () => Inertia::render('Auth/Login'))->middleware('guest'
 Route::get('/auth/google/redirect', [\App\Http\Controllers\Auth\GoogleAuthController::class, 'redirect'])
     ->middleware('guest')
     ->name('auth.google.redirect');
+// Sin 'guest': el callback debe ser alcanzable tanto al iniciar sesión (invitado)
+// como al vincular Google desde Mi perfil (ya autenticado) -- ambos flujos
+// comparten la misma redirect_uri fija configurada en Google (services.google.redirect).
+// La identidad para el flujo de vínculo viaja en la sesión (google_oauth_link_user_id),
+// no depende de Auth::check() aquí.
 Route::get('/auth/google/callback', [\App\Http\Controllers\Auth\GoogleAuthController::class, 'callback'])
-    ->middleware('guest')
     ->name('auth.google.callback');
+Route::get('/auth/google/link', [\App\Http\Controllers\Auth\GoogleAuthController::class, 'linkRedirect'])
+    ->middleware('auth')
+    ->name('auth.google.link');
 Route::get('/auth/microsoft/redirect', [\App\Http\Controllers\Auth\MicrosoftAuthController::class, 'redirect'])
     ->middleware('guest')
     ->name('auth.microsoft.redirect');
 Route::get('/auth/microsoft/callback', [\App\Http\Controllers\Auth\MicrosoftAuthController::class, 'callback'])
-    ->middleware('guest')
     ->name('auth.microsoft.callback');
+Route::get('/auth/microsoft/link', [\App\Http\Controllers\Auth\MicrosoftAuthController::class, 'linkRedirect'])
+    ->middleware('auth')
+    ->name('auth.microsoft.link');
 Route::get('/register', function () {
     return Inertia::render('Auth/Register', [
         'plans' => Plan::activePublic()->get([

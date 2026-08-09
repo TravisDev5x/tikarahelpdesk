@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Auth;
 
+use App\Http\Controllers\Api\ProfileSecurityController;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Models\UserInvitation;
@@ -34,6 +35,25 @@ class GoogleAuthController extends Controller
             ->redirect();
     }
 
+    /**
+     * Igual que redirect(), pero para vincular Google a la cuenta YA
+     * autenticada desde Mi perfil (requiere middleware auth, no guest --
+     * por eso es una ruta separada de /auth/google/redirect).
+     */
+    public function linkRedirect(Request $request)
+    {
+        if (! $this->googleConfigured()) {
+            abort(503, 'Google no está configurado.');
+        }
+
+        $request->session()->put('google_oauth_intent', 'link');
+        $request->session()->put('google_oauth_link_user_id', $request->user()->id);
+
+        return Socialite::driver('google')
+            ->scopes(['openid', 'profile', 'email'])
+            ->redirect();
+    }
+
     public function callback(
         Request $request,
         TenantContextService $tenantContext,
@@ -58,6 +78,11 @@ class GoogleAuthController extends Controller
 
         $intent = (string) $request->session()->pull('google_oauth_intent', 'login');
         $invitationToken = $request->session()->pull('google_oauth_invitation_token');
+        $linkUserId = $request->session()->pull('google_oauth_link_user_id');
+
+        if ($intent === 'link') {
+            return $this->handleLink($request, $googleUser, $linkUserId);
+        }
 
         if ($intent === 'invitation' && is_string($invitationToken) && $invitationToken !== '') {
             return $this->handleInvitation($request, $acceptance, $tenantContext, $googleUser, $email, $invitationToken);
@@ -66,14 +91,43 @@ class GoogleAuthController extends Controller
         return $this->handleLogin($request, $tenantContext, $googleUser, $email);
     }
 
+    /**
+     * Vincula Google a la cuenta que inició el flujo (guardada en sesión, no
+     * "el usuario autenticado ahora mismo"): el callback es público
+     * (Google no reenvía cookies de forma confiable en todos los navegadores
+     * tras el redirect cross-site), así que la identidad viene de la sesión
+     * del servidor, no de Auth::user().
+     */
+    protected function handleLink(Request $request, $googleUser, $linkUserId)
+    {
+        if (! $linkUserId) {
+            return redirect()->route('profile.index')->with('error', 'La sesión para vincular Google expiró. Intenta de nuevo.');
+        }
+
+        $user = User::find($linkUserId);
+        if (! $user) {
+            return redirect()->route('login');
+        }
+
+        $claimedBy = User::where('google_id', $googleUser->getId())->first();
+        if ($claimedBy && $claimedBy->id !== $user->id) {
+            return redirect()->route('profile.index')->with('error', 'Esta cuenta de Google ya está vinculada a otro usuario.');
+        }
+
+        $user->forceFill(['google_id' => $googleUser->getId()])->save();
+        ProfileSecurityController::logOauthLink($user, 'google', viaLogin: false, ip: $request->ip());
+
+        return redirect()->route('profile.index')->with('success', 'Cuenta de Google vinculada.');
+    }
+
     protected function handleLogin(
         Request $request,
         TenantContextService $tenantContext,
         $googleUser,
         string $email
     ) {
-        $user = User::where('google_id', $googleUser->getId())->first()
-            ?? User::where('email', $email)->first();
+        $byGoogleId = User::where('google_id', $googleUser->getId())->first();
+        $user = $byGoogleId ?? User::where('email', $email)->first();
 
         if (! $user) {
             return redirect()->route('login')->with(
@@ -90,8 +144,28 @@ class GoogleAuthController extends Controller
             return redirect()->route('login')->with('error', 'Verifica tu correo para activar la cuenta.');
         }
 
-        if (! $user->google_id) {
+        // Vínculo automático por coincidencia de correo (primera vez que este
+        // usuario entra con Google): Google siempre manda email_verified en
+        // /userinfo -- exigirlo evita que alguien con una cuenta de Google
+        // reciente/no verificada tome el acceso de un correo que no le
+        // pertenece. Si ya venía vinculado por google_id, es un login normal,
+        // no un vínculo nuevo, así que no aplica este chequeo.
+        if (! $byGoogleId) {
+            $emailVerified = (bool) ($googleUser->user['email_verified'] ?? $googleUser->user['verified_email'] ?? false);
+            if (! $emailVerified) {
+                Log::channel('single')->warning('Google login: correo no verificado, se rechaza auto-vínculo', [
+                    'email' => $email,
+                    'target_user_id' => $user->id,
+                ]);
+
+                return redirect()->route('login')->with(
+                    'error',
+                    'Tu cuenta de Google no tiene el correo verificado. Inicia sesión con tu contraseña o contacta al administrador.'
+                );
+            }
+
             $user->forceFill(['google_id' => $googleUser->getId()])->save();
+            ProfileSecurityController::logOauthLink($user, 'google', viaLogin: true, ip: $request->ip());
         }
 
         $tenantContext->resolve($request);
@@ -109,6 +183,7 @@ class GoogleAuthController extends Controller
 
         Auth::login($user);
         $request->session()->regenerate();
+        ProfileSecurityController::logLogin($user, 'google', $request->ip(), $request->userAgent());
 
         return redirect()->intended('/');
     }
