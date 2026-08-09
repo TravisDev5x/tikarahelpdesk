@@ -151,26 +151,7 @@ class TenantContextService
             }
 
             $client = $attemptedClientId ? Client::find($attemptedClientId) : null;
-
-            // No usar el scope role() de Spatie aquí: con teams activo (RBAC v2), ese
-            // scope filtra por el team_id ambiente del request actual, que casi nunca
-            // coincide con el team_id centinela con el que se asignó super_admin (ver
-            // docblock de SuperAdminCrossTenantTest). Consulta directa a la tabla pivote
-            // para encontrar el rol sin importar el contexto de team activo.
-            $superAdminRoleId = DB::table('roles')->where('name', 'super_admin')->value('id');
-            $superAdminIds = $superAdminRoleId
-                ? DB::table('model_has_roles')
-                    ->where('role_id', $superAdminRoleId)
-                    ->where('model_type', User::class)
-                    ->pluck('model_id')
-                : collect();
-            $recipients = $superAdminIds->isNotEmpty() ? User::whereIn('id', $superAdminIds)->get() : collect();
-            if ($client?->operator_user_id) {
-                $operator = User::find($client->operator_user_id);
-                if ($operator && ! $recipients->contains('id', $operator->id)) {
-                    $recipients->push($operator);
-                }
-            }
+            $recipients = $this->platformRecipientsFor($client);
             if ($recipients->isEmpty()) {
                 return;
             }
@@ -184,6 +165,67 @@ class TenantContextService
         } catch (\Throwable $e) {
             Log::error('Tenant boundary alert notification failed', [
                 'event' => $event,
+                'error' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    /**
+     * super_admin(es) + operador dueño del cliente (clients.operator_user_id),
+     * sin duplicar -- destinatarios estándar para avisos de plataforma sobre
+     * un tenant. Compartido por notifyBoundaryViolation() y notifyPlanRequest().
+     *
+     * No usar el scope role() de Spatie aquí: con teams activo (RBAC v2), ese
+     * scope filtra por el team_id ambiente del request actual, que casi nunca
+     * coincide con el team_id centinela con el que se asignó super_admin (ver
+     * docblock de SuperAdminCrossTenantTest). Consulta directa a la tabla pivote
+     * para encontrar el rol sin importar el contexto de team activo.
+     */
+    private function platformRecipientsFor(?Client $client): \Illuminate\Support\Collection
+    {
+        $superAdminRoleId = DB::table('roles')->where('name', 'super_admin')->value('id');
+        $superAdminIds = $superAdminRoleId
+            ? DB::table('model_has_roles')
+                ->where('role_id', $superAdminRoleId)
+                ->where('model_type', User::class)
+                ->pluck('model_id')
+            : collect();
+        $recipients = $superAdminIds->isNotEmpty() ? User::whereIn('id', $superAdminIds)->get() : collect();
+        if ($client?->operator_user_id) {
+            $operator = User::find($client->operator_user_id);
+            if ($operator && ! $recipients->contains('id', $operator->id)) {
+                $recipients->push($operator);
+            }
+        }
+
+        return $recipients;
+    }
+
+    /**
+     * Autoservicio del tenant (panel "Mi empresa"): no hay pasarela de pago
+     * integrada, así que "cambiar de plan" / "cancelar" no cobra ni cancela
+     * nada -- solo avisa a quien administra la cuenta (operador + super_admin)
+     * para que lo gestione manualmente. Ver docs/PENDING.md.
+     */
+    public function notifyPlanRequest(Client $client, User $requester, string $type, ?string $note): void
+    {
+        try {
+            $recipients = $this->platformRecipientsFor($client);
+            if ($recipients->isEmpty()) {
+                return;
+            }
+
+            Notification::send($recipients, new \App\Notifications\Clients\ClientSelfServiceRequestNotification(
+                type: $type,
+                clientName: $client->name,
+                clientId: $client->id,
+                requestedByLabel: $requester->name ?? $requester->email,
+                note: $note,
+            ));
+        } catch (\Throwable $e) {
+            Log::error('Client plan request notification failed', [
+                'client_id' => $client->id,
+                'type' => $type,
                 'error' => $e->getMessage(),
             ]);
         }
