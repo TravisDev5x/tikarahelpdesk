@@ -109,6 +109,14 @@ Route::get('/', [LandingController::class, 'index'])->name('landing');
 Route::middleware('auth')->group(function () {
     Route::get('/onboarding', [TenantOnboardingController::class, 'show'])->name('onboarding.show');
     Route::post('/onboarding', [TenantOnboardingController::class, 'store'])->name('onboarding.store');
+    // 7.3 datos de empresa, 7.4 modalidad, 7.5 Customers/Sites externos (solo MSP/Hybrid).
+    Route::get('/onboarding/company', [TenantOnboardingController::class, 'showCompany'])->name('onboarding.company');
+    Route::post('/onboarding/company', [TenantOnboardingController::class, 'storeCompany'])->name('onboarding.company.store');
+    Route::get('/onboarding/modality', [TenantOnboardingController::class, 'showModality'])->name('onboarding.modality');
+    Route::post('/onboarding/modality', [TenantOnboardingController::class, 'storeModality'])->name('onboarding.modality.store');
+    Route::get('/onboarding/customers', [TenantOnboardingController::class, 'showCustomers'])->name('onboarding.customers');
+    Route::post('/onboarding/customers', [TenantOnboardingController::class, 'storeCustomer'])->name('onboarding.customers.store');
+    Route::post('/onboarding/customers/finish', [TenantOnboardingController::class, 'finishCustomers'])->name('onboarding.customers.finish');
 
     Route::redirect('/clientes', '/clients');
     // Sedes ya no es un catálogo aparte -- se administran dentro del

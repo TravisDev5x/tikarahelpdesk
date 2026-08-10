@@ -27,6 +27,8 @@ class Client extends Model
         'contact_phone',
         'website',
         'address',
+        'city',
+        'country',
         'latitude',
         'longitude',
         'logo_path',
