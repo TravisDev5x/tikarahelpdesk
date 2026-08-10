@@ -111,11 +111,13 @@ class TenantOnboardingTest extends TestCase
             'business_name' => 'Distribuidora del Valle',
         ]);
 
-        $response->assertRedirect('/home');
+        // 7.3 sigue -- ya no es el último paso construido, a diferencia de
+        // cuando este test se escribió (7.1-7.2 nada más).
+        $response->assertRedirect('/onboarding/company');
 
         $user->refresh();
         $this->assertNotNull($user->client_id);
-        $this->assertTrue((bool) $user->onboarding_completed);
+        $this->assertFalse((bool) $user->onboarding_completed, 'onboarding_completed debe quedarse false -- 7.3/7.4 siguen pendientes.');
 
         $client = Client::findOrFail($user->client_id);
         $this->assertNotNull($client->portal_slug);
@@ -185,7 +187,7 @@ class TenantOnboardingTest extends TestCase
         );
 
         $this->actingAs($user, 'web')->post('/onboarding', ['business_name' => 'Consultoria Nortena'])
-            ->assertRedirect('/home');
+            ->assertRedirect('/onboarding/company');
 
         $this->assertSame(
             0,
@@ -207,11 +209,11 @@ class TenantOnboardingTest extends TestCase
     {
         $userA = $this->makeFreshUser();
         $this->actingAs($userA, 'web')->post('/onboarding', ['business_name' => 'Tenant Uno'])
-            ->assertRedirect('/home');
+            ->assertRedirect('/onboarding/company');
 
         $userB = $this->makeFreshUser();
         $this->actingAs($userB, 'web')->post('/onboarding', ['business_name' => 'Tenant Dos'])
-            ->assertRedirect('/home');
+            ->assertRedirect('/onboarding/company');
 
         $clientA = Client::findOrFail($userA->fresh()->client_id);
         $clientB = Client::findOrFail($userB->fresh()->client_id);
@@ -234,21 +236,350 @@ class TenantOnboardingTest extends TestCase
         );
     }
 
-    public function test_user_with_client_already_set_is_redirected_away_from_onboarding_form(): void
+    public function test_user_with_client_already_set_is_redirected_to_the_next_step_not_repeat_the_form(): void
     {
         $user = $this->makeFreshUser();
         $this->actingAs($user, 'web')->post('/onboarding', ['business_name' => 'Ya Completado'])
-            ->assertRedirect('/home');
+            ->assertRedirect('/onboarding/company');
 
         $client = Client::findOrFail($user->fresh()->client_id);
         $this->assertSame('tenant_named', $client->onboarding_step);
 
-        // "Retomar" en el alcance de este sprint: con client_id ya resuelto,
-        // /onboarding no vuelve a mostrar el formulario (7.3+ es lo que
-        // continuaría la máquina de estados desde 'tenant_named' en adelante).
+        // Revisitar /onboarding (7.2) con client_id ya resuelto no repite el
+        // formulario -- manda al paso que le toca según onboarding_step.
         $this->actingAs($user->fresh(), 'web')->get('/onboarding')
-            ->assertRedirect('/home');
+            ->assertRedirect('/onboarding/company');
 
         $this->assertSame('tenant_named', $client->fresh()->onboarding_step);
+    }
+
+    // ── 7.3: datos de empresa ────────────────────────────────────────────
+
+    private function userAtStep(string $step): array
+    {
+        $user = $this->makeFreshUser();
+        $this->actingAs($user, 'web')->post('/onboarding', ['business_name' => 'Tenant '.uniqid()]);
+        $user->refresh();
+        $client = Client::findOrFail($user->client_id);
+
+        if ($step !== 'tenant_named') {
+            $client->update(['onboarding_step' => $step]);
+        }
+
+        return [$user, $client->fresh()];
+    }
+
+    public function test_company_data_step_saves_fields_and_advances_state(): void
+    {
+        [$user] = $this->userAtStep('tenant_named');
+
+        $response = $this->actingAs($user, 'web')->post('/onboarding/company', [
+            'legal_name' => 'Distribuidora del Valle S.A. de C.V.',
+            'tax_id' => 'DVA010101AB1',
+            'contact_phone' => '5512345678',
+            'website' => 'https://distribuidoradelvalle.mx',
+            'address' => 'Av. Reforma 123',
+            'city' => 'Ciudad de México',
+            'country' => 'MX',
+        ]);
+
+        $response->assertRedirect('/onboarding/modality');
+
+        $client = Client::findOrFail($user->fresh()->client_id);
+        $this->assertSame('company_data', $client->onboarding_step);
+        $this->assertSame('Distribuidora del Valle S.A. de C.V.', $client->legal_name);
+        $this->assertSame('DVA010101AB1', $client->tax_id);
+        $this->assertSame('5512345678', $client->contact_phone);
+        $this->assertSame('https://distribuidoradelvalle.mx', $client->website);
+        $this->assertSame('Av. Reforma 123', $client->address);
+        $this->assertSame('Ciudad de México', $client->city);
+        $this->assertSame('MX', $client->country);
+        $this->assertFalse((bool) $user->fresh()->onboarding_completed);
+    }
+
+    public function test_company_data_step_requires_address_city_country_but_not_the_rest(): void
+    {
+        [$user] = $this->userAtStep('tenant_named');
+
+        $this->actingAs($user, 'web')->post('/onboarding/company', [
+            'address' => 'Av. Reforma 123',
+            'city' => 'Ciudad de México',
+            'country' => 'MX',
+        ])->assertRedirect('/onboarding/modality');
+
+        $this->assertSame('company_data', Client::findOrFail($user->fresh()->client_id)->onboarding_step);
+    }
+
+    /**
+     * tax_id no tiene ninguna validación de negocio (no se verifica contra
+     * el SAT ni ninguna otra fuente externa) -- solo el regex de FORMATO
+     * heredado del wizard legacy. Un RFC con formato válido pero inventado
+     * se guarda tal cual y no bloquea el flujo.
+     */
+    public function test_tax_id_has_no_business_validation_only_format_and_is_saved_as_is(): void
+    {
+        [$user] = $this->userAtStep('tenant_named');
+
+        $this->actingAs($user, 'web')->post('/onboarding/company', [
+            'tax_id' => 'XXX010101XX1', // formato válido, RFC inventado
+            'address' => 'Calle Falsa 123',
+            'city' => 'Guadalajara',
+            'country' => 'MX',
+        ])->assertRedirect('/onboarding/modality');
+
+        $client = Client::findOrFail($user->fresh()->client_id);
+        $this->assertSame('company_data', $client->onboarding_step);
+        $this->assertSame('XXX010101XX1', $client->tax_id);
+    }
+
+    public function test_company_data_step_is_unreachable_before_naming_the_tenant(): void
+    {
+        $user = $this->makeFreshUser();
+
+        $this->actingAs($user, 'web')->get('/onboarding/company')->assertRedirect('/onboarding');
+    }
+
+    // ── 7.4: modalidad ───────────────────────────────────────────────────
+
+    public function test_modality_step_saves_the_three_possible_values(): void
+    {
+        foreach (['internal', 'msp', 'hybrid'] as $mode) {
+            [$user] = $this->userAtStep('company_data');
+
+            $this->actingAs($user, 'web')->post('/onboarding/modality', ['mode' => $mode]);
+
+            $this->assertSame($mode, Client::findOrFail($user->fresh()->client_id)->mode, "mode={$mode} no se guardó.");
+        }
+    }
+
+    public function test_internal_mode_skips_customers_step_and_completes_onboarding(): void
+    {
+        [$user] = $this->userAtStep('company_data');
+
+        $response = $this->actingAs($user, 'web')->post('/onboarding/modality', ['mode' => 'internal']);
+
+        $response->assertRedirect('/home');
+
+        $user->refresh();
+        $this->assertTrue((bool) $user->onboarding_completed);
+        $this->assertSame('customers_skipped', Client::findOrFail($user->client_id)->onboarding_step);
+
+        // Confirma que redirectPath() también lo deja pasar de ahí en adelante.
+        $this->actingAs($user, 'web')->get('/onboarding/customers')->assertRedirect('/home');
+    }
+
+    public function test_msp_mode_continues_to_customers_step(): void
+    {
+        [$user] = $this->userAtStep('company_data');
+
+        $response = $this->actingAs($user, 'web')->post('/onboarding/modality', ['mode' => 'msp']);
+
+        $response->assertRedirect('/onboarding/customers');
+        $this->assertFalse((bool) $user->fresh()->onboarding_completed);
+        $this->assertSame('modality_set', Client::findOrFail($user->fresh()->client_id)->onboarding_step);
+    }
+
+    public function test_modality_step_is_unreachable_before_company_data(): void
+    {
+        [$user] = $this->userAtStep('tenant_named');
+
+        $this->actingAs($user, 'web')->get('/onboarding/modality')->assertRedirect('/onboarding/company');
+    }
+
+    // ── 7.5: Customers/Sites externos ────────────────────────────────────
+
+    public function test_customers_step_creates_external_customer_with_sites_under_the_correct_tenant(): void
+    {
+        [$user, $client] = $this->userAtStep('modality_set');
+        $client->update(['mode' => 'msp']);
+        $otherClient = Client::create(['name' => 'Otro Tenant', 'portal_slug' => 'otro-tenant-'.uniqid(), 'is_active' => true]);
+
+        $this->actingAs($user, 'web')->post('/onboarding/customers', [
+            'customer_name' => 'Cliente Externo SA',
+            'customer_address' => 'Insurgentes Sur 100',
+            'sites' => [
+                ['name' => 'Matriz', 'address' => 'Insurgentes Sur 100'],
+                ['name' => 'Sucursal Norte', 'address' => 'Av. Universidad 200'],
+            ],
+        ])->assertRedirect('/onboarding/customers');
+
+        // sites TAMBIÉN tiene RLS -- hay que cargar la relación mientras el
+        // bypass sigue activo (->sites() sin cargar dispara una query nueva
+        // fuera del bypass y vuelve a caer en el mismo problema que ya
+        // resolvimos para Customer).
+        PgsqlRowLevelSecurity::setBypass(true);
+        $customer = Customer::where('client_id', $client->id)->where('is_internal', false)->with('sites')->first();
+        PgsqlRowLevelSecurity::clear();
+
+        $this->assertNotNull($customer);
+        $this->assertSame('Cliente Externo SA', $customer->name);
+        $this->assertSame(2, $customer->sites->count());
+        $this->assertSame($client->id, $customer->client_id);
+        $this->assertNotSame($otherClient->id, $customer->client_id, 'El Customer externo no debe quedar bajo otro tenant.');
+
+        foreach ($customer->sites as $site) {
+            $this->assertSame($client->id, $site->client_id);
+            $this->assertSame($customer->id, $site->customer_id);
+        }
+    }
+
+    public function test_customers_step_requires_at_least_one_site(): void
+    {
+        [$user] = $this->userAtStep('modality_set');
+
+        $this->actingAs($user, 'web')->post('/onboarding/customers', [
+            'customer_name' => 'Cliente Sin Sede',
+            'customer_address' => 'Algún lado',
+            'sites' => [],
+        ])->assertSessionHasErrors('sites');
+    }
+
+    /**
+     * sites tiene unique(client_id, name) -- TENANT completo, no por
+     * Customer. Dos Customers externos del mismo tenant pidiendo ambos una
+     * sede "Matriz" reventaba con un UniqueConstraintViolationException
+     * crudo antes de este test (encontrado escribiendo la integración de
+     * este mismo sprint) -- ahora se valida con un mensaje claro.
+     */
+    public function test_customers_step_rejects_a_site_name_already_used_by_another_customer_of_the_same_tenant(): void
+    {
+        [$user] = $this->userAtStep('modality_set');
+
+        $this->actingAs($user, 'web')->post('/onboarding/customers', [
+            'customer_name' => 'Cliente Uno',
+            'customer_address' => 'Dir 1',
+            'sites' => [['name' => 'Matriz', 'address' => 'Dir 1']],
+        ])->assertRedirect('/onboarding/customers');
+
+        $this->actingAs($user, 'web')->post('/onboarding/customers', [
+            'customer_name' => 'Cliente Dos',
+            'customer_address' => 'Dir 2',
+            'sites' => [['name' => 'Matriz', 'address' => 'Dir 2']],
+        ])->assertSessionHasErrors('sites.0.name');
+
+        $this->assertSame(0, Customer::where('name', 'Cliente Dos')->count(), 'No debía crearse el Customer si su sede colisiona.');
+    }
+
+    public function test_customers_step_rejects_duplicate_site_names_within_the_same_submission(): void
+    {
+        [$user] = $this->userAtStep('modality_set');
+
+        $this->actingAs($user, 'web')->post('/onboarding/customers', [
+            'customer_name' => 'Cliente Con Sedes Repetidas',
+            'customer_address' => 'Dir 1',
+            'sites' => [
+                ['name' => 'Sucursal', 'address' => 'Dir 1'],
+                ['name' => 'Sucursal', 'address' => 'Dir 2'],
+            ],
+        ])->assertSessionHasErrors('sites.0.name');
+    }
+
+    public function test_customers_step_allows_adding_more_than_one_customer_before_finishing(): void
+    {
+        [$user, $client] = $this->userAtStep('modality_set');
+
+        $addCustomer = fn (string $name) => $this->actingAs($user, 'web')->post('/onboarding/customers', [
+            'customer_name' => $name,
+            'customer_address' => 'Dirección de '.$name,
+            'sites' => [['name' => 'Matriz de '.$name, 'address' => 'Dirección de '.$name]],
+        ]);
+
+        $addCustomer('Cliente Uno')->assertRedirect('/onboarding/customers');
+        $addCustomer('Cliente Dos')->assertRedirect('/onboarding/customers');
+
+        PgsqlRowLevelSecurity::setBypass(true);
+        $count = Customer::where('client_id', $client->id)->where('is_internal', false)->count();
+        PgsqlRowLevelSecurity::clear();
+
+        $this->assertSame(2, $count);
+        // Sigue sin completarse -- agregar clientes no es lo mismo que terminar el paso.
+        $this->assertFalse((bool) $user->fresh()->onboarding_completed);
+    }
+
+    public function test_finishing_customers_step_completes_onboarding(): void
+    {
+        [$user, $client] = $this->userAtStep('modality_set');
+
+        $this->actingAs($user, 'web')->post('/onboarding/customers/finish')
+            ->assertRedirect('/home');
+
+        $this->assertTrue((bool) $user->fresh()->onboarding_completed);
+        $this->assertSame('customers_added', $client->fresh()->onboarding_step);
+    }
+
+    public function test_customers_step_is_unreachable_before_modality(): void
+    {
+        [$user] = $this->userAtStep('company_data');
+
+        $this->actingAs($user, 'web')->get('/onboarding/customers')->assertRedirect('/onboarding/modality');
+    }
+
+    // ── Integración: tramo completo ──────────────────────────────────────
+
+    public function test_full_flow_msp_mode_ends_at_customers_added_with_two_customers(): void
+    {
+        $user = $this->makeFreshUser();
+
+        $this->actingAs($user, 'web')->post('/onboarding', ['business_name' => 'MSP Integral'])
+            ->assertRedirect('/onboarding/company');
+
+        $this->actingAs($user, 'web')->post('/onboarding/company', [
+            'address' => 'Calle 1', 'city' => 'CDMX', 'country' => 'MX',
+        ])->assertRedirect('/onboarding/modality');
+
+        $this->actingAs($user, 'web')->post('/onboarding/modality', ['mode' => 'msp'])
+            ->assertRedirect('/onboarding/customers');
+
+        $this->actingAs($user, 'web')->post('/onboarding/customers', [
+            'customer_name' => 'Cliente A', 'customer_address' => 'Dir A',
+            'sites' => [['name' => 'Matriz A', 'address' => 'Dir A']],
+        ])->assertRedirect('/onboarding/customers');
+
+        $this->actingAs($user, 'web')->post('/onboarding/customers', [
+            'customer_name' => 'Cliente B', 'customer_address' => 'Dir B',
+            'sites' => [['name' => 'Matriz B', 'address' => 'Dir B']],
+        ])->assertRedirect('/onboarding/customers');
+
+        $this->actingAs($user, 'web')->post('/onboarding/customers/finish')
+            ->assertRedirect('/home');
+
+        $user->refresh();
+        $client = Client::findOrFail($user->client_id);
+        $this->assertTrue((bool) $user->onboarding_completed);
+        $this->assertSame('customers_added', $client->onboarding_step);
+        $this->assertSame('msp', $client->mode);
+
+        PgsqlRowLevelSecurity::setBypass(true);
+        $count = Customer::where('client_id', $client->id)->where('is_internal', false)->count();
+        PgsqlRowLevelSecurity::clear();
+        $this->assertSame(2, $count);
+
+        // Punto de entrada a 7.6 (no construido): ya no hay redirect de onboarding pendiente.
+        $this->assertNull(app(\App\Services\OnboardingRedirectService::class)->redirectPath($user));
+    }
+
+    public function test_full_flow_internal_mode_skips_customers_and_ends_at_the_same_7_6_entry_point(): void
+    {
+        $user = $this->makeFreshUser();
+
+        $this->actingAs($user, 'web')->post('/onboarding', ['business_name' => 'Interno Integral'])
+            ->assertRedirect('/onboarding/company');
+
+        $this->actingAs($user, 'web')->post('/onboarding/company', [
+            'address' => 'Calle 1', 'city' => 'CDMX', 'country' => 'MX',
+        ])->assertRedirect('/onboarding/modality');
+
+        $this->actingAs($user, 'web')->post('/onboarding/modality', ['mode' => 'internal'])
+            ->assertRedirect('/home');
+
+        $user->refresh();
+        $client = Client::findOrFail($user->client_id);
+        $this->assertTrue((bool) $user->onboarding_completed);
+        $this->assertSame('customers_skipped', $client->onboarding_step);
+        $this->assertSame('internal', $client->mode);
+
+        // Mismo punto de entrada a 7.6 que el flujo MSP -- ninguno de los dos
+        // se queda con un redirect de onboarding pendiente.
+        $this->assertNull(app(\App\Services\OnboardingRedirectService::class)->redirectPath($user));
     }
 }
