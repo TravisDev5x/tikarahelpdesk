@@ -216,11 +216,16 @@ class CustomerHierarchyTest extends TestCase
     }
 
     // ── RLS de customers bajo PostgreSQL real ────────────────────────────
-    // PENDIENTE DE VERIFICAR: el entorno local no tiene acceso a Postgres
-    // con TENANCY_PGSQL_RLS=true en este momento (ver auditoría). El test
-    // está escrito y se salta solo si el driver activo no es pgsql -- correr
-    // `composer test:pgsql` (o el equivalente phpunit.pgsql.xml) apenas se
-    // resuelva el acceso a Postgres para confirmar que pasa de verdad.
+    // Verificado contra Postgres real con TENANCY_PGSQL_RLS=true
+    // (composer test:pgsql) -- se salta solo si el driver activo no es pgsql.
+    //
+    // Fase 7 (2026-08-09): ya NO crea los Customer a mano -- Client::booted()
+    // ahora crea automáticamente el Customer interno de CUALQUIER Client
+    // nuevo (antes solo lo hacía el flujo legacy de operador). Crearlos
+    // también a mano aquí duplicaría filas is_internal=true por client_id y
+    // rompería el conteo. La creación automática ya pasa por
+    // InternalCustomerService::ensureForClient() -> PgsqlRowLevelSecurity::
+    // withBypass(), que es justo lo que este test verifica que funciona.
 
     public function test_rls_isolates_customers_between_tenants(): void
     {
@@ -230,8 +235,6 @@ class CustomerHierarchyTest extends TestCase
 
         $clientA = Client::create(['name' => 'RLS Client A', 'is_active' => true]);
         $clientB = Client::create(['name' => 'RLS Client B', 'is_active' => true]);
-        Customer::create(['client_id' => $clientA->id, 'name' => 'Customer A', 'is_internal' => true]);
-        Customer::create(['client_id' => $clientB->id, 'name' => 'Customer B', 'is_internal' => true]);
 
         PgsqlRowLevelSecurity::setBypass(true);
         $this->assertSame(2, Customer::query()->count());
@@ -240,7 +243,7 @@ class CustomerHierarchyTest extends TestCase
         DB::statement("SELECT set_config('app.tenant_bypass', 'false', false)");
 
         $this->assertSame(1, Customer::query()->count());
-        $this->assertSame('Customer A', Customer::query()->value('name'));
+        $this->assertSame($clientA->name, Customer::query()->value('name'));
 
         PgsqlRowLevelSecurity::clear();
     }
