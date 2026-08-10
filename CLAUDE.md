@@ -174,7 +174,7 @@ Este archivo es la guía rápida. Para detalle, cada doc vive en `docs/` (o raí
 | `docs/MICROSOFT_LOGIN_SETUP.md` | Checklist externo: registrar app en Azure Portal para login con Microsoft 365 |
 | `docs/MAILGUN_OUTBOUND.md` | Checklist externo: verificar Mailgun para correo transaccional saliente |
 | `docs/DEPLOY_OCI.md` | Runbook de despliegue en Oracle Cloud (Docker Compose, sin dominio propio) |
-| `docs/PENDING_TICKET_REVIEW.md` | Diseño (no construido) de la cola de revisión de correos no reconocidos |
+| `docs/PENDING_TICKET_REVIEW.md` | Cola de revisión de correos no reconocidos — construida 2026-08-09 |
 | `docs/RBAC_ROADMAP.md` | Bitácora de fases del modelo de roles/permisos (`team_id`, RBAC v2) |
 | `docs/MULTITENANT_ROADMAP.md` | Roadmap de aislamiento multi-tenant hasta "100% sólido" |
 | `docs/PENDING.md` | **Índice consolidado de pendientes** — punto de entrada, ver sección siguiente |
@@ -186,7 +186,6 @@ Este archivo es la guía rápida. Para detalle, cada doc vive en `docs/` (o raí
 **Bloqueado por config externa** (código listo, falta cuenta/credenciales que Claude no puede crear): login con Google, Google Maps/geocodificación, login con Microsoft 365 (Azure AD).
 
 **Diseñado, no construido**:
-- Cola de revisión manual para correos de remitentes no reconocidos (hoy solo un `Log::warning`, nadie se entera) — `docs/PENDING_TICKET_REVIEW.md`.
 - Calendario de tickets: falta hora exacta (no solo fecha), usar `tickets.resolved_at` (existe en backend, el frontend nunca lo pinta), toggle fecha de alta/cierre.
 
 **Roadmaps vivos, sin fecha objetivo**:
