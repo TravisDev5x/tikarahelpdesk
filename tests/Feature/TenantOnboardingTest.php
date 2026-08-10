@@ -3,10 +3,13 @@
 namespace Tests\Feature;
 
 use App\Http\Controllers\AuthController;
+use App\Mail\UserInvitation as UserInvitationMail;
 use App\Models\Client;
 use App\Models\Customer;
+use App\Models\Plan;
 use App\Models\Role;
 use App\Models\User;
+use App\Models\UserInvitation;
 use App\Support\Tenancy\PgsqlRowLevelSecurity;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -352,20 +355,20 @@ class TenantOnboardingTest extends TestCase
         }
     }
 
-    public function test_internal_mode_skips_customers_step_and_completes_onboarding(): void
+    public function test_internal_mode_skips_customers_step_and_continues_to_staff(): void
     {
         [$user] = $this->userAtStep('company_data');
 
         $response = $this->actingAs($user, 'web')->post('/onboarding/modality', ['mode' => 'internal']);
 
-        $response->assertRedirect('/home');
+        $response->assertRedirect('/onboarding/staff');
 
         $user->refresh();
-        $this->assertTrue((bool) $user->onboarding_completed);
+        $this->assertFalse((bool) $user->onboarding_completed, 'onboarding_completed debe quedarse false -- 7.6 sigue pendiente.');
         $this->assertSame('customers_skipped', Client::findOrFail($user->client_id)->onboarding_step);
 
         // Confirma que redirectPath() también lo deja pasar de ahí en adelante.
-        $this->actingAs($user, 'web')->get('/onboarding/customers')->assertRedirect('/home');
+        $this->actingAs($user, 'web')->get('/onboarding/customers')->assertRedirect('/onboarding/staff');
     }
 
     public function test_msp_mode_continues_to_customers_step(): void
@@ -496,14 +499,14 @@ class TenantOnboardingTest extends TestCase
         $this->assertFalse((bool) $user->fresh()->onboarding_completed);
     }
 
-    public function test_finishing_customers_step_completes_onboarding(): void
+    public function test_finishing_customers_step_advances_to_staff_without_completing_onboarding(): void
     {
         [$user, $client] = $this->userAtStep('modality_set');
 
         $this->actingAs($user, 'web')->post('/onboarding/customers/finish')
-            ->assertRedirect('/home');
+            ->assertRedirect('/onboarding/staff');
 
-        $this->assertTrue((bool) $user->fresh()->onboarding_completed);
+        $this->assertFalse((bool) $user->fresh()->onboarding_completed, 'onboarding_completed debe quedarse false -- 7.6 sigue pendiente.');
         $this->assertSame('customers_added', $client->fresh()->onboarding_step);
     }
 
@@ -541,11 +544,11 @@ class TenantOnboardingTest extends TestCase
         ])->assertRedirect('/onboarding/customers');
 
         $this->actingAs($user, 'web')->post('/onboarding/customers/finish')
-            ->assertRedirect('/home');
+            ->assertRedirect('/onboarding/staff');
 
         $user->refresh();
         $client = Client::findOrFail($user->client_id);
-        $this->assertTrue((bool) $user->onboarding_completed);
+        $this->assertFalse((bool) $user->onboarding_completed, 'onboarding_completed debe quedarse false -- 7.6 sigue pendiente.');
         $this->assertSame('customers_added', $client->onboarding_step);
         $this->assertSame('msp', $client->mode);
 
@@ -554,11 +557,16 @@ class TenantOnboardingTest extends TestCase
         PgsqlRowLevelSecurity::clear();
         $this->assertSame(2, $count);
 
-        // Punto de entrada a 7.6 (no construido): ya no hay redirect de onboarding pendiente.
+        $this->actingAs($user, 'web')->post('/onboarding/staff/finish')
+            ->assertRedirect('/home');
+
+        $user->refresh();
+        $this->assertTrue((bool) $user->onboarding_completed);
+        $this->assertSame('staff_invited', $client->fresh()->onboarding_step);
         $this->assertNull(app(\App\Services\OnboardingRedirectService::class)->redirectPath($user));
     }
 
-    public function test_full_flow_internal_mode_skips_customers_and_ends_at_the_same_7_6_entry_point(): void
+    public function test_full_flow_internal_mode_skips_customers_and_ends_at_the_same_7_6_exit_point(): void
     {
         $user = $this->makeFreshUser();
 
@@ -570,16 +578,237 @@ class TenantOnboardingTest extends TestCase
         ])->assertRedirect('/onboarding/modality');
 
         $this->actingAs($user, 'web')->post('/onboarding/modality', ['mode' => 'internal'])
-            ->assertRedirect('/home');
+            ->assertRedirect('/onboarding/staff');
 
         $user->refresh();
         $client = Client::findOrFail($user->client_id);
-        $this->assertTrue((bool) $user->onboarding_completed);
+        $this->assertFalse((bool) $user->onboarding_completed, 'onboarding_completed debe quedarse false -- 7.6 sigue pendiente.');
         $this->assertSame('customers_skipped', $client->onboarding_step);
         $this->assertSame('internal', $client->mode);
 
-        // Mismo punto de entrada a 7.6 que el flujo MSP -- ninguno de los dos
-        // se queda con un redirect de onboarding pendiente.
+        $this->actingAs($user, 'web')->post('/onboarding/staff/finish')
+            ->assertRedirect('/home');
+
+        $user->refresh();
+        $this->assertTrue((bool) $user->onboarding_completed);
+        $this->assertSame('staff_invited', $client->fresh()->onboarding_step);
+
+        // Mismo punto de salida que el flujo MSP -- ninguno de los dos se
+        // queda con un redirect de onboarding pendiente.
         $this->assertNull(app(\App\Services\OnboardingRedirectService::class)->redirectPath($user));
+    }
+
+    // ── 7.6: invitar personal ────────────────────────────────────────────
+
+    public function test_staff_step_is_unreachable_before_customers_step_completes(): void
+    {
+        [$user] = $this->userAtStep('modality_set');
+
+        $this->actingAs($user, 'web')->get('/onboarding/staff')->assertRedirect('/onboarding/customers');
+    }
+
+    public function test_staff_step_invites_someone_reusing_invitation_controller(): void
+    {
+        Mail::fake();
+        [$user, $client] = $this->userAtStep('customers_added');
+
+        $response = $this->actingAs($user, 'web')->post('/onboarding/staff', [
+            'email' => 'nueva-agente@example.test',
+            'role' => 'agente',
+        ]);
+
+        $response->assertRedirect('/onboarding/staff');
+
+        $invitation = UserInvitation::where('email', 'nueva-agente@example.test')->firstOrFail();
+        $this->assertSame($client->id, $invitation->client_id);
+        $this->assertSame(UserInvitation::STATUS_PENDING, $invitation->status);
+        // Auth::user() dentro de InvitationController::store(), invocado vía
+        // Request::create() sintético, sigue resolviendo al admin fundador
+        // real de la sesión -- no null, no otro usuario.
+        $this->assertSame($user->id, $invitation->invited_by);
+
+        $role = Role::findOrFail($invitation->role_id);
+        $this->assertSame('agente', $role->name);
+        $this->assertSame($client->id, $role->team_id);
+
+        Mail::assertQueued(UserInvitationMail::class);
+    }
+
+    /**
+     * "email inválido" nunca llega a InvitationController::store() -- lo
+     * atrapa la validación PROPIA de storeStaff() ('email' => 'required|email')
+     * antes de delegar. Confirma eso explícitamente (no se crea nada, error
+     * en 'email'), y por separado cubre los 2 casos que SÍ dependen de la
+     * validación interna de InvitationController::store() (ver los 2 tests
+     * siguientes): email ya usado por un usuario existente, y doble
+     * invitación al mismo correo dentro del mismo flujo.
+     */
+    public function test_staff_step_rejects_malformed_email_before_ever_reaching_invitation_controller(): void
+    {
+        [$user] = $this->userAtStep('customers_added');
+
+        $this->actingAs($user, 'web')->post('/onboarding/staff', [
+            'email' => 'no-es-un-correo',
+            'role' => 'agente',
+        ])->assertSessionHasErrors('email');
+
+        $this->assertDatabaseMissing('user_invitations', ['email' => 'no-es-un-correo']);
+    }
+
+    /**
+     * El ValidationException que lanza InvitationController::store() (no uno
+     * de storeStaff()) tiene que propagarse igual de bien a la respuesta
+     * Inertia real, aunque venga de una invocación sintética por
+     * Request::create() en vez de una request real de router.
+     */
+    public function test_staff_step_propagates_validation_error_when_email_already_belongs_to_an_existing_user(): void
+    {
+        [$user, $client] = $this->userAtStep('customers_added');
+        $existing = User::where('client_id', $client->id)->firstOrFail();
+
+        $response = $this->actingAs($user, 'web')->post('/onboarding/staff', [
+            'email' => $existing->email,
+            'role' => 'agente',
+        ]);
+
+        $response->assertSessionHasErrors('email');
+        $this->assertDatabaseMissing('user_invitations', ['email' => $existing->email]);
+    }
+
+    public function test_staff_step_propagates_validation_error_when_inviting_the_same_email_twice_in_the_same_flow(): void
+    {
+        Mail::fake();
+        [$user] = $this->userAtStep('customers_added');
+
+        $this->actingAs($user, 'web')->post('/onboarding/staff', [
+            'email' => 'repetida@example.test',
+            'role' => 'agente',
+        ])->assertRedirect('/onboarding/staff');
+
+        $response = $this->actingAs($user, 'web')->post('/onboarding/staff', [
+            'email' => 'repetida@example.test',
+            'role' => 'solicitante',
+        ]);
+
+        $response->assertSessionHasErrors('email');
+        $this->assertSame(
+            1,
+            UserInvitation::where('email', 'repetida@example.test')->count(),
+            'La segunda invitación al mismo correo no debía crear una fila nueva.'
+        );
+    }
+
+    public function test_staff_step_rejects_admin_as_an_invitable_role_even_forcing_the_request(): void
+    {
+        [$user] = $this->userAtStep('customers_added');
+
+        $this->actingAs($user, 'web')->post('/onboarding/staff', [
+            'email' => 'quiere-ser-admin@example.test',
+            'role' => 'admin',
+        ])->assertSessionHasErrors('role');
+
+        $this->assertDatabaseMissing('user_invitations', ['email' => 'quiere-ser-admin@example.test']);
+    }
+
+    public function test_staff_step_client_id_is_explicit_even_off_portal_and_two_tenants_with_same_role_name_do_not_collide(): void
+    {
+        Mail::fake();
+        [$userA, $clientA] = $this->userAtStep('customers_added');
+        [$userB, $clientB] = $this->userAtStep('customers_added');
+
+        $this->actingAs($userA, 'web')->post('/onboarding/staff', [
+            'email' => 'agente-a@example.test',
+            'role' => 'agente',
+        ])->assertRedirect('/onboarding/staff');
+
+        $this->actingAs($userB, 'web')->post('/onboarding/staff', [
+            'email' => 'agente-b@example.test',
+            'role' => 'agente',
+        ])->assertRedirect('/onboarding/staff');
+
+        $invitationA = UserInvitation::where('email', 'agente-a@example.test')->firstOrFail();
+        $invitationB = UserInvitation::where('email', 'agente-b@example.test')->firstOrFail();
+
+        $this->assertSame($clientA->id, $invitationA->client_id);
+        $this->assertSame($clientB->id, $invitationB->client_id);
+        $this->assertNotSame($invitationA->role_id, $invitationB->role_id, 'Cada tenant debe usar SU propio rol "agente", no colisionar en uno global.');
+
+        $roleA = Role::findOrFail($invitationA->role_id);
+        $roleB = Role::findOrFail($invitationB->role_id);
+        $this->assertSame($clientA->id, $roleA->team_id);
+        $this->assertSame($clientB->id, $roleB->team_id);
+    }
+
+    public function test_staff_step_rejects_invitation_once_plan_seat_limit_is_reached(): void
+    {
+        Mail::fake();
+        [$user, $client] = $this->userAtStep('customers_added');
+
+        $plan = Plan::create([
+            'name' => 'Arranque', 'slug' => 'arranque-'.uniqid(),
+            'type' => 'both', 'max_users' => 2,
+        ]);
+        $client->update(['plan_id' => $plan->id]);
+        // El propio fundador ya cuenta como 1 usuario activo -- deja 1 cupo libre.
+
+        $this->actingAs($user, 'web')->post('/onboarding/staff', [
+            'email' => 'cabe@example.test',
+            'role' => 'agente',
+        ])->assertRedirect('/onboarding/staff');
+
+        $response = $this->actingAs($user, 'web')->post('/onboarding/staff', [
+            'email' => 'no-cabe@example.test',
+            'role' => 'agente',
+        ]);
+
+        $response->assertSessionHasErrors('email');
+        $this->assertDatabaseMissing('user_invitations', ['email' => 'no-cabe@example.test']);
+        // La primera invitación, que sí cabía, se queda -- el rechazo es por invitación, no por paso completo.
+        $this->assertDatabaseHas('user_invitations', ['email' => 'cabe@example.test']);
+    }
+
+    public function test_staff_step_ignores_expired_invitations_and_blocked_users_when_counting_seats(): void
+    {
+        Mail::fake();
+        [$user, $client] = $this->userAtStep('customers_added');
+
+        $plan = Plan::create([
+            'name' => 'Arranque', 'slug' => 'arranque-'.uniqid(),
+            'type' => 'both', 'max_users' => 2,
+        ]);
+        $client->update(['plan_id' => $plan->id]);
+
+        // Invitación YA expirada -- no debe contar contra el cupo.
+        UserInvitation::create([
+            'email' => 'vieja@example.test', 'token' => (string) \Illuminate\Support\Str::uuid(),
+            'invited_by' => $user->id, 'client_id' => $client->id,
+            'status' => UserInvitation::STATUS_PENDING, 'expires_at' => now()->subDay(),
+        ]);
+        // Usuario bloqueado del mismo tenant -- tampoco cuenta.
+        User::create([
+            'first_name' => 'Bloqueado', 'paternal_last_name' => 'Test',
+            'email' => 'bloqueado-'.uniqid().'@example.test', 'password' => Hash::make('x'),
+            'employee_number' => (string) random_int(100000, 999999),
+            'client_id' => $client->id, 'status' => 'blocked', 'onboarding_completed' => true,
+        ]);
+
+        // Fundador (1 activo) + esta nueva invitación (2) == max_users (2) -- todavía cabe.
+        $this->actingAs($user, 'web')->post('/onboarding/staff', [
+            'email' => 'si-cabe@example.test',
+            'role' => 'agente',
+        ])->assertRedirect('/onboarding/staff');
+
+        $this->assertDatabaseHas('user_invitations', ['email' => 'si-cabe@example.test']);
+    }
+
+    public function test_finishing_staff_step_completes_onboarding_even_without_inviting_anyone(): void
+    {
+        [$user, $client] = $this->userAtStep('customers_skipped');
+
+        $this->actingAs($user, 'web')->post('/onboarding/staff/finish')
+            ->assertRedirect('/home');
+
+        $this->assertTrue((bool) $user->fresh()->onboarding_completed);
+        $this->assertSame('staff_invited', $client->fresh()->onboarding_step);
     }
 }
