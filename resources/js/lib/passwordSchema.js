@@ -57,6 +57,9 @@ export const registerFormSchema = z
             }),
         password: strongPasswordSchema,
         password_confirmation: strongPasswordSchema,
+        privacy_notice_accepted: z.boolean().refine((value) => value === true, {
+            message: "Debes aceptar el aviso de privacidad para continuar.",
+        }),
     })
     .refine((data) => data.password === data.password_confirmation, {
         message: "Las contraseñas no coinciden",

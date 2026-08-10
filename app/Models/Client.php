@@ -41,6 +41,7 @@ class Client extends Model
         'cancelled_at',
         'inbound_email',
         'mode',
+        'onboarding_step',
         'ai_classification_enabled',
         'show_agent_names',
     ];
@@ -88,6 +89,16 @@ class Client extends Model
                     \App\Services\TenantContextService::clearPortalCache($oldSlug);
                 }
             }
+        });
+
+        // Fase 7 (2026-08-09): TODO Client nuevo recibe su Customer implícito
+        // (is_internal=true) automáticamente, sin importar quién lo crea --
+        // antes solo lo disparaba el flujo legacy de operador
+        // (InternalCustomerService::ensureFor(User)). 'created' (no
+        // 'creating'): Customer necesita client_id, que no existe hasta que
+        // la fila ya se guardó.
+        static::created(function (self $client) {
+            app(\App\Services\InternalCustomerService::class)->ensureForClient($client);
         });
     }
 

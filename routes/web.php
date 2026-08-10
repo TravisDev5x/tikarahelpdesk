@@ -9,7 +9,7 @@ use App\Http\Controllers\LandingController;
 use App\Http\Controllers\Inertia\CatalogPageController;
 use App\Http\Controllers\Inertia\ResolbebIndexController;
 use App\Http\Controllers\Inertia\UserController as InertiaUserController;
-use App\Http\Controllers\Onboarding\OperatorOnboardingController;
+use App\Http\Controllers\Onboarding\TenantOnboardingController;
 use App\Http\Controllers\Web\ClientController;
 use App\Models\Plan;
 
@@ -103,16 +103,12 @@ Route::get('/manual', fn () => Inertia::render('Manual'))->name('manual');
 // Landing pública
 Route::get('/', [LandingController::class, 'index'])->name('landing');
 
-// Onboarding operador (auth sin middleware onboarding — evita bucle)
+// Onboarding de tenant nuevo (Fase 7, 2026-08-09 -- reemplaza por completo al
+// wizard legacy de operador/OperatorProfile, retirado en esta misma fase).
+// auth sin middleware onboarding — evita bucle.
 Route::middleware('auth')->group(function () {
-    Route::get('/onboarding', [OperatorOnboardingController::class, 'show'])->name('onboarding.show');
-    Route::post('/onboarding', [OperatorOnboardingController::class, 'store'])->name('onboarding.store');
-    Route::get('/onboarding/clients', [OperatorOnboardingController::class, 'showClients'])
-        ->name('onboarding.clients');
-    Route::post('/onboarding/clients', [OperatorOnboardingController::class, 'storeClient'])
-        ->name('onboarding.clients.store');
-    Route::post('/onboarding/skip', [OperatorOnboardingController::class, 'skipClients'])
-        ->name('onboarding.skip');
+    Route::get('/onboarding', [TenantOnboardingController::class, 'show'])->name('onboarding.show');
+    Route::post('/onboarding', [TenantOnboardingController::class, 'store'])->name('onboarding.store');
 
     Route::redirect('/clientes', '/clients');
     // Sedes ya no es un catálogo aparte -- se administran dentro del

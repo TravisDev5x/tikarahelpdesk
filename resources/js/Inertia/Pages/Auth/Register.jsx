@@ -7,6 +7,7 @@ import { getApiErrorMessage } from "@/lib/apiErrors";
 import { registerFormSchema } from "@/lib/passwordSchema";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { RegisterBrandingPanel } from "@/components/auth/AuthBrandingPresets";
 import { AuthFormAlert } from "@/components/auth/AuthFormAlert";
 import { AuthFormField } from "@/components/auth/AuthFormField";
@@ -33,6 +34,7 @@ const defaultValues = {
     phone: "",
     password: "",
     password_confirmation: "",
+    privacy_notice_accepted: false,
 };
 
 const REGISTER_FIELD_ORDER = [
@@ -65,6 +67,7 @@ export default function Register() {
         register,
         handleSubmit,
         watch,
+        setValue,
         reset,
         formState: { errors, isSubmitting },
     } = useForm({
@@ -75,6 +78,7 @@ export default function Register() {
 
     const password = watch("password");
     const passwordConfirmation = watch("password_confirmation");
+    const privacyNoticeAccepted = watch("privacy_notice_accepted");
 
     useEffect(() => {
         axios.get("/sanctum/csrf-cookie", { withCredentials: true }).catch(() => {});
@@ -93,6 +97,7 @@ export default function Register() {
                 phone: values.phone?.trim() || null,
                 password: values.password,
                 password_confirmation: values.password_confirmation,
+                privacy_notice_accepted: values.privacy_notice_accepted,
                 plan: planSlug || undefined,
             });
 
@@ -284,6 +289,39 @@ export default function Register() {
                             />
                         </div>
                     </AuthFormSection>
+
+                    {/*
+                        TODO: texto legal del aviso de privacidad (LFPDPPP) pendiente de
+                        redactar con asesoría legal -- este es un placeholder, no contenido
+                        final. Si este consentimiento se mueve a otra pantalla, mover también
+                        AuthController::PRIVACY_NOTICE_VERSION y su registro en el backend.
+                    */}
+                    <div className="rounded-lg border border-border/60 bg-muted/30 p-3">
+                        <label className="flex items-start gap-2 cursor-pointer" htmlFor="reg-privacy-notice">
+                            <Checkbox
+                                id="reg-privacy-notice"
+                                checked={privacyNoticeAccepted}
+                                onCheckedChange={(v) =>
+                                    setValue("privacy_notice_accepted", Boolean(v), { shouldValidate: true })
+                                }
+                                disabled={loading}
+                                aria-invalid={Boolean(errors.privacy_notice_accepted)}
+                                className="mt-0.5"
+                            />
+                            <span className="text-xs text-muted-foreground">
+                                He leído y acepto el{" "}
+                                <span className="italic">
+                                    [PENDIENTE: texto de aviso de privacidad a definir con asesoría legal]
+                                </span>
+                                .
+                            </span>
+                        </label>
+                        {errors.privacy_notice_accepted && (
+                            <p className="mt-1.5 text-xs text-destructive">
+                                {errors.privacy_notice_accepted.message}
+                            </p>
+                        )}
+                    </div>
 
                     <p className="text-xs text-muted-foreground">
                         Recibirás un enlace de verificación en tu correo para activar la cuenta y

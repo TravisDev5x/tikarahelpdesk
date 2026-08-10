@@ -75,6 +75,32 @@ final class PgsqlRowLevelSecurity
         self::set(self::BYPASS, $bypass ? 'true' : 'false');
     }
 
+    /**
+     * Corre $callback con bypass=true y restaura el valor EXACTO de antes al
+     * terminar (no un setBypass(false) a secas -- si quien llamó ya tenía
+     * bypass=true legítimo -- ej. un operador real -- forzarlo a false por
+     * debajo le rompería el resto del request). Para código de sistema que
+     * necesita escribir en una tabla con RLS (customers, tickets, incidents,
+     * sites) antes de que exista contexto de tenant que satisfaga la policy
+     * -- ej. InternalCustomerService creando el Customer implícito de un
+     * Client que se acaba de crear en la misma transacción.
+     */
+    public static function withBypass(callable $callback): mixed
+    {
+        if (! self::enabled()) {
+            return $callback();
+        }
+
+        $previous = DB::selectOne('SELECT current_setting(?, true) AS value', [self::BYPASS])?->value ?? '';
+
+        self::set(self::BYPASS, 'true');
+        try {
+            return $callback();
+        } finally {
+            self::set(self::BYPASS, $previous);
+        }
+    }
+
     public static function clear(): void
     {
         if (! self::enabled()) {

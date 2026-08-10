@@ -27,7 +27,14 @@ return [
     */
     'enforce_subdomain' => env('TENANCY_ENFORCE_SUBDOMAIN', true),
 
-    'reserved_subdomains' => ['www', 'app', 'api', 'admin', 'mail', 'localhost'],
+    /*
+    | Fuente única: también la usa TenantContextService para resolver el
+    | subdominio de un request (rechaza estos como portal_slug real), y
+    | TenantOnboardingController para rechazar el nombre de tenant que
+    | generaría uno de estos slugs (Fase 7, sub-paso 7.2) -- no duplicar
+    | esta lista en ningún otro lugar.
+    */
+    'reserved_subdomains' => ['www', 'app', 'api', 'admin', 'mail', 'localhost', 'soporte', 'portal'],
 
     'pgsql_rls_enabled' => env('TENANCY_PGSQL_RLS', false),
 

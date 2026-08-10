@@ -18,6 +18,14 @@ use App\Services\TenantContextService;
 
 class AuthController extends Controller
 {
+    /**
+     * TODO: el TEXTO del aviso de privacidad (LFPDPPP) todavía no existe --
+     * requiere asesoría legal, no lo redacta Claude. Este identificador solo
+     * versiona QUÉ aviso aceptó cada usuario (para poder pedir re-consentimiento
+     * si el texto cambia); bump manual cuando el texto legal real se publique.
+     */
+    public const PRIVACY_NOTICE_VERSION = 'draft-2026-08-09';
+
     public function login(Request $request, TenantContextService $tenantContext)
     {
         $request->validate([
@@ -129,6 +137,7 @@ class AuthController extends Controller
             'email' => ['required', 'email', 'unique:users,email'],
             'phone' => ['nullable', 'digits:10'],
             'site_id' => ['nullable', 'exists:sites,id'],
+            'privacy_notice_accepted' => ['required', 'accepted'],
             'password' => [
                 'required',
                 'string',
@@ -160,6 +169,9 @@ class AuthController extends Controller
             'client_id' => null,
             'is_operator' => false,
             'onboarding_completed' => false,
+            'privacy_notice_accepted_at' => now(),
+            'privacy_notice_version' => self::PRIVACY_NOTICE_VERSION,
+            'privacy_notice_ip' => $request->ip(),
         ]);
 
         $token = Str::uuid()->toString();

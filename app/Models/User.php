@@ -42,6 +42,9 @@ class User extends Authenticatable implements MustVerifyEmail
         'client_id',
         'is_operator',
         'onboarding_completed',
+        'privacy_notice_accepted_at',
+        'privacy_notice_version',
+        'privacy_notice_ip',
         'location_id',
         'avatar_path',
         'status',
@@ -79,6 +82,7 @@ class User extends Authenticatable implements MustVerifyEmail
         return [
             'email_verified_at' => 'datetime',
             'last_login_at' => 'datetime',
+            'privacy_notice_accepted_at' => 'datetime',
             'password' => 'hashed',
             'is_operator' => 'boolean',
             'onboarding_completed' => 'boolean',

@@ -21,6 +21,13 @@ class OnboardingRedirectService
 
     /**
      * Ruta de onboarding requerida, o null si puede continuar al dashboard.
+     *
+     * Fase 7 (2026-08-09): ya no ramifica por is_operator/operatorProfile --
+     * ese wizard (y sus 2 pasos) se retiró. Un usuario sin client_id, no
+     * invitado y sin onboarding completo siempre va a TenantOnboardingController
+     * (nombra su tenant y con eso ya tiene client_id). is_operator/
+     * OperatorProfile en sí NO se tocaron -- esta rama solo dejó de existir
+     * porque la ruta a la que apuntaba ('/onboarding/clients') ya no existe.
      */
     public function redirectPath(User $user): ?string
     {
@@ -36,14 +43,6 @@ class OnboardingRedirectService
             return null;
         }
 
-        if (! $user->is_operator) {
-            return '/onboarding';
-        }
-
-        if ($user->relationLoaded('operatorProfile') ? $user->operatorProfile : $user->operatorProfile()->exists()) {
-            return '/onboarding/clients';
-        }
-
         return '/onboarding';
     }
 
@@ -53,7 +52,6 @@ class OnboardingRedirectService
 
         $exact = [
             'onboarding',
-            'onboarding/clients',
             'logout',
             'login',
             'register',

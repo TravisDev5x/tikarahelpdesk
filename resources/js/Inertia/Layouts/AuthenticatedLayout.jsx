@@ -45,7 +45,6 @@ const TITLE_MAP = {
     "/clients": "Clientes",
     "/clients/create": "Nuevo cliente",
     "/onboarding": "Configuración inicial",
-    "/onboarding/clients": "Agregar primer cliente",
     "/resolbeb": "Dashboard operativo",
     "/resolbeb/tickets": "Tickets",
     "/resolbeb/mis-tickets": "Mis tickets",
