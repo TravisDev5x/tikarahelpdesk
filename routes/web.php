@@ -117,6 +117,10 @@ Route::middleware('auth')->group(function () {
     Route::get('/onboarding/customers', [TenantOnboardingController::class, 'showCustomers'])->name('onboarding.customers');
     Route::post('/onboarding/customers', [TenantOnboardingController::class, 'storeCustomer'])->name('onboarding.customers.store');
     Route::post('/onboarding/customers/finish', [TenantOnboardingController::class, 'finishCustomers'])->name('onboarding.customers.finish');
+    // 7.6 invitar personal.
+    Route::get('/onboarding/staff', [TenantOnboardingController::class, 'showStaff'])->name('onboarding.staff');
+    Route::post('/onboarding/staff', [TenantOnboardingController::class, 'storeStaff'])->name('onboarding.staff.store');
+    Route::post('/onboarding/staff/finish', [TenantOnboardingController::class, 'finishStaff'])->name('onboarding.staff.finish');
 
     Route::redirect('/clientes', '/clients');
     // Sedes ya no es un catálogo aparte -- se administran dentro del

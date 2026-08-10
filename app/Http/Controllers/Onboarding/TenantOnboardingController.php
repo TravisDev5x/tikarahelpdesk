@@ -3,11 +3,13 @@
 namespace App\Http\Controllers\Onboarding;
 
 use App\Http\Controllers\Controller;
+use App\Http\Controllers\Api\InvitationController;
 use App\Models\Client;
 use App\Models\Customer;
 use App\Models\Role;
 use App\Models\Site;
 use App\Models\User;
+use App\Models\UserInvitation;
 use App\Services\OnboardingRedirectService;
 use App\Services\TenantContextService;
 use App\Support\Tenancy\PgsqlRowLevelSecurity;
@@ -17,6 +19,8 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -26,13 +30,15 @@ use Inertia\Response;
  * Un Client siempre tiene portal_slug real desde su creación (7.2) y su
  * Customer implícito vía el hook de Client::booted(), no un flujo aparte.
  *
- * Este sprint agrega 7.3 (datos de empresa), 7.4 (modalidad real) y 7.5
- * (Customers/Sites externos, solo MSP/Hybrid). 7.6 en adelante
- * (invitaciones, equipos, TenantWelcomeMail) queda para la siguiente fase.
+ * Este sprint agrega 7.6 (invitar personal, reusando InvitationController/
+ * InvitationAcceptanceService tal cual -- sin reimplementar su lógica). 7.7
+ * (equipos/sites/horarios) y 7.8 (TenantWelcomeMail) quedan para el
+ * siguiente sprint.
  *
  * Máquina de estados (Client.onboarding_step), en orden:
  *   tenant_named -> company_data -> modality_set -> customers_added
  *                                                 -> customers_skipped (si mode=internal)
+ *                                                 -> staff_invited
  * OnboardingRedirectService::redirectPath() es la ÚNICA fuente de verdad
  * de "a qué paso le toca ir" -- cada show() de aquí abajo se lo pregunta
  * en vez de reimplementar la máquina de estados.
@@ -180,13 +186,12 @@ class TenantOnboardingController extends Controller
         ]);
 
         // internal: no hay Customers externos que dar de alta -- 7.5 no
-        // aplica, salta directo a donde 7.6 (invitaciones, no construido
-        // todavía) va a continuar. msp/hybrid: sigue a 7.5.
+        // aplica, salta directo a 7.6 (invitar personal). msp/hybrid: sigue
+        // a 7.5 primero.
         if ($validated['mode'] === 'internal') {
             $client->update(['onboarding_step' => 'customers_skipped']);
-            $user->update(['onboarding_completed' => true]);
 
-            return redirect('/home')->with('success', '¡Tu empresa está lista!');
+            return redirect('/onboarding/staff');
         }
 
         return redirect('/onboarding/customers');
@@ -284,9 +289,104 @@ class TenantOnboardingController extends Controller
         }
 
         Client::findOrFail($user->client_id)->update(['onboarding_step' => 'customers_added']);
+
+        return redirect('/onboarding/staff');
+    }
+
+    // ── 7.6: invitar personal ────────────────────────────────────────────
+
+    /** Roles invitables desde el wizard -- admin queda excluido a propósito, solo existe el fundador de 7.2. */
+    private const INVITABLE_ROLES = ['supervisor', 'agente', 'solicitante', 'Encargado TI'];
+
+    public function showStaff(): Response|RedirectResponse
+    {
+        $user = Auth::user();
+        if ($redirect = $this->guardStep($user, '/onboarding/staff')) {
+            return $redirect;
+        }
+
+        $client = Client::findOrFail($user->client_id);
+
+        return Inertia::render('Onboarding/Staff', [
+            'invitations' => UserInvitation::where('client_id', $client->id)
+                ->pending()
+                ->with('role:id,name')
+                ->orderByDesc('created_at')
+                ->get(['id', 'email', 'role_id', 'created_at'])
+                ->map(fn (UserInvitation $i) => [
+                    'id' => $i->id,
+                    'email' => $i->email,
+                    'role_name' => $i->role?->name,
+                ]),
+            'role_options' => self::INVITABLE_ROLES,
+            'seats' => $this->seatUsage($client),
+        ]);
+    }
+
+    public function storeStaff(Request $request)
+    {
+        $user = Auth::user();
+        if ($redirect = $this->guardStep($user, '/onboarding/staff')) {
+            return $redirect;
+        }
+
+        $client = Client::findOrFail($user->client_id);
+
+        $validated = $request->validate([
+            'email' => 'required|email|max:255',
+            'role' => ['required', 'string', Rule::in(self::INVITABLE_ROLES)],
+        ]);
+
+        // Cupo de plan: activos (status != blocked) + invitaciones pendientes
+        // sin expirar, verificado ANTES de crear -- así nadie manda de golpe
+        // más invitaciones que cupo y las acepta todas superando el plan. Sin
+        // límite (plan sin max_users, o tenant sin plan) -> no bloquea nada.
+        $seats = $this->seatUsage($client);
+        if ($seats['max'] !== null && $seats['used'] >= $seats['max']) {
+            throw ValidationException::withMessages([
+                'email' => ["Tu plan permite hasta {$seats['max']} usuarios, ya tienes {$seats['used']} en uso."],
+            ]);
+        }
+
+        $role = Role::where('team_id', $client->id)
+            ->where('name', $validated['role'])
+            ->where('guard_name', 'web')
+            ->firstOrFail();
+
+        // Reusa InvitationController::store() tal cual (dedup de pendientes,
+        // expiración a 72h, envío de correo, resolución de rol por team_id
+        // ya correcta ahí) -- client_id explícito porque
+        // InvitationTenancyService::resolveClientIdForCreate() solo lo
+        // asume del subdominio del portal, y este request no viene de ahí.
+        app(InvitationController::class)->store(Request::create('', 'POST', [
+            'email' => $validated['email'],
+            'role_id' => $role->id,
+            'client_id' => $client->id,
+        ]));
+
+        return redirect('/onboarding/staff')->with('success', 'Invitación enviada.');
+    }
+
+    public function finishStaff(Request $request)
+    {
+        $user = Auth::user();
+        if ($redirect = $this->guardStep($user, '/onboarding/staff')) {
+            return $redirect;
+        }
+
+        Client::findOrFail($user->client_id)->update(['onboarding_step' => 'staff_invited']);
         $user->update(['onboarding_completed' => true]);
 
         return redirect('/home')->with('success', '¡Tu empresa está lista!');
+    }
+
+    /** @return array{used: int, max: int|null} */
+    private function seatUsage(Client $client): array
+    {
+        $used = User::where('client_id', $client->id)->where('status', '!=', 'blocked')->count()
+            + UserInvitation::where('client_id', $client->id)->pending()->count();
+
+        return ['used' => $used, 'max' => $client->plan?->max_users];
     }
 
     /**

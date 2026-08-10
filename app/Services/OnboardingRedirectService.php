@@ -61,9 +61,14 @@ class OnboardingRedirectService
             'tenant_named' => '/onboarding/company',
             'company_data' => '/onboarding/modality',
             'modality_set' => '/onboarding/customers',
-            // customers_added, customers_skipped, completed, o cualquier
-            // estado más allá de lo construido hasta ahora -> ya no hay
-            // paso del wizard pendiente en este sprint.
+            'customers_added', 'customers_skipped' => '/onboarding/staff',
+            // 'staff_invited': onboarding termina aquí por ahora -- 7.7
+            // (equipos/sites/horarios) y 7.8 (TenantWelcomeMail) quedan para
+            // el siguiente sprint. Cuando se construyan, este caso deja de
+            // apuntar a null y pasa al siguiente paso.
+            'staff_invited' => null,
+            // completed, o cualquier estado más allá de lo construido hasta
+            // ahora -> ya no hay paso del wizard pendiente.
             default => null,
         };
     }
