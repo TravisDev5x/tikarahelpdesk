@@ -44,11 +44,11 @@
 
     --radius: 0.75rem;
 
-    /* Acento marca (login/landing — Fase 3) */
-    --brand: 187 92% 42%;
+    /* Acento marca (login/landing — Fase 3; magenta/rosa desde 2026-08-11) */
+    --brand: 330 85% 55%;
     --brand-foreground: 0 0% 100%;
-    --brand-muted: 199 89% 48%;
-    --brand-subtle: 187 76% 94%;
+    --brand-muted: 345 80% 60%;
+    --brand-subtle: 330 75% 95%;
 
     /* Sidebar */
     --sidebar: 0 0% 98%;
@@ -111,10 +111,10 @@
     --input: 240 4% 14%;
     --ring: 240 4% 84%;
 
-    --brand: 187 85% 53%;
+    --brand: 330 85% 62%;
     --brand-foreground: 0 0% 9%;
-    --brand-muted: 199 80% 55%;
-    --brand-subtle: 187 35% 14%;
+    --brand-muted: 345 78% 64%;
+    --brand-subtle: 330 40% 16%;
 
     --sidebar: 0 0% 0%;
     --sidebar-foreground: 0 0% 98%;
@@ -259,12 +259,12 @@ html.light .surface-auth {
     --muted-foreground: 215 18% 42%;
     --secondary: 210 36% 95%;
     --secondary-foreground: 222 47% 11%;
-    --accent: 187 45% 94%;
-    --accent-foreground: 187 70% 28%;
+    --accent: 330 45% 95%;
+    --accent-foreground: 330 70% 32%;
     --border: 214 26% 86%;
     --input: 214 26% 86%;
-    --ring: 187 70% 38%;
-    --brand-subtle: 187 55% 92%;
+    --ring: 330 70% 45%;
+    --brand-subtle: 330 55% 93%;
 }
 
 /* Elevación marketing/auth (sombra en claro; borde suave en oscuro) */

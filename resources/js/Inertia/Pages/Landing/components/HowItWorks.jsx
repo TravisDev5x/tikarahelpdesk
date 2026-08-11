@@ -26,7 +26,7 @@ const STEPS = [
 
 export default function HowItWorks() {
     return (
-        <section id="how-it-works" className={`${sectionDefault} scroll-mt-16`}>
+        <section id="how-it-works" className={`${sectionDefault} scroll-mt-20`}>
             <div className="mx-auto max-w-7xl">
                 <Reveal className="text-center mb-16">
                     <span className={`inline-block ${brandBadgeSm} mb-4`}>Cómo empezar</span>

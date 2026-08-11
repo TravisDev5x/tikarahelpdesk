@@ -47,7 +47,7 @@ const FEATURES = [
 
 export default function Features() {
     return (
-        <section id="features" className={`${sectionAlt} scroll-mt-16`}>
+        <section id="features" className={`${sectionAlt} scroll-mt-20`}>
             <div className="mx-auto max-w-7xl">
                 <Reveal className="text-center">
                     <span className={infoBadge}>En qué creemos</span>

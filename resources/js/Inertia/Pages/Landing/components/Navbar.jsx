@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "@inertiajs/react";
 import { Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -23,22 +23,36 @@ const NAV_LINKS = [
 
 function BrandLogo() {
     return (
-        <Link href="/" className="flex items-center gap-2.5 shrink-0">
-            <div className={`h-8 w-8 text-[10px] ${brandLogo}`}>TI</div>
-            <span className="text-lg font-bold text-foreground tracking-tight">Tikara</span>
+        <Link href="/" className="flex items-center gap-3 shrink-0">
+            <div className={`h-10 w-10 text-sm ${brandLogo}`}>TI</div>
+            <span className="text-xl font-bold text-foreground tracking-tight">Tikara</span>
         </Link>
     );
 }
 
 export default function Navbar() {
     const [open, setOpen] = useState(false);
+    const [scrolled, setScrolled] = useState(false);
+
+    useEffect(() => {
+        const onScroll = () => setScrolled(window.scrollY > 8);
+        onScroll();
+        window.addEventListener("scroll", onScroll, { passive: true });
+        return () => window.removeEventListener("scroll", onScroll);
+    }, []);
 
     return (
-        <header className="sticky top-0 z-50 border-b border-border/80 bg-background/90 backdrop-blur-md shadow-sm">
-            <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-4 px-6 py-4">
+        <header
+            className={`sticky top-0 z-50 transition-colors duration-300 ${
+                scrolled
+                    ? "bg-background/90 backdrop-blur-md"
+                    : "bg-transparent backdrop-blur-0"
+            }`}
+        >
+            <div className="mx-auto flex h-20 max-w-7xl items-center justify-between gap-6 px-6 py-4 lg:px-8">
                 <BrandLogo />
 
-                <nav className="hidden lg:flex items-center gap-8">
+                <nav className="hidden lg:flex items-center gap-9">
                     {NAV_LINKS.map((link) => (
                         <a key={link.href} href={link.href} className={navLink}>
                             {link.label}
@@ -46,12 +60,17 @@ export default function Navbar() {
                     ))}
                 </nav>
 
-                <div className="hidden lg:flex items-center gap-3">
+                <div className="hidden lg:flex items-center gap-4">
                     <ThemeToggle variant="icon" />
-                    <Button variant="ghost" className="text-foreground/90 hover:text-foreground" asChild>
+                    <Button
+                        variant="outline"
+                        size="lg"
+                        className="rounded-full border-border/80 text-base text-foreground/90 hover:text-foreground"
+                        asChild
+                    >
                         <Link href="/login">Iniciar sesión</Link>
                     </Button>
-                    <Button className={btnBrand} asChild>
+                    <Button size="lg" className={`rounded-full text-base ${btnBrand}`} asChild>
                         <Link href="/register">Crear cuenta</Link>
                     </Button>
                 </div>
@@ -70,13 +89,13 @@ export default function Navbar() {
                         <SheetHeader>
                             <SheetTitle className="text-foreground text-left">Menú</SheetTitle>
                         </SheetHeader>
-                        <nav className="mt-8 flex flex-col gap-4">
+                        <nav className="mt-8 flex flex-col gap-5">
                             {NAV_LINKS.map((link) => (
                                 <a
                                     key={link.href}
                                     href={link.href}
                                     onClick={() => setOpen(false)}
-                                    className="text-muted-foreground hover:text-brand-muted transition-colors rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                                    className="text-base text-muted-foreground hover:text-brand-muted transition-colors rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                                 >
                                     {link.label}
                                 </a>
@@ -86,12 +105,17 @@ export default function Navbar() {
                             <div className="flex justify-center pb-2">
                                 <ThemeToggle variant="icon" />
                             </div>
-                            <Button variant="outline" className={btnBrandOutline} asChild>
+                            <Button
+                                variant="outline"
+                                size="lg"
+                                className={`rounded-full text-base ${btnBrandOutline}`}
+                                asChild
+                            >
                                 <Link href="/login" onClick={() => setOpen(false)}>
                                     Iniciar sesión
                                 </Link>
                             </Button>
-                            <Button className={btnBrand} asChild>
+                            <Button size="lg" className={`rounded-full text-base ${btnBrand}`} asChild>
                                 <Link href="/register" onClick={() => setOpen(false)}>
                                     Crear cuenta
                                 </Link>

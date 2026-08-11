@@ -1,6 +1,7 @@
 import { Link } from "@inertiajs/react";
 import { AuthBrandHomeLink } from "@/components/auth/AuthBrandHomeLink";
-import { authPanelSide, brandBadgeSm, brandPanelGlow } from "@/lib/marketingTheme";
+import { AbstractRibbons } from "@/components/marketing/AbstractRibbons";
+import { authPanelSide, brandBadgeSm } from "@/lib/marketingTheme";
 import {
     isClientPortalTenant,
     resolveTenantBrandCssVars,
@@ -25,7 +26,11 @@ export function AuthBrandingPanel({
             className={cn(authPanelSide, "auth-fade-in", className)}
             style={resolveTenantBrandCssVars(tenant)}
         >
-            <div className={brandPanelGlow} aria-hidden />
+            <AbstractRibbons
+                className="pointer-events-none absolute -bottom-16 -right-24 z-0 h-[26rem] w-[26rem] opacity-90 lg:h-[30rem] lg:w-[30rem]"
+                gradientId="authRibbons"
+            />
+            <div className="pointer-events-none absolute inset-0 z-0 bg-gradient-to-t from-[hsl(var(--secondary)/0.9)] via-transparent to-transparent" />
 
             <AuthBrandHomeLink tenant={tenant} showName className="relative z-10 shrink-0" />
 

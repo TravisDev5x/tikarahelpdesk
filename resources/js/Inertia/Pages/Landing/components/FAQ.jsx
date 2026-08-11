@@ -56,7 +56,7 @@ const FAQ_ITEMS = [
 
 export default function FAQ() {
     return (
-        <section id="faq" className={`${sectionDefault} scroll-mt-16`}>
+        <section id="faq" className={`${sectionDefault} scroll-mt-20`}>
             <div className="mx-auto max-w-7xl">
                 <Reveal className="text-center">
                     <span className={`inline-block rounded-full px-4 py-1 text-sm mb-4 ${badgeNeutral}`}>

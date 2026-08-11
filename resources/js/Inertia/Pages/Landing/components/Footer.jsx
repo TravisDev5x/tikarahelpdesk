@@ -115,7 +115,7 @@ export default function Footer() {
     const year = new Date().getFullYear();
 
     return (
-        <footer id="footer" className="border-t border-border/50 bg-secondary/20 px-6 pt-16 pb-10 scroll-mt-16">
+        <footer id="footer" className="border-t border-border/50 bg-secondary/20 px-6 pt-16 pb-10 scroll-mt-20">
             <div className="mx-auto max-w-7xl">
                 {/* Main grid */}
                 <Reveal as="div" className="grid grid-cols-2 gap-x-8 gap-y-12 sm:grid-cols-3 lg:grid-cols-[260px_repeat(4,1fr)]">
@@ -180,7 +180,7 @@ export default function Footer() {
                 <Separator className="mt-14 mb-6 bg-border/40" />
 
                 {/* Bottom bar */}
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between text-xs text-muted-foreground/70">
+                <div className="text-xs text-muted-foreground/70">
                     <p>
                         © {year}{" "}
                         <span className="font-medium text-muted-foreground/90">Tikara</span>
@@ -190,7 +190,6 @@ export default function Footer() {
                         </span>
                         . Todos los derechos reservados.
                     </p>
-                    <p className="shrink-0">Hecho en México 🇲🇽</p>
                 </div>
             </div>
         </footer>

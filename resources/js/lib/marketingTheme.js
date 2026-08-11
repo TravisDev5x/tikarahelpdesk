@@ -7,10 +7,6 @@
 export const brandGradientFill =
     "bg-gradient-to-r from-[hsl(var(--brand))] to-[hsl(var(--brand-muted))]";
 
-/** Halo decorativo en panel lateral auth */
-export const brandPanelGlow =
-    "absolute -top-20 -left-20 w-96 h-96 rounded-full blur-3xl bg-gradient-to-br from-[hsl(var(--brand)/0.1)] to-[hsl(var(--brand-muted)/0.1)] -z-10 pointer-events-none";
-
 /** Hero / panel lateral auth — patrón de puntos (clase .mkt-dots en CSS) */
 export const heroSectionClass = "relative min-h-screen flex items-center pt-24 pb-16 px-6 mkt-section-default mkt-dots";
 
@@ -47,7 +43,7 @@ export const linkBrand = "text-brand-muted hover:text-brand font-semibold transi
 
 /** Enlace de nav con subrayado animado (requiere contenedor position:relative, ya lo es <a>) */
 export const navLink =
-    "relative text-sm text-muted-foreground transition-colors hover:text-foreground " +
+    "relative text-[15px] font-medium text-muted-foreground transition-colors hover:text-foreground " +
     "after:absolute after:left-0 after:-bottom-1 after:h-px after:w-0 after:bg-brand " +
     "after:transition-[width] after:duration-300 hover:after:w-full " +
     "rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background";

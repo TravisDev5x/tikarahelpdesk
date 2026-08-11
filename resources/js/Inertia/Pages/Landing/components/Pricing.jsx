@@ -184,7 +184,7 @@ export default function Pricing({ plans = [] }) {
     const activePlans = activeTab === "msp" ? mspPlans : inhousePlans;
 
     return (
-        <section id="pricing" className={`${sectionAlt} px-6 scroll-mt-16`}>
+        <section id="pricing" className={`${sectionAlt} px-6 scroll-mt-20`}>
             <div className="mx-auto max-w-7xl">
                 <Reveal className="text-center">
                     <span className={infoBadge}>Planes</span>
