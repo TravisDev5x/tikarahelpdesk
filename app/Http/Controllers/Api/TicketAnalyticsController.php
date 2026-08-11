@@ -63,7 +63,12 @@ class TicketAnalyticsController extends Controller
                 $base->where('requester_id', $user->id);
             }
 
-            $ticketIds = (clone $base)->pluck('id');
+            // Subquery SQL, no una colección materializada -- mismo patrón
+            // que ya usa ResolbebController::buildDashboardPayload(). Antes
+            // traía TODOS los ids del scope a PHP para interpolarlos en un
+            // whereIn() gigante dentro de topResolvers(); a más escala esa
+            // lista de literales crece sin límite.
+            $ticketSubquery = (clone $base)->select('id');
 
             $finalStateIds = TicketState::where('is_final', true)->pluck('id');
             $hasFinalStates = $finalStateIds->isNotEmpty();
@@ -110,7 +115,7 @@ class TicketAnalyticsController extends Controller
 
             // Usuarios que mas cierran (historial con estado cerrado)
             $resolvers = $this->filters
-                ->topResolvers($ticketIds, $finalStateIds, 5)
+                ->topResolvers($ticketSubquery, $finalStateIds, 5)
                 ->map(fn ($r) => ['label' => $r['name'], 'value' => $r['total']]);
 
             // Tipos mas frecuentes (creacion)
