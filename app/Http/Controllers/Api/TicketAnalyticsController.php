@@ -36,6 +36,20 @@ class TicketAnalyticsController extends Controller
 
         $cacheKey = 'tickets.analytics.' . $user->id . '.' . md5($request->fullUrl());
 
+        // Auditoría 2026-08-10: este endpoint calculaba $cacheKey y hacía
+        // Cache::put() al final, pero nunca lo LEÍA antes de recalcular --
+        // el cache se escribía y nunca se usaba, así que cada carga pagaba
+        // el costo completo de ~15-24 queries de agregación sin importar si
+        // nada había cambiado (confirmado con DB::listen(): 24 queries en
+        // frío, 17 en una repetición INMEDIATA con los mismos filtros,
+        // debieron ser ~0). Se lee explícito en vez de Cache::remember()
+        // para conservar la regla ya existente de no cachear resultados
+        // vacíos (ver comentario más abajo).
+        $payload = Cache::get($cacheKey);
+        if ($payload !== null) {
+            return response()->json($payload);
+        }
+
         $payload = function () use ($request, $user) {
             /** @var TicketPolicy $policy */
             $policy = app(TicketPolicy::class);
@@ -160,7 +174,10 @@ class TicketAnalyticsController extends Controller
 
         $payload = $payload();
         $totalTickets = collect($payload['states'])->sum('value');
-        // No cachear resultados vacíos: así al cambiar/limpiar filtros se recalculan las métricas
+        // No cachear resultados vacíos: así, si el tenant todavía no tiene
+        // tickets (o se limpian filtros a una combinación sin datos), el
+        // primer ticket real que llegue se refleja de inmediato en vez de
+        // quedar atado a un "0" cacheado hasta por 60s.
         if ($totalTickets > 0) {
             Cache::put($cacheKey, $payload, now()->addSeconds(60));
         }
