@@ -31,6 +31,7 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import UserPermissionOverrides from "@/Inertia/components/Roles/UserPermissionOverrides";
+import UserSiteAssignment from "@/Inertia/components/Roles/UserSiteAssignment";
 import { notify } from "@/lib/notify";
 import { getApiErrorMessage } from "@/lib/apiErrors";
 import { strongPasswordSchema } from "@/lib/passwordSchema";
@@ -199,6 +200,7 @@ function validateForm(form, isEdit) {
 export default function Index({ users, catalogs, filters: serverFilters = {} }) {
     const { auth } = usePage().props;
     const isSuperAdmin = (auth?.user?.roles ?? []).includes("super_admin");
+    const canAssignSites = (auth?.user?.permissions ?? []).includes("sites.assign_staff");
     const showTrashed = serverFilters.status === "only";
     const rows = users?.data ?? [];
 
@@ -1318,6 +1320,16 @@ export default function Index({ users, catalogs, filters: serverFilters = {} }) 
                                 <span className="text-muted-foreground">Área: </span>
                                 {viewUser.area || "—"}
                             </p>
+
+                            {canAssignSites && (
+                                <div className="space-y-1.5 border-t pt-3">
+                                    <h4 className="text-xs font-bold uppercase tracking-widest text-primary/70">
+                                        Sedes asignadas
+                                    </h4>
+                                    <UserSiteAssignment userId={viewUser.id} />
+                                </div>
+                            )}
+
                             <DialogFooter className="pt-4">
                                 <Button
                                     type="button"

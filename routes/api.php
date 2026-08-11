@@ -120,6 +120,14 @@ Route::middleware(['auth:sanctum','locale','perm:users.manage'])->group(function
     Route::delete('users/{user}/permission-overrides/{permission}', [\App\Http\Controllers\Api\UserPermissionOverrideController::class, 'destroy']);
 });
 
+// Panel de asignación de site_user fuera de onboarding (auditoría
+// 2026-08-11): permiso propio sites.assign_staff, separado de
+// users.manage a propósito -- no el mismo gate que el bloque de arriba.
+Route::middleware(['auth:sanctum','locale','perm:sites.assign_staff'])->group(function () {
+    Route::get('users/{user}/sites', [\App\Http\Controllers\Api\UserSiteController::class, 'show']);
+    Route::post('users/{user}/sites', [\App\Http\Controllers\Api\UserSiteController::class, 'sync']);
+});
+
 // ==========================
 // PERMISOS
 // ==========================
