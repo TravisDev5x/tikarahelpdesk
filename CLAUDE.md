@@ -142,11 +142,61 @@ Inertia (Vite → inertia.jsx → páginas en Inertia/Pages/)
 
 ---
 
-## Multi-Tenant / Operator Onboarding
+## Multi-Tenant / Onboarding de tenant nuevo (Fase 7 — CERRADA)
 
-Recent additions (2026 migrations): `clients`, `user_invitations`, `operator_profiles`, `plans` tables. The `client_id` column exists on `users`, `tickets`, `incidents`, and `sites` (tenant key for operational data). See **`docs/DATABASE_TENANCY.md`** for PostgreSQL setup, indexes, and backfill helpers (`App\Support\Database\TenantBackfill`).
+Jerarquía real: `Client` (el tenant, `mode` internal/msp/hybrid, `portal_slug`, `ticket_prefix`) → `Customer` (empresa atendida bajo ese Client; `is_internal=true` = el propio tenant, auto-creado) → `Site` (sede física, `belongsTo` Client y opcionalmente Customer). `client_id` existe en `users`, `tickets`, `incidents`, `sites` (llave de tenant). Ver **`docs/DATABASE_TENANCY.md`** para setup de PostgreSQL, índices y backfill (`App\Support\Database\TenantBackfill`).
 
-`EnsureOnboardingComplete` middleware (alias `onboarding`) blocks access to the main app until the operator completes setup. Don't bypass this middleware for new protected routes.
+`App\Http\Controllers\Onboarding\TenantOnboardingController` es el wizard vigente — reemplazó por completo al wizard legacy `OperatorOnboardingController` (retirado en 7.1-7.2), sin tocar `is_operator`/`OperatorProfile`/`OperatorScopeService`, que siguen siendo un sistema aparte (ver "Decisiones y footguns críticos" abajo). Recorrido completo, en orden:
+
+| Sub-paso | Qué hace | `Client.onboarding_step` resultante |
+|---|---|---|
+| 7.1 | Registro + consentimiento LFPDPPP (`AuthController::register`) | — |
+| 7.2 | Nombre del tenant → crea `Client`, Customer interno + Site por defecto ("Oficina principal", `InternalCustomerService::ensureForClient()`), 5 roles sembrados (`TenantRoleSeeder`: admin/supervisor/agente/solicitante/Encargado TI), fundador promovido a `admin` de su propio team | `tenant_named` |
+| 7.3 | Datos de empresa (solo dirección/ciudad/país obligatorios) | `company_data` |
+| 7.4 | Modalidad real (internal/msp/hybrid) | `modality_set` |
+| 7.5 | Customers/Sites externos (solo MSP/Hybrid; Internal salta) | `customers_added` / `customers_skipped` |
+| 7.6 | Invitar personal — reusa `InvitationController`/`InvitationAcceptanceService` tal cual, cupo contra `Plan.max_users` (activos + pendientes sin expirar) | `staff_invited` |
+| 7.7 | Asignar staff que ya aceptó su invitación a sites vía `site_user` | — |
+| 7.8 | `TenantWelcomeMail` al admin fundador (`ShouldQueue`) | `completed` |
+
+`App\Services\OnboardingRedirectService::redirectPath()` es la ÚNICA fuente de verdad de a qué paso le toca ir un usuario a medio proceso — cada `show()` del controlador se la pregunta en vez de reimplementar la máquina de estados. `EnsureOnboardingComplete` middleware (alias `onboarding`) usa el mismo servicio para bloquear el resto de la app hasta terminar. No bypasear este middleware para rutas nuevas.
+
+---
+
+## Roadmap de fases (estado general)
+
+Punto de retoma oficial de este proyecto — no depender de memoria de conversación, todo lo agendado vive aquí o en los docs que enlaza.
+
+| Fase | Estado | Notas |
+|---|---|---|
+| Fase 5 (reassign + notificaciones + `show_agent_names`) | **CERRADA** | — |
+| Fase 6 (RBAC v2 estilo SAP B1 — Spatie teams, plantillas por tenant, `scope_archetype`, catálogo de objetos, overrides por usuario) | **CERRADA** | Ver `docs/RBAC_ROADMAP.md` |
+| Fase 7 (onboarding completo de un tenant nuevo, 7.1-7.8) | **CERRADA** (2026-08-10) | Ver sección "Multi-Tenant / Onboarding" arriba para el recorrido completo |
+| Fase 8 (licenciamiento) | **NO INICIADA** — bloqueada por una pregunta de producto sin resolver | Ver sección "Fase 8 — Licenciamiento" abajo |
+| M0-M6 (migración a base de datos física por tenant, `stancl/tenancy`) | **NO INICIADA** — pospuesta deliberadamente, sin presión de tiempo | — |
+| UX/UI de todo el flujo | **NO INICIADA** — deliberadamente al final, después de M0-M6 | — |
+
+---
+
+## Decisiones y footguns críticos (respetar en trabajo futuro)
+
+- **Footgun Spatie + teams**: `Role::findByName()` / `assignRole('nombre')` / `syncRoles(['nombre'])` (pasando un STRING, no un modelo) **no filtran por `team_id`** — resuelven el primer role con ese `name` que encuentren, sin importar el team. Mordió 2 veces en Fase 6 (ej. `admin@testco.test` quedó con el role global en vez del de su tenant). SIEMPRE resolver primero `Role::where('name', ...)->where('team_id', $clientId)->firstOrFail()` y asignar el modelo ya resuelto. Patrón ya aplicado correctamente en todo Fase 7 (`InvitationController`, `InvitationAcceptanceService`, `TenantOnboardingController::assignFoundingAdminRole()`, `TenantRoleSeeder`).
+- **`is_operator`/`OperatorProfile`/`OperatorScopeService` NO son legacy aislado** — siguen siendo el cimiento real de autorización (RLS de Postgres, `TicketPolicy`, `IncidentPolicy`). Nunca tocarlos sin una auditoría propia y aparte, explícitamente autorizada. El wizard de onboarding de Fase 7 es un camino PARALELO que no depende de ellos — reemplazó solo el wizard legacy de formularios (`OperatorOnboardingController`), no el sistema de autorización.
+- **RLS de Postgres + inserts fuera de una request real** (ej. el Customer/Site implícitos que crea el sistema, no un usuario): requiere `PgsqlRowLevelSecurity::withBypass(callable)`, que guarda y restaura el valor previo — nunca un `setBypass(false)` a secas, que podría pisar el bypass legítimo de otro caller.
+- **`super_admin_team_id` = 0** (centinela explícito, no `NULL`) — siempre vía `config('tenancy.super_admin_team_id')`, nunca un literal `0` repetido en el código.
+- **SAT/EFOS-EDOS**: retirado por completo como requisito de producto (decisión 2026-08-10) — no reintroducir ningún stub/hook/TODO relacionado salvo instrucción explícita nueva.
+- **Horarios/disponibilidad de staff**: fuera de alcance del onboarding, decisión de producto explícita. No confundir con el endpoint roto `/api/my-schedule` que llama `MyScheduleView.jsx` — esa ruta no existe en ningún archivo de rutas, es un hallazgo preexistente sin relación con onboarding, todavía sin arreglar.
+
+---
+
+## Fase 8 — Licenciamiento (siguiente fase, NO iniciada)
+
+Diseño acordado hasta ahora:
+- Cada tenant nuevo arranca gratis, con hasta 10 usuarios ESTÁNDAR incluidos sin costo (reemplaza la idea anterior de "mínimo 5 de pago desde el día uno" — ya no aplica).
+- El cobro real entra por usuarios AVANZADOS — cualquier tenant que agregue uno paga por cada uno, sin importar cuántos estándar tenga.
+- `Plan.max_users` ya existe y ya tiene enforcement básico desde Fase 7.6 (`TenantOnboardingController::seatUsage()`: usuarios activos + invitaciones pendientes sin expirar, verificado antes de cada invitación nueva). Fase 8 construye sobre esto, no lo reemplaza desde cero.
+
+**Pregunta de producto sin resolver, bloqueante para empezar el diseño**: ¿qué capacidad concreta tiene un usuario AVANZADO que uno ESTÁNDAR no tiene? La idea original era "puede ver la base de datos de su propia empresa, aislada" — pero eso depende de M0-M6 (base física por tenant), pospuesto sin fecha. Sin una respuesta a esto, "avanzado" es solo un precio más alto sin beneficio real detrás. **No empezar el diseño de `Plan.user_type`/precios hasta que esta pregunta tenga respuesta explícita.**
 
 ---
 
@@ -185,12 +235,16 @@ Este archivo es la guía rápida. Para detalle, cada doc vive en `docs/` (o raí
 
 **Bloqueado por config externa** (código listo, falta cuenta/credenciales que Claude no puede crear): login con Google, Google Maps/geocodificación, login con Microsoft 365 (Azure AD).
 
-**Diseñado, no construido**:
-- Calendario de tickets: falta hora exacta (no solo fecha), usar `tickets.resolved_at` (existe en backend, el frontend nunca lo pinta), toggle fecha de alta/cierre.
+**Diseñado, no construido**: ver `docs/PENDING.md` sección 2 (consolidar dashboards de tickets, pasarela de pago real para "Mi empresa").
 
 **Roadmaps vivos, sin fecha objetivo**:
-- `RBAC_ROADMAP.md`: fase 6 (roles por equipo/Spatie teams) cerrada 2026-08-04; fase 7 (plantilla "Encargado TI") cerrada 2026-08-09. Queda anotado ahí un hallazgo relacionado sin resolver: onboarding de un tenant nuevo no siembra roles de RBAC v2 automáticamente.
+- `RBAC_ROADMAP.md`: fase 6 (roles por equipo/Spatie teams) cerrada 2026-08-04; fase 7 (plantilla "Encargado TI") cerrada 2026-08-09. El hallazgo que quedaba anotado ahí sin resolver ("onboarding de un tenant nuevo no siembra roles de RBAC v2 automáticamente") **se resolvió con la Fase 7 del roadmap general** (`TenantOnboardingController` corre `TenantRoleSeeder` en 7.2 para cada tenant nuevo) — no confundir la numeración de fases de este doc (interna del RBAC) con la Fase 7 del roadmap general (onboarding).
 - `MULTITENANT_ROADMAP.md`: fases 0-4 (aislamiento estructural: RLS en prod, índices únicos por tenant, revisión de queries raw) sin empezar. Fase 5 (producto/operaciones): 5.5 (monitoreo cross-tenant) **hecho 2026-08-05**; quedan 5.1 (aislar SIGUA), 5.2 (subdominio MSP `operador.tikara.test`), 5.3 (SSO/OIDC por cliente), 5.4 (panel "URL de portal" + copiar enlace en ficha cliente).
+
+**Deuda técnica documentada, no bloqueante** (Fase 7):
+- `sites.unique(client_id, name)` es por tenant completo, no por Customer — compensado con validación de aplicación en `TenantOnboardingController::storeCustomer()`, no de esquema.
+- `site_user` no tiene panel de administración fuera de `/onboarding/teams` — un invitado que acepta después de que el admin ya terminó el onboarding no puede recibir un site asignado hoy (ni siquiera el wizard, que no vuelve a mostrarse).
+- Flake conocido de aislamiento en 1 test de PostgreSQL+RLS (pasa en aislamiento; preexistente, no relacionado a ningún sprint reciente).
 
 ---
 
