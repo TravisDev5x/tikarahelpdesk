@@ -24,6 +24,37 @@ const BOUNDARY_EVENT_LABELS = {
     access_blocked: { label: "Acceso bloqueado", variant: "outline" },
 };
 
+// ------------------------------------------------------------------
+// VISTA MÓVIL: CARD POR EVENTO (solo visible en viewport < md)
+// ------------------------------------------------------------------
+function BoundaryEventCard({ event }) {
+    const meta = BOUNDARY_EVENT_LABELS[event.action] ?? { label: event.action, variant: "secondary" };
+
+    return (
+        <Card className="overflow-hidden">
+            <CardContent className="p-4 flex flex-col gap-2">
+                <div className="flex items-start justify-between gap-2">
+                    <Badge variant={meta.variant}>{meta.label}</Badge>
+                    <span className="text-xs text-muted-foreground shrink-0">
+                        {event.created_at
+                            ? formatDistanceToNow(new Date(event.created_at), { addSuffix: true, locale: es })
+                            : "—"}
+                    </span>
+                </div>
+                <p className="text-sm truncate">
+                    {event.user ? (event.user.name || event.user.email) : "—"}
+                    {event.client?.name ? ` → ${event.client.name}` : ""}
+                </p>
+                <p className="text-xs text-muted-foreground">IP: {event.ip_address ?? "—"}</p>
+                <p className="text-xs text-muted-foreground truncate">
+                    {event.new_values?.host ?? "—"}
+                    {event.new_values?.path ? ` /${event.new_values.path}` : ""}
+                </p>
+            </CardContent>
+        </Card>
+    );
+}
+
 function TenantBoundaryEventsTab() {
     const [events, setEvents] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -67,46 +98,58 @@ function TenantBoundaryEventsTab() {
                         Sin eventos registrados
                     </div>
                 ) : (
-                    <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead>Fecha</TableHead>
-                                <TableHead>Evento</TableHead>
-                                <TableHead>Usuario</TableHead>
-                                <TableHead>Cliente objetivo</TableHead>
-                                <TableHead>IP</TableHead>
-                                <TableHead>Detalle</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {events.map((ev) => {
-                                const meta = BOUNDARY_EVENT_LABELS[ev.action] ?? { label: ev.action, variant: "secondary" };
-                                return (
-                                    <TableRow key={ev.id}>
-                                        <TableCell className="whitespace-nowrap text-xs text-muted-foreground">
-                                            {ev.created_at
-                                                ? formatDistanceToNow(new Date(ev.created_at), { addSuffix: true, locale: es })
-                                                : "—"}
-                                        </TableCell>
-                                        <TableCell>
-                                            <Badge variant={meta.variant}>{meta.label}</Badge>
-                                        </TableCell>
-                                        <TableCell className="text-sm">
-                                            {ev.user ? (ev.user.name || ev.user.email) : "—"}
-                                        </TableCell>
-                                        <TableCell className="text-sm">{ev.client?.name ?? "—"}</TableCell>
-                                        <TableCell className="text-xs text-muted-foreground">
-                                            {ev.ip_address ?? "—"}
-                                        </TableCell>
-                                        <TableCell className="text-xs text-muted-foreground">
-                                            {ev.new_values?.host ?? "—"}
-                                            {ev.new_values?.path ? ` /${ev.new_values.path}` : ""}
-                                        </TableCell>
+                    <>
+                        {/* VISTA MÓVIL: CARDS */}
+                        <div className="block md:hidden space-y-3">
+                            {events.map((ev) => (
+                                <BoundaryEventCard key={ev.id} event={ev} />
+                            ))}
+                        </div>
+
+                        {/* TABLA DESKTOP */}
+                        <div className="hidden md:block">
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead>Fecha</TableHead>
+                                        <TableHead>Evento</TableHead>
+                                        <TableHead>Usuario</TableHead>
+                                        <TableHead>Cliente objetivo</TableHead>
+                                        <TableHead>IP</TableHead>
+                                        <TableHead>Detalle</TableHead>
                                     </TableRow>
-                                );
-                            })}
-                        </TableBody>
-                    </Table>
+                                </TableHeader>
+                                <TableBody>
+                                    {events.map((ev) => {
+                                        const meta = BOUNDARY_EVENT_LABELS[ev.action] ?? { label: ev.action, variant: "secondary" };
+                                        return (
+                                            <TableRow key={ev.id}>
+                                                <TableCell className="whitespace-nowrap text-xs text-muted-foreground">
+                                                    {ev.created_at
+                                                        ? formatDistanceToNow(new Date(ev.created_at), { addSuffix: true, locale: es })
+                                                        : "—"}
+                                                </TableCell>
+                                                <TableCell>
+                                                    <Badge variant={meta.variant}>{meta.label}</Badge>
+                                                </TableCell>
+                                                <TableCell className="text-sm">
+                                                    {ev.user ? (ev.user.name || ev.user.email) : "—"}
+                                                </TableCell>
+                                                <TableCell className="text-sm">{ev.client?.name ?? "—"}</TableCell>
+                                                <TableCell className="text-xs text-muted-foreground">
+                                                    {ev.ip_address ?? "—"}
+                                                </TableCell>
+                                                <TableCell className="text-xs text-muted-foreground">
+                                                    {ev.new_values?.host ?? "—"}
+                                                    {ev.new_values?.path ? ` /${ev.new_values.path}` : ""}
+                                                </TableCell>
+                                            </TableRow>
+                                        );
+                                    })}
+                                </TableBody>
+                            </Table>
+                        </div>
+                    </>
                 )}
             </CardContent>
         </Card>

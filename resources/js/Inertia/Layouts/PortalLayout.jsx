@@ -31,18 +31,18 @@ export default function PortalLayout({ title, children }) {
             <div className="min-h-dvh bg-background text-foreground flex flex-col">
                 {/* Header */}
                 <header className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur">
-                    <div className="mx-auto flex h-14 max-w-5xl items-center gap-4 px-4">
+                    <div className="mx-auto flex h-14 max-w-5xl items-center gap-2 px-4 sm:gap-4">
                         {/* Brand */}
-                        <Link href="/" className="flex items-center gap-2 font-semibold">
+                        <Link href="/" className="flex min-w-0 shrink-0 items-center gap-2 font-semibold">
                             {logoUrl ? (
                                 <img src={logoUrl} alt={brandName} className="h-7 w-auto" />
                             ) : (
-                                <span className="text-primary">{brandName}</span>
+                                <span className="max-w-[7rem] truncate text-primary sm:max-w-none">{brandName}</span>
                             )}
                         </Link>
 
                         {/* Nav */}
-                        <nav className="flex items-center gap-1 ml-4">
+                        <nav className="ml-2 flex items-center gap-1 sm:ml-4">
                             <NavLink href="/" icon={<LayoutDashboard className="h-4 w-4" />}>
                                 Inicio
                             </NavLink>
@@ -52,7 +52,7 @@ export default function PortalLayout({ title, children }) {
                         </nav>
 
                         {/* Right side */}
-                        <div className="ml-auto flex items-center gap-2">
+                        <div className="ml-auto flex shrink-0 items-center gap-1 sm:gap-2">
                             {user && (
                                 <span className="hidden text-sm text-muted-foreground sm:block">
                                     {user.first_name || user.name}
@@ -93,15 +93,16 @@ function NavLink({ href, icon, children }) {
     return (
         <Link
             href={href}
+            title={typeof children === "string" ? children : undefined}
             className={cn(
-                "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm transition-colors",
+                "flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm transition-colors sm:px-3",
                 active
                     ? "bg-accent text-accent-foreground font-medium"
                     : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
             )}
         >
             {icon}
-            {children}
+            <span className="hidden sm:inline">{children}</span>
         </Link>
     );
 }

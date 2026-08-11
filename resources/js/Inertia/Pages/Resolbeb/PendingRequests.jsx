@@ -209,6 +209,48 @@ function ReviewDialog({ request, open, onOpenChange, onResolved }) {
     );
 }
 
+// ------------------------------------------------------------------
+// VISTA MÓVIL: CARD POR SOLICITUD (solo visible en viewport < md)
+// ------------------------------------------------------------------
+function RequestCard({ request, onReview }) {
+    const reasonInfo = REASON_INFO[request.reason] ?? { label: request.reason, variant: "outline" };
+
+    return (
+        <Card className="overflow-hidden">
+            <CardContent className="p-4 flex flex-col gap-2">
+                <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                        <p className="text-sm font-medium truncate">{request.from_name || request.from_email}</p>
+                        {request.from_name && (
+                            <p className="text-xs text-muted-foreground truncate">{request.from_email}</p>
+                        )}
+                    </div>
+                    <Badge variant={reasonInfo.variant} className="shrink-0">{reasonInfo.label}</Badge>
+                </div>
+                {request.subject && (
+                    <p className="text-sm text-muted-foreground truncate">{request.subject}</p>
+                )}
+                <div className="flex items-center justify-between gap-2 pt-1">
+                    <span className="text-xs text-muted-foreground">
+                        {formatDistanceToNow(new Date(request.created_at), { addSuffix: true, locale: es })}
+                    </span>
+                    {request.status === "pending" ? (
+                        <Button size="sm" variant="outline" className="min-h-[44px]" onClick={() => onReview(request)}>
+                            Revisar
+                        </Button>
+                    ) : (
+                        <Badge variant={request.status === "approved" ? "secondary" : "outline"}>
+                            {request.status === "approved"
+                                ? `Aprobada${request.resulting_ticket ? " · #" + request.resulting_ticket.folio : ""}`
+                                : "Rechazada"}
+                        </Badge>
+                    )}
+                </div>
+            </CardContent>
+        </Card>
+    );
+}
+
 function RequestsTable({ items, loading, onReview }) {
     if (loading) {
         return (
@@ -230,54 +272,66 @@ function RequestsTable({ items, loading, onReview }) {
     }
 
     return (
-        <Table>
-            <TableHeader>
-                <TableRow>
-                    <TableHead>Remitente</TableHead>
-                    <TableHead>Asunto</TableHead>
-                    <TableHead>Motivo</TableHead>
-                    <TableHead>Recibido</TableHead>
-                    <TableHead className="text-right">Acciones</TableHead>
-                </TableRow>
-            </TableHeader>
-            <TableBody>
-                {items.map((r) => {
-                    const reasonInfo = REASON_INFO[r.reason] ?? { label: r.reason, variant: "outline" };
-                    return (
-                        <TableRow key={r.id}>
-                            <TableCell>
-                                <p className="text-sm font-medium">{r.from_name || r.from_email}</p>
-                                {r.from_name && (
-                                    <p className="text-xs text-muted-foreground">{r.from_email}</p>
-                                )}
-                            </TableCell>
-                            <TableCell className="max-w-[260px] truncate text-sm">
-                                {r.subject || "—"}
-                            </TableCell>
-                            <TableCell>
-                                <Badge variant={reasonInfo.variant}>{reasonInfo.label}</Badge>
-                            </TableCell>
-                            <TableCell className="text-xs text-muted-foreground">
-                                {formatDistanceToNow(new Date(r.created_at), { addSuffix: true, locale: es })}
-                            </TableCell>
-                            <TableCell className="text-right">
-                                {r.status === "pending" ? (
-                                    <Button size="sm" variant="outline" onClick={() => onReview(r)}>
-                                        Revisar
-                                    </Button>
-                                ) : (
-                                    <Badge variant={r.status === "approved" ? "secondary" : "outline"}>
-                                        {r.status === "approved"
-                                            ? `Aprobada${r.resulting_ticket ? " · #" + r.resulting_ticket.folio : ""}`
-                                            : "Rechazada"}
-                                    </Badge>
-                                )}
-                            </TableCell>
+        <>
+            {/* VISTA MÓVIL: CARDS */}
+            <div className="block md:hidden space-y-3">
+                {items.map((r) => (
+                    <RequestCard key={r.id} request={r} onReview={onReview} />
+                ))}
+            </div>
+
+            {/* TABLA DESKTOP */}
+            <div className="hidden md:block">
+                <Table>
+                    <TableHeader>
+                        <TableRow>
+                            <TableHead>Remitente</TableHead>
+                            <TableHead>Asunto</TableHead>
+                            <TableHead>Motivo</TableHead>
+                            <TableHead>Recibido</TableHead>
+                            <TableHead className="text-right">Acciones</TableHead>
                         </TableRow>
-                    );
-                })}
-            </TableBody>
-        </Table>
+                    </TableHeader>
+                    <TableBody>
+                        {items.map((r) => {
+                            const reasonInfo = REASON_INFO[r.reason] ?? { label: r.reason, variant: "outline" };
+                            return (
+                                <TableRow key={r.id}>
+                                    <TableCell>
+                                        <p className="text-sm font-medium">{r.from_name || r.from_email}</p>
+                                        {r.from_name && (
+                                            <p className="text-xs text-muted-foreground">{r.from_email}</p>
+                                        )}
+                                    </TableCell>
+                                    <TableCell className="max-w-[260px] truncate text-sm">
+                                        {r.subject || "—"}
+                                    </TableCell>
+                                    <TableCell>
+                                        <Badge variant={reasonInfo.variant}>{reasonInfo.label}</Badge>
+                                    </TableCell>
+                                    <TableCell className="text-xs text-muted-foreground">
+                                        {formatDistanceToNow(new Date(r.created_at), { addSuffix: true, locale: es })}
+                                    </TableCell>
+                                    <TableCell className="text-right">
+                                        {r.status === "pending" ? (
+                                            <Button size="sm" variant="outline" onClick={() => onReview(r)}>
+                                                Revisar
+                                            </Button>
+                                        ) : (
+                                            <Badge variant={r.status === "approved" ? "secondary" : "outline"}>
+                                                {r.status === "approved"
+                                                    ? `Aprobada${r.resulting_ticket ? " · #" + r.resulting_ticket.folio : ""}`
+                                                    : "Rechazada"}
+                                            </Badge>
+                                        )}
+                                    </TableCell>
+                                </TableRow>
+                            );
+                        })}
+                    </TableBody>
+                </Table>
+            </div>
+        </>
     );
 }
 

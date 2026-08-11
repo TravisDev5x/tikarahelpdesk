@@ -93,11 +93,11 @@ export function TablePagination({
                     {summary}
                 </span>
             </div>
-            <div className="flex items-center gap-0.5">
+            <div className="flex items-center gap-0.5 max-w-full overflow-x-auto">
                 <Button
                     variant="outline"
                     size="icon"
-                    className="h-8 w-8"
+                    className="h-8 w-8 shrink-0"
                     disabled={currentPage <= 1 || loading}
                     onClick={() => onPageChange(1)}
                     aria-label="Primera página"
@@ -107,14 +107,14 @@ export function TablePagination({
                 <Button
                     variant="outline"
                     size="icon"
-                    className="h-8 w-8"
+                    className="h-8 w-8 shrink-0"
                     disabled={currentPage <= 1 || loading}
                     onClick={() => onPageChange(currentPage - 1)}
                     aria-label="Página anterior"
                 >
                     <ChevronLeft className="h-3.5 w-3.5" />
                 </Button>
-                <div className="flex items-center gap-0.5 mx-1">
+                <div className="hidden items-center gap-0.5 mx-1 sm:flex">
                     {pageNumbers.map((p, i) =>
                         p === "…" ? (
                             <span
@@ -130,7 +130,7 @@ export function TablePagination({
                                 variant={currentPage === p ? "secondary" : "ghost"}
                                 size="icon"
                                 className={cn(
-                                    "h-8 w-8 min-w-8 text-xs",
+                                    "h-8 w-8 min-w-8 shrink-0 text-xs",
                                     currentPage === p &&
                                         "bg-primary/15 text-primary font-semibold"
                                 )}
@@ -144,10 +144,13 @@ export function TablePagination({
                         )
                     )}
                 </div>
+                <span className="mx-1 text-xs text-muted-foreground tabular-nums sm:hidden">
+                    {currentPage}/{lastPageSafe}
+                </span>
                 <Button
                     variant="outline"
                     size="icon"
-                    className="h-8 w-8"
+                    className="h-8 w-8 shrink-0"
                     disabled={currentPage >= lastPageSafe || loading}
                     onClick={() => onPageChange(currentPage + 1)}
                     aria-label="Página siguiente"
@@ -157,7 +160,7 @@ export function TablePagination({
                 <Button
                     variant="outline"
                     size="icon"
-                    className="h-8 w-8"
+                    className="h-8 w-8 shrink-0"
                     disabled={currentPage >= lastPageSafe || loading}
                     onClick={() => onPageChange(lastPageSafe)}
                     aria-label="Última página"

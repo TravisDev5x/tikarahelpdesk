@@ -992,8 +992,14 @@ export default function Index({ users, catalogs, filters: serverFilters = {} }) 
 
                     <Tabs defaultValue="personal" className="w-full">
                         <TabsList className={cn("grid w-full", editUser ? "grid-cols-3" : "grid-cols-2")}>
-                            <TabsTrigger value="personal">Información personal</TabsTrigger>
-                            <TabsTrigger value="access">Acceso y organización</TabsTrigger>
+                            <TabsTrigger value="personal">
+                                <span className="sm:hidden">Personal</span>
+                                <span className="hidden sm:inline">Información personal</span>
+                            </TabsTrigger>
+                            <TabsTrigger value="access">
+                                <span className="sm:hidden">Acceso</span>
+                                <span className="hidden sm:inline">Acceso y organización</span>
+                            </TabsTrigger>
                             {editUser && <TabsTrigger value="permissions">Permisos</TabsTrigger>}
                         </TabsList>
                         <TabsContent value="personal" className="space-y-4 pt-4">

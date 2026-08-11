@@ -321,13 +321,13 @@ export default function DashboardContent({ isStandalone = false }) {
         </CardHeader>
         <CardContent className="flex flex-wrap gap-4">
           {canFilterSite && sites.length > 0 && (
-            <div className="space-y-2">
+            <div className="space-y-2 w-full sm:w-auto">
               <Label className="text-xs">Sede</Label>
               <Select
                 value={filters.site_id != null ? String(filters.site_id) : "all"}
                 onValueChange={(v) => setFilters((f) => ({ ...f, site_id: v === "all" ? null : v }))}
               >
-                <SelectTrigger className="w-[180px] h-9">
+                <SelectTrigger className="w-full h-9 sm:w-[180px]">
                   <SelectValue placeholder="Todas las sedes" />
                 </SelectTrigger>
                 <SelectContent>
@@ -339,13 +339,13 @@ export default function DashboardContent({ isStandalone = false }) {
               </Select>
             </div>
           )}
-          <div className="space-y-2">
+          <div className="space-y-2 w-full sm:w-auto">
             <Label className="text-xs">Agente asignado</Label>
             <Select
               value={filters.assigned_user_id != null ? String(filters.assigned_user_id) : "all"}
               onValueChange={(v) => setFilters((f) => ({ ...f, assigned_user_id: v === "all" ? null : v }))}
             >
-              <SelectTrigger className="w-[200px] h-9">
+              <SelectTrigger className="w-full h-9 sm:w-[200px]">
                 <SelectValue placeholder="Todos" />
               </SelectTrigger>
               <SelectContent>

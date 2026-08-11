@@ -151,6 +151,146 @@ function PlanCell({ client }) {
     );
 }
 
+// ------------------------------------------------------------------
+// VISTA MÓVIL: CARD POR CLIENTE (solo visible en viewport < md)
+// ------------------------------------------------------------------
+function ClientCard({
+    client,
+    showOperatorColumn,
+    isPlatformAdmin,
+    canManageClients,
+    portalUrl,
+    onCancel,
+    onReactivate,
+    onDelete,
+}) {
+    const isCancelled = !!client.cancelled_at;
+    const url = client.portal_slug ? portalUrl(client.portal_slug) : null;
+
+    return (
+        <Card className={cn("overflow-hidden", isCancelled && "opacity-60")}>
+            <CardContent className="p-4 flex flex-col gap-3">
+                <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-center gap-3 min-w-0">
+                        {client.logo_path ? (
+                            <img
+                                src={logoUrl(client.logo_path)}
+                                alt=""
+                                className="h-10 w-10 rounded-md object-cover border shrink-0"
+                            />
+                        ) : (
+                            <div className="h-10 w-10 rounded-md bg-muted flex items-center justify-center text-xs font-semibold shrink-0">
+                                {initials(client.business_name || client.name)}
+                            </div>
+                        )}
+                        <div className="min-w-0">
+                            <p className="font-medium leading-none truncate">
+                                {client.business_name || client.name}
+                            </p>
+                            {client.industry && (
+                                <p className="text-xs text-muted-foreground mt-1 truncate">
+                                    {client.industry}
+                                </p>
+                            )}
+                        </div>
+                    </div>
+                    {isCancelled ? (
+                        <Badge variant="outline" className="text-xs border-destructive/50 text-destructive shrink-0">
+                            Cancelado
+                        </Badge>
+                    ) : (
+                        <Badge
+                            variant="outline"
+                            className={cn("text-xs shrink-0", client.is_active ? clientActiveBadge : clientInactiveBadge)}
+                        >
+                            {client.is_active ? "Activo" : "Inactivo"}
+                        </Badge>
+                    )}
+                </div>
+
+                {showOperatorColumn && (
+                    <p className="text-xs text-muted-foreground">
+                        Operador: {client.operator_user?.name ?? "—"}
+                    </p>
+                )}
+
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm">
+                    <span className="inline-flex items-center gap-1.5 text-muted-foreground">
+                        <MapPin className="h-3.5 w-3.5" /> <StatBadge value={client.sites_count} />
+                    </span>
+                    <span className="inline-flex items-center gap-1.5 text-muted-foreground">
+                        <Users className="h-3.5 w-3.5" /> <StatBadge value={client.users_count} />
+                    </span>
+                    <span className="inline-flex items-center gap-1.5 text-muted-foreground">
+                        <Ticket className="h-3.5 w-3.5" /> <StatBadge value={client.tickets_count} />
+                    </span>
+                </div>
+
+                {url ? (
+                    <a
+                        href={url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-sm text-primary hover:underline w-fit"
+                    >
+                        {client.portal_slug} <ExternalLink className="h-3 w-3" />
+                    </a>
+                ) : client.portal_slug ? (
+                    <Badge variant="secondary" className="font-mono text-xs w-fit">
+                        {client.portal_slug}
+                    </Badge>
+                ) : null}
+
+                {isPlatformAdmin && <PlanCell client={client} />}
+
+                <div className="flex items-center justify-end gap-1 pt-2 border-t border-border/40">
+                    <Button variant="ghost" size="icon" className="min-h-[44px] min-w-[44px]" asChild>
+                        <Link href={`/clients/${client.id}`}>
+                            <Eye className="h-4 w-4" />
+                        </Link>
+                    </Button>
+                    <Button variant="ghost" size="icon" className="min-h-[44px] min-w-[44px]" asChild>
+                        <Link href={`/clients/${client.id}/edit`}>
+                            <Pencil className="h-4 w-4" />
+                        </Link>
+                    </Button>
+                    {isPlatformAdmin && (
+                        isCancelled ? (
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                className="min-h-[44px] min-w-[44px] text-green-600 hover:text-green-700"
+                                onClick={() => onReactivate(client)}
+                            >
+                                <RefreshCw className="h-4 w-4" />
+                            </Button>
+                        ) : (
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                className="min-h-[44px] min-w-[44px] text-orange-500 hover:text-orange-600"
+                                onClick={() => onCancel(client)}
+                            >
+                                <Ban className="h-4 w-4" />
+                            </Button>
+                        )
+                    )}
+                    {!isPlatformAdmin && canManageClients && (
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            className="min-h-[44px] min-w-[44px] text-destructive hover:text-destructive"
+                            onClick={() => onDelete(client)}
+                        >
+                            <Trash2 className="h-4 w-4" />
+                        </Button>
+                    )}
+                </div>
+            </CardContent>
+        </Card>
+    );
+}
+
 // ─── main component ───────────────────────────────────────────────────────────
 
 export default function Index({
@@ -302,7 +442,38 @@ export default function Index({
                     </Card>
                 ) : (
                     <>
-                        <Card>
+                        {/* VISTA MÓVIL: CARDS */}
+                        <div className="block md:hidden space-y-3">
+                            {loading ? (
+                                Array.from({ length: 4 }).map((_, i) => (
+                                    <Card key={i} className="overflow-hidden">
+                                        <CardContent className="p-4">
+                                            <Skeleton className="h-16 w-full" />
+                                        </CardContent>
+                                    </Card>
+                                ))
+                            ) : filteredRows.length === 0 ? (
+                                <div className="py-12 text-center text-sm text-muted-foreground">
+                                    No hay resultados para &quot;{search}&quot;
+                                </div>
+                            ) : (
+                                filteredRows.map((client) => (
+                                    <ClientCard
+                                        key={client.id}
+                                        client={client}
+                                        showOperatorColumn={showOperatorColumn}
+                                        isPlatformAdmin={isPlatformAdmin}
+                                        canManageClients={canManageClients}
+                                        portalUrl={portalUrl}
+                                        onCancel={setCancelTarget}
+                                        onReactivate={setReactivateTarget}
+                                        onDelete={setDeleteTarget}
+                                    />
+                                ))
+                            )}
+                        </div>
+
+                        <Card className="hidden md:block">
                             {loading ? (
                                 <Table>
                                     <TableHeader>{tableHeaders}</TableHeader>
