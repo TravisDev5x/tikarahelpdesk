@@ -2,6 +2,7 @@ import { router } from "@inertiajs/react";
 
 /** Rutas donde no debe redirigirse a login (evita bucles). */
 export const GUEST_ONLY_PATHS = [
+    "/",
     "/login",
     "/register",
     "/register/accept",
