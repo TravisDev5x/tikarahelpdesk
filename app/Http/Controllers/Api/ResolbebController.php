@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\Client;
 use App\Models\Site;
 use App\Models\Ticket;
 use App\Models\TicketHistory;
@@ -29,6 +30,14 @@ use Illuminate\Support\Facades\Gate;
  */
 class ResolbebController extends Controller
 {
+    /**
+     * Zona horaria de negocio por defecto cuando el tenant no tiene una
+     * propia configurada (columna clients.business_timezone, siempre con
+     * default a nivel BD) o cuando no se puede resolver un tenant único
+     * para el usuario (ej. super_admin sin client_id propio).
+     */
+    private const DEFAULT_BUSINESS_TIMEZONE = 'America/Mexico_City';
+
     public function __construct(
         protected ClientScopeService $clientScope,
         protected TicketQueryFilterService $filters
@@ -55,19 +64,40 @@ class ResolbebController extends Controller
         $base = $policy->scopeFor($user, Ticket::query());
         $this->filters->apply($request, $user, $base);
 
+        $timezone = $this->resolveBusinessTimezone($user);
+
         $cacheKey = 'dashboard.'.$user->id.'.'.md5(json_encode($request->query()));
 
-        $result = Cache::remember($cacheKey, now()->addMinutes(2), function () use ($base) {
-            return $this->buildDashboardPayload($base);
+        $result = Cache::remember($cacheKey, now()->addMinutes(2), function () use ($base, $timezone) {
+            return $this->buildDashboardPayload($base, $timezone);
         });
 
         return response()->json($result);
     }
 
     /**
+     * Auditoría 2026-08-10: "Tendencia de resolución"/"Top Sedes"/"Tipos de
+     * Fallas"/"MTTR semanal" calculaban "hoy"/"esta semana"/"este mes" con
+     * Carbon::now() -- siempre UTC (config('app.timezone')), mientras el
+     * negocio real opera en hora de México. Un ticket creado a las 19:00
+     * hora México ya es el día siguiente en UTC -- confirmado con datos
+     * reales de dev: 4 de los 5 tickets más recientes caían en el balde
+     * equivocado. Resuelve el tenant del usuario vía el mismo mecanismo ya
+     * usado en el resto del proyecto (ClientScopeService::resolveUserClientId
+     * -> TenantClientResolver).
+     */
+    private function resolveBusinessTimezone(User $user): string
+    {
+        $clientId = $this->clientScope->resolveUserClientId($user);
+        $timezone = $clientId ? Client::where('id', $clientId)->value('business_timezone') : null;
+
+        return $timezone ?: self::DEFAULT_BUSINESS_TIMEZONE;
+    }
+
+    /**
      * @return array<string, mixed>
      */
-    private function buildDashboardPayload(Builder $base): array
+    private function buildDashboardPayload(Builder $base, string $timezone): array
     {
         $stateIds = $this->cachedTicketStateIds();
         $openIds = $stateIds['open'];
@@ -102,8 +132,11 @@ class ResolbebController extends Controller
                 ->count();
         }
 
-        $semanaInicio = Carbon::now()->startOfWeek();
-        $semanaFin = Carbon::now()->endOfWeek();
+        // "Esta semana" en hora del NEGOCIO, convertido a UTC para comparar
+        // contra resolved_at (la BD siempre guarda instantes UTC) -- no un
+        // DATE()/BETWEEN crudo en zona del servidor.
+        $semanaInicio = Carbon::now($timezone)->startOfWeek()->setTimezone('UTC');
+        $semanaFin = Carbon::now($timezone)->endOfWeek()->setTimezone('UTC');
         $mttrSemanal = (clone $base)
             ->whereNotNull('resolved_at')
             ->whereBetween('resolved_at', [$semanaInicio, $semanaFin])
@@ -127,24 +160,29 @@ class ResolbebController extends Controller
         })->values()->all();
 
         // --- Tendencia: últimos 15 días (2 queries agrupadas) ---
-        $hace15Dias = now()->subDays(14)->startOfDay();
+        // El corte "hoy" es el día LOCAL del negocio, no el de UTC. La
+        // agrupación por día se hace en PHP (countByLocalDate), no con
+        // DATE(...) crudo en SQL: DATE() calculado por la BD siempre
+        // trabaja sobre el instante UTC guardado, sin noción del
+        // business_timezone del tenant -- y una conversión de zona horaria
+        // por nombre IANA en SQL crudo solo es portable en Postgres, no en
+        // SQLite (usado en composer test). Agrupar en PHP con Carbon es
+        // correcto y portable en ambos motores, DST incluido.
+        $hoyLocal = Carbon::now($timezone)->startOfDay();
+        $hace15DiasUtc = $hoyLocal->copy()->subDays(14)->setTimezone('UTC');
 
-        $creadosPorDia = (clone $base)
-            ->where('created_at', '>=', $hace15Dias)
-            ->selectRaw('DATE(created_at) as dia, COUNT(*) as total')
-            ->groupBy('dia')
-            ->pluck('total', 'dia');
-
-        $cerradosPorDia = (clone $base)
-            ->whereNotNull('resolved_at')
-            ->where('resolved_at', '>=', $hace15Dias)
-            ->selectRaw('DATE(resolved_at) as dia, COUNT(*) as total')
-            ->groupBy('dia')
-            ->pluck('total', 'dia');
+        $creadosPorDia = $this->countByLocalDate(
+            (clone $base)->where('created_at', '>=', $hace15DiasUtc)->pluck('created_at'),
+            $timezone
+        );
+        $cerradosPorDia = $this->countByLocalDate(
+            (clone $base)->whereNotNull('resolved_at')->where('resolved_at', '>=', $hace15DiasUtc)->pluck('resolved_at'),
+            $timezone
+        );
 
         $tendencia = [];
         for ($i = 14; $i >= 0; $i--) {
-            $dia = Carbon::today()->subDays($i);
+            $dia = $hoyLocal->copy()->subDays($i);
             $fecha = $dia->format('Y-m-d');
             $tendencia[] = [
                 'fecha' => $fecha,
@@ -211,8 +249,10 @@ class ResolbebController extends Controller
         }
 
         // --- Top sites: tickets creados este mes por sede ---
-        $mesInicio = Carbon::now()->startOfMonth();
-        $mesFin = Carbon::now()->endOfMonth();
+        // "Este mes" en hora del negocio -- en el último día del mes,
+        // tickets de la noche ya no se cuelan al mes siguiente.
+        $mesInicio = Carbon::now($timezone)->startOfMonth()->setTimezone('UTC');
+        $mesFin = Carbon::now($timezone)->endOfMonth()->setTimezone('UTC');
         $topSitesRaw = (clone $base)
             ->whereBetween('created_at', [$mesInicio, $mesFin])
             ->select('site_id', DB::raw('count(*) as total'))
@@ -322,4 +362,18 @@ class ResolbebController extends Controller
         });
     }
 
+    /**
+     * Agrupa timestamps (Carbon, en UTC -- así los devuelve pluck() sobre un
+     * builder Eloquent) por fecha LOCAL de $timezone, como 'Y-m-d' => total.
+     */
+    private function countByLocalDate(Collection $timestamps, string $timezone): array
+    {
+        $counts = [];
+        foreach ($timestamps as $timestamp) {
+            $localDate = $timestamp->copy()->setTimezone($timezone)->toDateString();
+            $counts[$localDate] = ($counts[$localDate] ?? 0) + 1;
+        }
+
+        return $counts;
+    }
 }

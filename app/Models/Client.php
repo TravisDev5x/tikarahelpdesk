@@ -29,6 +29,7 @@ class Client extends Model
         'address',
         'city',
         'country',
+        'business_timezone',
         'latitude',
         'longitude',
         'logo_path',
