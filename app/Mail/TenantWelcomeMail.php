@@ -11,13 +11,8 @@ use Illuminate\Mail\Mailables\Envelope;
 use Illuminate\Queue\SerializesModels;
 
 /**
- * Bienvenida cuando se activa un tenant nuevo (post-validación SAT).
- *
- * No existe todavía un flujo de activación de tenant que dispare esto — la
- * auditoría previa a este sprint no encontró ningún paso de "validación SAT" /
- * activación de tenant en el código (el onboarding completo es el siguiente
- * sprint). Este Mailable queda listo para usarse en cuanto ese flujo exista;
- * por ahora no hay ningún sitio que lo dispare.
+ * Correo de bienvenida al completar el onboarding del tenant (Fase 7.8,
+ * disparado desde TenantOnboardingController::finishTeams()).
  */
 class TenantWelcomeMail extends Mailable implements ShouldQueue
 {

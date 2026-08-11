@@ -62,13 +62,12 @@ class OnboardingRedirectService
             'company_data' => '/onboarding/modality',
             'modality_set' => '/onboarding/customers',
             'customers_added', 'customers_skipped' => '/onboarding/staff',
-            // 'staff_invited': onboarding termina aquí por ahora -- 7.7
-            // (equipos/sites/horarios) y 7.8 (TenantWelcomeMail) quedan para
-            // el siguiente sprint. Cuando se construyan, este caso deja de
-            // apuntar a null y pasa al siguiente paso.
-            'staff_invited' => null,
-            // completed, o cualquier estado más allá de lo construido hasta
-            // ahora -> ya no hay paso del wizard pendiente.
+            'staff_invited' => '/onboarding/teams',
+            // 'completed' (o cualquier estado fuera de los conocidos) -> ya
+            // no hay paso del wizard pendiente. finishTeams() (7.7) marca
+            // este estado directo, sin un string intermedio para 7.8 (el
+            // correo de bienvenida se dispara en el mismo request, no
+            // depende de un paso propio del wizard).
             default => null,
         };
     }

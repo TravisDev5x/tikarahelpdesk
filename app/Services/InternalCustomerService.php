@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Client;
 use App\Models\Customer;
+use App\Models\Site;
 use App\Models\User;
 use App\Support\Tenancy\PgsqlRowLevelSecurity;
 
@@ -30,30 +31,56 @@ use App\Support\Tenancy\PgsqlRowLevelSecurity;
 class InternalCustomerService
 {
     /**
-     * Garantiza el customer interno de un Client ya existente. Idempotente:
-     * si ya tiene uno (is_internal=true), lo devuelve sin tocar nada.
+     * Garantiza el customer interno de un Client ya existente, Y su Site por
+     * defecto (Fase 7.7, 2026-08-10 -- sin esto, un tenant Internal llegaba
+     * a 7.7 del onboarding con cero sites, dejando ese paso como un no-op).
+     * Idempotente en ambos: si el Customer ya existe no se toca, y si ya
+     * tiene algún Site bajo él tampoco se crea uno nuevo -- así que
+     * reinvocar este método sobre un Client viejo (creado antes de este
+     * cambio) rellena el Site que le faltaba sin duplicar nada, sin
+     * necesitar un comando de backfill aparte.
      */
     public function ensureForClient(Client $client): Customer
     {
-        $existing = Customer::where('client_id', $client->id)
-            ->where('is_internal', true)
-            ->first();
+        // customers/sites tienen RLS (2026_07_11_000007): quien crea un
+        // Client nuevo casi nunca tiene todavía, en la sesión de BD actual,
+        // el client_id que este Customer/Site necesitan para pasar la
+        // policy (caso típico: el Client se está creando recién en este
+        // mismo request). Bypass acotado solo a este bloque, con
+        // restauración del valor previo -- ver PgsqlRowLevelSecurity::withBypass().
+        return PgsqlRowLevelSecurity::withBypass(function () use ($client) {
+            $customer = Customer::where('client_id', $client->id)
+                ->where('is_internal', true)
+                ->first();
 
-        if ($existing) {
-            return $existing;
-        }
+            if (! $customer) {
+                $customer = Customer::create([
+                    'client_id' => $client->id,
+                    'name' => $client->name,
+                    'is_internal' => true,
+                ]);
+            }
 
-        // customers tiene RLS (2026_07_11_000007): quien crea un Client
-        // nuevo casi nunca tiene todavía, en la sesión de BD actual, el
-        // client_id que este mismo Customer necesita para pasar la policy
-        // (es el caso típico: un Client se está creando recién en este mismo
-        // request). Bypass acotado solo a este insert, con restauración del
-        // valor previo -- ver PgsqlRowLevelSecurity::withBypass().
-        return PgsqlRowLevelSecurity::withBypass(fn () => Customer::create([
-            'client_id' => $client->id,
-            'name' => $client->name,
-            'is_internal' => true,
-        ]));
+            if (! Site::where('customer_id', $customer->id)->exists()) {
+                // "Oficina principal": nombre genérico de SEDE, distinto del
+                // nombre del tenant (que ya identifica a la EMPRESA vía
+                // $customer->name) -- un Site es una ubicación física, no la
+                // empresa misma. Evita además que este default choque por
+                // accidente con sites.unique(client_id, name) si más
+                // adelante alguien nombra una sede externa igual que su
+                // propia empresa.
+                Site::create([
+                    'client_id' => $client->id,
+                    'customer_id' => $customer->id,
+                    'name' => 'Oficina principal',
+                    'address' => $client->address,
+                    'type' => 'physical',
+                    'is_active' => true,
+                ]);
+            }
+
+            return $customer;
+        });
     }
 
     /**

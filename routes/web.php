@@ -121,6 +121,10 @@ Route::middleware('auth')->group(function () {
     Route::get('/onboarding/staff', [TenantOnboardingController::class, 'showStaff'])->name('onboarding.staff');
     Route::post('/onboarding/staff', [TenantOnboardingController::class, 'storeStaff'])->name('onboarding.staff.store');
     Route::post('/onboarding/staff/finish', [TenantOnboardingController::class, 'finishStaff'])->name('onboarding.staff.finish');
+    // 7.7 asignar staff a sites.
+    Route::get('/onboarding/teams', [TenantOnboardingController::class, 'showTeams'])->name('onboarding.teams');
+    Route::post('/onboarding/teams', [TenantOnboardingController::class, 'storeTeams'])->name('onboarding.teams.store');
+    Route::post('/onboarding/teams/finish', [TenantOnboardingController::class, 'finishTeams'])->name('onboarding.teams.finish');
 
     Route::redirect('/clientes', '/clients');
     // Sedes ya no es un catálogo aparte -- se administran dentro del

@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Onboarding;
 
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\Api\InvitationController;
+use App\Mail\TenantWelcomeMail;
 use App\Models\Client;
 use App\Models\Customer;
 use App\Models\Role;
@@ -18,6 +19,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
@@ -30,15 +32,14 @@ use Inertia\Response;
  * Un Client siempre tiene portal_slug real desde su creación (7.2) y su
  * Customer implícito vía el hook de Client::booted(), no un flujo aparte.
  *
- * Este sprint agrega 7.6 (invitar personal, reusando InvitationController/
- * InvitationAcceptanceService tal cual -- sin reimplementar su lógica). 7.7
- * (equipos/sites/horarios) y 7.8 (TenantWelcomeMail) quedan para el
- * siguiente sprint.
+ * Este sprint cierra Fase 7 con 7.7 (asignar staff a sites vía site_user,
+ * solo staff que ya aceptó su invitación -- ver decisión en storeTeams()) y
+ * 7.8 (TenantWelcomeMail, disparado desde finishTeams()).
  *
  * Máquina de estados (Client.onboarding_step), en orden:
  *   tenant_named -> company_data -> modality_set -> customers_added
  *                                                 -> customers_skipped (si mode=internal)
- *                                                 -> staff_invited
+ *                                                 -> staff_invited -> completed
  * OnboardingRedirectService::redirectPath() es la ÚNICA fuente de verdad
  * de "a qué paso le toca ir" -- cada show() de aquí abajo se lo pregunta
  * en vez de reimplementar la máquina de estados.
@@ -375,9 +376,8 @@ class TenantOnboardingController extends Controller
         }
 
         Client::findOrFail($user->client_id)->update(['onboarding_step' => 'staff_invited']);
-        $user->update(['onboarding_completed' => true]);
 
-        return redirect('/home')->with('success', '¡Tu empresa está lista!');
+        return redirect('/onboarding/teams');
     }
 
     /** @return array{used: int, max: int|null} */
@@ -387,6 +387,123 @@ class TenantOnboardingController extends Controller
             + UserInvitation::where('client_id', $client->id)->pending()->count();
 
         return ['used' => $used, 'max' => $client->plan?->max_users];
+    }
+
+    // ── 7.7: asignar staff a sites (site_user) ───────────────────────────
+
+    public function showTeams(): Response|RedirectResponse
+    {
+        $user = Auth::user();
+        if ($redirect = $this->guardStep($user, '/onboarding/teams')) {
+            return $redirect;
+        }
+
+        $client = Client::findOrFail($user->client_id);
+
+        // Staff invitado en 7.6: pendientes sin expirar Y aceptadas. Se
+        // muestran ambas (marcando cuál ya es cuenta activa) para que el
+        // admin vea el roster completo, aunque solo se puedan asignar sites
+        // a quien ya aceptó -- ver decisión en storeTeams().
+        $invitations = UserInvitation::where('client_id', $client->id)
+            ->where(function ($q) {
+                $q->where('status', UserInvitation::STATUS_ACCEPTED)
+                    ->orWhere(function ($q2) {
+                        $q2->where('status', UserInvitation::STATUS_PENDING)->where('expires_at', '>', now());
+                    });
+            })
+            ->orderByDesc('created_at')
+            ->get(['email', 'status']);
+
+        $acceptedUsers = User::where('client_id', $client->id)
+            ->whereIn('email', $invitations->where('status', UserInvitation::STATUS_ACCEPTED)->pluck('email'))
+            ->with('sites:id,name')
+            ->get()
+            ->keyBy('email');
+
+        $staff = $invitations->map(function (UserInvitation $inv) use ($acceptedUsers) {
+            $matched = $acceptedUsers->get($inv->email);
+
+            return [
+                'email' => $inv->email,
+                'accepted' => (bool) $matched,
+                'user_id' => $matched?->id,
+                'site_ids' => $matched ? $matched->sites->pluck('id')->all() : [],
+            ];
+        })->values();
+
+        return Inertia::render('Onboarding/Teams', [
+            'staff' => $staff,
+            'sites' => Site::where('client_id', $client->id)
+                ->orderBy('name')
+                ->get(['id', 'name', 'customer_id']),
+        ]);
+    }
+
+    /**
+     * Asigna un usuario a un conjunto de sites (site_user), reemplazando su
+     * asignación previa -- una fila por request, mismo patrón que
+     * storeCustomer()/storeStaff() (recarga la página con el estado
+     * actualizado en vez de mandar todo el formulario en un solo POST).
+     *
+     * DECISIÓN: solo se puede asignar a staff que YA ACEPTÓ su invitación
+     * (existe como User real). Un invitado que todavía no acepta no tiene
+     * user_id -- site_user es un pivote sin columnas nuevas (instrucción
+     * explícita de este sprint), así que no hay dónde guardar una
+     * "asignación pendiente" sin inventar una tabla/columna nueva, que es
+     * justo lo que se pidió evitar. Cuando acepte, aparece en este mismo
+     * paso (si el onboarding del fundador sigue abierto) o queda disponible
+     * para asignar sites después -- hoy no existe una pantalla fuera de
+     * onboarding para eso (auditado: site_user no se gestiona en ningún otro
+     * controlador), así que por ahora "asignar después" solo es real desde
+     * aquí mismo si se vuelve a abrir este paso, no desde el panel normal.
+     */
+    public function storeTeams(Request $request)
+    {
+        $user = Auth::user();
+        if ($redirect = $this->guardStep($user, '/onboarding/teams')) {
+            return $redirect;
+        }
+
+        $client = Client::findOrFail($user->client_id);
+
+        $validated = $request->validate([
+            'user_id' => 'required|integer',
+            'site_ids' => 'array',
+            'site_ids.*' => 'integer',
+        ]);
+
+        $targetUser = User::where('client_id', $client->id)->findOrFail($validated['user_id']);
+
+        $siteIds = Site::where('client_id', $client->id)
+            ->whereIn('id', $validated['site_ids'] ?? [])
+            ->pluck('id');
+
+        $targetUser->sites()->sync($siteIds);
+
+        return redirect('/onboarding/teams')->with('success', 'Asignación guardada.');
+    }
+
+    public function finishTeams(Request $request)
+    {
+        $user = Auth::user();
+        if ($redirect = $this->guardStep($user, '/onboarding/teams')) {
+            return $redirect;
+        }
+
+        $client = Client::findOrFail($user->client_id);
+        $client->update(['onboarding_step' => 'completed']);
+        $user->update(['onboarding_completed' => true]);
+
+        // 7.8: correo de bienvenida al admin fundador. Nunca debe tumbar el
+        // fin del onboarding -- mismo patrón try/catch que
+        // InvitationController::store() para su propio correo.
+        try {
+            Mail::to($user->email)->send(new TenantWelcomeMail($client, $user->email));
+        } catch (\Throwable $e) {
+            report($e);
+        }
+
+        return redirect('/home')->with('success', '¡Tu empresa está lista!');
     }
 
     /**
