@@ -107,6 +107,58 @@ class TenantRoleSeederTest extends TestCase
         $this->assertFalse($role->hasPermissionTo('tickets.manage_all'));
     }
 
+    /**
+     * Panel de asignación de site_user fuera de onboarding (auditoría
+     * 2026-08-11): supervisor recibe sites.assign_staff por defecto,
+     * agente/solicitante/Encargado TI no -- ninguno de los 3 tiene hoy
+     * ninguna otra capacidad administrativa/de staffing. admin lo recibe
+     * gratis vía $allWebPermissions, no hace falta agregarlo explícito.
+     */
+    public function test_supervisor_role_has_sites_assign_staff_permission_agente_and_solicitante_do_not(): void
+    {
+        $this->seed(TenantRoleSeeder::class);
+
+        $supervisor = Role::where('team_id', $this->client->id)->where('name', 'supervisor')->where('guard_name', 'web')->first();
+        $agente = Role::where('team_id', $this->client->id)->where('name', 'agente')->where('guard_name', 'web')->first();
+        $solicitante = Role::where('team_id', $this->client->id)->where('name', 'solicitante')->where('guard_name', 'web')->first();
+        $encargadoTi = Role::where('team_id', $this->client->id)->where('name', 'Encargado TI')->where('guard_name', 'web')->first();
+        $admin = Role::where('team_id', $this->client->id)->where('name', 'admin')->where('guard_name', 'web')->first();
+
+        $this->assertTrue($supervisor->hasPermissionTo('sites.assign_staff'));
+        $this->assertTrue($admin->hasPermissionTo('sites.assign_staff'));
+        $this->assertFalse($agente->hasPermissionTo('sites.assign_staff'));
+        $this->assertFalse($solicitante->hasPermissionTo('sites.assign_staff'));
+        $this->assertFalse($encargadoTi->hasPermissionTo('sites.assign_staff'));
+    }
+
+    /**
+     * Mismo patrón ya usado para el resto de permisos con teams: dos
+     * tenants distintos, cada uno con su propio rol supervisor con
+     * sites.assign_staff, sin colisionar entre ellos.
+     */
+    public function test_sites_assign_staff_permission_does_not_collide_between_two_tenants(): void
+    {
+        $this->seed(TenantRoleSeeder::class);
+
+        $otherOperator = $this->makeUser('operator-sites-assign@test.local');
+        $otherClient = Client::create([
+            'name' => 'Otro Tenant Sites',
+            'operator_user_id' => $otherOperator->id,
+            'is_active' => true,
+            'portal_slug' => 'otro-tenant-sites-'.uniqid(),
+        ]);
+        setPermissionsTeamId($otherClient->id);
+        $this->seed(TenantRoleSeeder::class);
+
+        $supervisorA = Role::where('team_id', $this->client->id)->where('name', 'supervisor')->where('guard_name', 'web')->firstOrFail();
+        $supervisorB = Role::where('team_id', $otherClient->id)->where('name', 'supervisor')->where('guard_name', 'web')->firstOrFail();
+
+        $this->assertNotSame($supervisorA->id, $supervisorB->id);
+        $this->assertTrue($supervisorA->hasPermissionTo('sites.assign_staff'));
+        $this->assertTrue($supervisorB->hasPermissionTo('sites.assign_staff'));
+        $this->assertSame(1, DB::table('permissions')->where('name', 'sites.assign_staff')->where('guard_name', 'web')->count());
+    }
+
     public function test_tickets_reassign_permission_exists_for_web_and_sanctum_guards(): void
     {
         $this->seed(TenantRoleSeeder::class);

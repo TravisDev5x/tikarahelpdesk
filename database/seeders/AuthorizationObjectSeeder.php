@@ -30,8 +30,9 @@ use Illuminate\Database\Seeder;
  * catalogs.manage, notifications.manage, tickets.create/assign/reassign/
  * comment/change_status/escalate/manage_all/filter_by_site,
  * incidents.create/manage_all, clients.create/edit/delete,
- * platform.view_internals) NO tiene variante de solo lectura en el
- * catálogo actual -- son acciones atómicas, no pares ver/editar. Ninguna
+ * platform.view_internals, sites.assign_staff) NO tiene variante de solo
+ * lectura en el catálogo actual -- son acciones atómicas, no pares
+ * ver/editar. Ninguna
  * se inventó aquí.
  */
 class AuthorizationObjectSeeder extends Seeder
@@ -78,6 +79,18 @@ class AuthorizationObjectSeeder extends Seeder
 
         $this->seedModule('platform', 'Plataforma', [
             ['key' => 'platform.view_internals', 'label' => 'Ver datos internos de tenants', 'full_permission' => 'platform.view_internals'],
+        ]);
+
+        // Panel de asignación de site_user fuera de onboarding (auditoría
+        // 2026-08-11). Separado de core.users a propósito -- "editar datos/
+        // roles de un usuario" y "asignar sedes" son capacidades distintas.
+        // Sin variante de solo lectura: no hay un caso de producto real
+        // para "ver pero no poder cambiar" las sedes asignadas de alguien
+        // (a diferencia de Tickets/Incidents/Clients/Company, que sí tienen
+        // un par view_area/view_own o edit/view genuino) -- reportado, no
+        // forzado a encajar en el patrón full/read solo porque los demás lo tienen.
+        $this->seedModule('sites', 'Sedes', [
+            ['key' => 'sites.assign_staff', 'label' => 'Asignar personal a sedes', 'full_permission' => 'sites.assign_staff'],
         ]);
     }
 

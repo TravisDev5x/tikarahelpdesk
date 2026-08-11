@@ -116,6 +116,16 @@ class TenantRoleSeeder extends Seeder
                 'tickets.reassign',
                 'incidents.view_area',
                 'incidents.manage_all',
+                // Panel de asignación de site_user fuera de onboarding
+                // (auditoría 2026-08-11): un supervisor gestiona el roster
+                // de staff de SUS sites de forma natural -- mismo criterio
+                // que ya lo distingue de agente/solicitante en el resto de
+                // este seeder. agente/solicitante/Encargado TI NO lo
+                // reciben por defecto: ninguno tiene hoy ninguna otra
+                // capacidad administrativa/de staffing, y Encargado TI es
+                // específicamente para revisar la cola de correos, no para
+                // gestionar personal.
+                'sites.assign_staff',
             ]
         )));
 
