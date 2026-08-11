@@ -55,6 +55,34 @@ class CustomerHierarchyTest extends TestCase
         $this->assertSame(1, Client::where('operator_user_id', $operator->id)->count());
     }
 
+    /**
+     * Site por defecto (2026-08-10, Fase 7.7): ensureForClient() también
+     * garantiza un Site bajo el Customer interno, no solo el Customer.
+     * Idempotente igual -- reinvocarlo sobre un Client viejo que ya tenía
+     * Customer pero ningún Site (dev preexistente) lo rellena sin duplicar,
+     * sin necesitar un comando de backfill aparte.
+     */
+    public function test_ensure_for_client_also_creates_a_default_site_under_the_internal_customer(): void
+    {
+        $client = Client::create(['name' => 'Sin Sites Todavía', 'portal_slug' => 'sin-sites-'.uniqid(), 'is_active' => true]);
+
+        $service = app(InternalCustomerService::class);
+        PgsqlRowLevelSecurity::setBypass(true);
+        $customer = Customer::where('client_id', $client->id)->where('is_internal', true)->firstOrFail();
+        $sites = Site::where('customer_id', $customer->id)->get();
+        PgsqlRowLevelSecurity::clear();
+
+        $this->assertCount(1, $sites, 'Client::booted() ya debía haber creado el Site por defecto al crear el Client.');
+        $this->assertSame('Oficina principal', $sites->first()->name);
+
+        // Reinvocarlo (simula correr el backfill sobre un Client viejo) no duplica.
+        $service->ensureForClient($client->fresh());
+        PgsqlRowLevelSecurity::setBypass(true);
+        $count = Site::where('customer_id', $customer->id)->count();
+        PgsqlRowLevelSecurity::clear();
+        $this->assertSame(1, $count);
+    }
+
     public function test_backfill_internal_customer_command(): void
     {
         $operator = $this->makeOperator();

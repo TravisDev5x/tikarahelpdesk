@@ -103,7 +103,8 @@ class MailablesTest extends TestCase
         });
     }
 
-    // ── TenantWelcomeMail (sin punto de disparo aún — solo renderiza) ───
+    // ── TenantWelcomeMail (renderizado; el disparo real vía finishTeams()
+    // se cubre en TenantOnboardingTest, no aquí) ────────────────────────
 
     public function test_tenant_welcome_mail_renders_client_name_and_portal_link(): void
     {

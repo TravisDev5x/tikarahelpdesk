@@ -3,11 +3,13 @@
 namespace Tests\Feature;
 
 use App\Http\Controllers\AuthController;
+use App\Mail\TenantWelcomeMail;
 use App\Mail\UserInvitation as UserInvitationMail;
 use App\Models\Client;
 use App\Models\Customer;
 use App\Models\Plan;
 use App\Models\Role;
+use App\Models\Site;
 use App\Models\User;
 use App\Models\UserInvitation;
 use App\Support\Tenancy\PgsqlRowLevelSecurity;
@@ -77,12 +79,21 @@ class TenantOnboardingTest extends TestCase
 
     private function makeFreshUser(): User
     {
+        // 'REMOTO' explícito, no "el primer site que haya en la tabla" --
+        // ese atajo (arreglado 2026-08-10) resolvía cualquier fila arbitraria
+        // y, desde que ensureForClient() empezó a crear un Site propio por
+        // cada Client nuevo (Fase 7.7), un fundador creado DESPUÉS de otro
+        // tenant en el mismo test podía terminar con el site_id del tenant
+        // AJENO -- TenantClientResolver::resolve() prioriza el client_id
+        // derivado del site sobre users.client_id, así que ese fundador
+        // quedaba resolviendo permanentemente al tenant equivocado. Mismo
+        // patrón que ya usa AuthController::register() para el caso real.
         return User::create([
             'first_name' => 'Fundador', 'paternal_last_name' => 'Test',
             'email' => 'fundador-'.uniqid().'@example.test',
             'password' => Hash::make('x'),
             'employee_number' => (string) random_int(100000, 999999),
-            'site_id' => DB::table('sites')->value('id'),
+            'site_id' => \App\Models\Site::where('code', 'REMOTO')->value('id'),
             'client_id' => null,
             'is_operator' => false,
             'onboarding_completed' => false,
@@ -135,11 +146,17 @@ class TenantOnboardingTest extends TestCase
         // corre sin ningún contexto de tenant que la policy reconozca.
         // Mismo bypass puntual que ya usa CustomerHierarchyTest para esto.
         PgsqlRowLevelSecurity::setBypass(true);
-        $customer = Customer::where('client_id', $client->id)->where('is_internal', true)->first();
+        $customer = Customer::where('client_id', $client->id)->where('is_internal', true)->with('sites')->first();
         PgsqlRowLevelSecurity::clear();
 
         $this->assertNotNull($customer, 'Customer implícito debía crearse automáticamente');
         $this->assertSame($client->name, $customer->name);
+
+        // Site por defecto (2026-08-10): sin esto, un tenant Internal
+        // llegaba a 7.7 con cero sites -- ese paso quedaba como un no-op.
+        $this->assertCount(1, $customer->sites, 'El Customer interno debía tener un Site por defecto.');
+        $this->assertSame('Oficina principal', $customer->sites->first()->name);
+        $this->assertSame($client->id, $customer->sites->first()->client_id);
 
         // Las 5 plantillas por defecto, sembradas dentro del team_id real del tenant.
         foreach (['admin', 'supervisor', 'agente', 'solicitante', 'Encargado TI'] as $roleName) {
@@ -519,84 +536,11 @@ class TenantOnboardingTest extends TestCase
 
     // ── Integración: tramo completo ──────────────────────────────────────
 
-    public function test_full_flow_msp_mode_ends_at_customers_added_with_two_customers(): void
-    {
-        $user = $this->makeFreshUser();
-
-        $this->actingAs($user, 'web')->post('/onboarding', ['business_name' => 'MSP Integral'])
-            ->assertRedirect('/onboarding/company');
-
-        $this->actingAs($user, 'web')->post('/onboarding/company', [
-            'address' => 'Calle 1', 'city' => 'CDMX', 'country' => 'MX',
-        ])->assertRedirect('/onboarding/modality');
-
-        $this->actingAs($user, 'web')->post('/onboarding/modality', ['mode' => 'msp'])
-            ->assertRedirect('/onboarding/customers');
-
-        $this->actingAs($user, 'web')->post('/onboarding/customers', [
-            'customer_name' => 'Cliente A', 'customer_address' => 'Dir A',
-            'sites' => [['name' => 'Matriz A', 'address' => 'Dir A']],
-        ])->assertRedirect('/onboarding/customers');
-
-        $this->actingAs($user, 'web')->post('/onboarding/customers', [
-            'customer_name' => 'Cliente B', 'customer_address' => 'Dir B',
-            'sites' => [['name' => 'Matriz B', 'address' => 'Dir B']],
-        ])->assertRedirect('/onboarding/customers');
-
-        $this->actingAs($user, 'web')->post('/onboarding/customers/finish')
-            ->assertRedirect('/onboarding/staff');
-
-        $user->refresh();
-        $client = Client::findOrFail($user->client_id);
-        $this->assertFalse((bool) $user->onboarding_completed, 'onboarding_completed debe quedarse false -- 7.6 sigue pendiente.');
-        $this->assertSame('customers_added', $client->onboarding_step);
-        $this->assertSame('msp', $client->mode);
-
-        PgsqlRowLevelSecurity::setBypass(true);
-        $count = Customer::where('client_id', $client->id)->where('is_internal', false)->count();
-        PgsqlRowLevelSecurity::clear();
-        $this->assertSame(2, $count);
-
-        $this->actingAs($user, 'web')->post('/onboarding/staff/finish')
-            ->assertRedirect('/home');
-
-        $user->refresh();
-        $this->assertTrue((bool) $user->onboarding_completed);
-        $this->assertSame('staff_invited', $client->fresh()->onboarding_step);
-        $this->assertNull(app(\App\Services\OnboardingRedirectService::class)->redirectPath($user));
-    }
-
-    public function test_full_flow_internal_mode_skips_customers_and_ends_at_the_same_7_6_exit_point(): void
-    {
-        $user = $this->makeFreshUser();
-
-        $this->actingAs($user, 'web')->post('/onboarding', ['business_name' => 'Interno Integral'])
-            ->assertRedirect('/onboarding/company');
-
-        $this->actingAs($user, 'web')->post('/onboarding/company', [
-            'address' => 'Calle 1', 'city' => 'CDMX', 'country' => 'MX',
-        ])->assertRedirect('/onboarding/modality');
-
-        $this->actingAs($user, 'web')->post('/onboarding/modality', ['mode' => 'internal'])
-            ->assertRedirect('/onboarding/staff');
-
-        $user->refresh();
-        $client = Client::findOrFail($user->client_id);
-        $this->assertFalse((bool) $user->onboarding_completed, 'onboarding_completed debe quedarse false -- 7.6 sigue pendiente.');
-        $this->assertSame('customers_skipped', $client->onboarding_step);
-        $this->assertSame('internal', $client->mode);
-
-        $this->actingAs($user, 'web')->post('/onboarding/staff/finish')
-            ->assertRedirect('/home');
-
-        $user->refresh();
-        $this->assertTrue((bool) $user->onboarding_completed);
-        $this->assertSame('staff_invited', $client->fresh()->onboarding_step);
-
-        // Mismo punto de salida que el flujo MSP -- ninguno de los dos se
-        // queda con un redirect de onboarding pendiente.
-        $this->assertNull(app(\App\Services\OnboardingRedirectService::class)->redirectPath($user));
-    }
+    // Nota: los flujos completos MSP/Internal ahora se cubren de punta a
+    // punta (7.1 -> 7.8) en la sección "Integración: onboarding completo de
+    // punta a punta" al final de este archivo -- estos dos tests parciales
+    // (que se detenían en 7.6) quedaron subsumidos ahí, se retiraron para
+    // no mantener dos versiones del mismo recorrido.
 
     // ── 7.6: invitar personal ────────────────────────────────────────────
 
@@ -801,14 +745,304 @@ class TenantOnboardingTest extends TestCase
         $this->assertDatabaseHas('user_invitations', ['email' => 'si-cabe@example.test']);
     }
 
-    public function test_finishing_staff_step_completes_onboarding_even_without_inviting_anyone(): void
+    public function test_finishing_staff_step_advances_to_teams_without_completing_onboarding(): void
     {
         [$user, $client] = $this->userAtStep('customers_skipped');
 
         $this->actingAs($user, 'web')->post('/onboarding/staff/finish')
+            ->assertRedirect('/onboarding/teams');
+
+        $this->assertFalse((bool) $user->fresh()->onboarding_completed, 'onboarding_completed debe quedarse false -- 7.7 sigue pendiente.');
+        $this->assertSame('staff_invited', $client->fresh()->onboarding_step);
+    }
+
+    // ── 7.7: asignar staff a sites ───────────────────────────────────────
+
+    public function test_teams_step_is_unreachable_before_staff_step_completes(): void
+    {
+        [$user] = $this->userAtStep('customers_added');
+
+        $this->actingAs($user, 'web')->get('/onboarding/teams')->assertRedirect('/onboarding/staff');
+    }
+
+    public function test_teams_step_shows_both_accepted_and_pending_invitees_marking_which_is_active(): void
+    {
+        Mail::fake();
+        [$user, $client] = $this->userAtStep('staff_invited');
+
+        $accepted = UserInvitation::create([
+            'email' => 'aceptada@example.test', 'token' => (string) \Illuminate\Support\Str::uuid(),
+            'invited_by' => $user->id, 'client_id' => $client->id,
+            'status' => UserInvitation::STATUS_ACCEPTED, 'expires_at' => now()->addDay(), 'accepted_at' => now(),
+        ]);
+        User::create([
+            'first_name' => 'Aceptada', 'paternal_last_name' => 'Test', 'email' => $accepted->email,
+            'password' => Hash::make('x'), 'employee_number' => (string) random_int(100000, 999999),
+            'client_id' => $client->id, 'status' => 'active', 'onboarding_completed' => true,
+        ]);
+        UserInvitation::create([
+            'email' => 'pendiente@example.test', 'token' => (string) \Illuminate\Support\Str::uuid(),
+            'invited_by' => $user->id, 'client_id' => $client->id,
+            'status' => UserInvitation::STATUS_PENDING, 'expires_at' => now()->addDay(),
+        ]);
+
+        $response = $this->actingAs($user, 'web')->get('/onboarding/teams');
+        $props = $response->viewData('page')['props'];
+
+        $this->assertCount(2, $props['staff']);
+        $byEmail = collect($props['staff'])->keyBy('email');
+        $this->assertTrue($byEmail['aceptada@example.test']['accepted']);
+        $this->assertFalse($byEmail['pendiente@example.test']['accepted']);
+    }
+
+    public function test_teams_step_assigns_an_accepted_user_to_sites_via_site_user(): void
+    {
+        [$user, $client] = $this->userAtStep('staff_invited');
+
+        // sites tiene RLS -- crear fixtures crudos fuera de una request real
+        // necesita el mismo bypass puntual que ya usa el resto del archivo
+        // (ver test_customers_step_creates_external_customer_with_sites...).
+        PgsqlRowLevelSecurity::setBypass(true);
+        $site1 = Site::create(['client_id' => $client->id, 'name' => 'Matriz', 'address' => 'Dir 1', 'type' => 'physical', 'is_active' => true]);
+        $site2 = Site::create(['client_id' => $client->id, 'name' => 'Sucursal', 'address' => 'Dir 2', 'type' => 'physical', 'is_active' => true]);
+        PgsqlRowLevelSecurity::clear();
+
+        $agente = User::create([
+            'first_name' => 'Agente', 'paternal_last_name' => 'Test', 'email' => 'agente-teams@example.test',
+            'password' => Hash::make('x'), 'employee_number' => (string) random_int(100000, 999999),
+            'client_id' => $client->id, 'status' => 'active', 'onboarding_completed' => true,
+        ]);
+
+        // La request real (via ApplyPgsqlTenantRls) sí fija el contexto de
+        // tenant correcto -- el sync() dentro de storeTeams() no necesita bypass.
+        $this->actingAs($user, 'web')->post('/onboarding/teams', [
+            'user_id' => $agente->id,
+            'site_ids' => [$site1->id, $site2->id],
+        ])->assertRedirect('/onboarding/teams');
+
+        PgsqlRowLevelSecurity::setBypass(true);
+        $siteIds = $agente->sites()->orderBy('site_id')->pluck('site_id')->all();
+        PgsqlRowLevelSecurity::clear();
+
+        $this->assertSame([$site1->id, $site2->id], $siteIds);
+    }
+
+    public function test_teams_step_cannot_assign_a_site_belonging_to_another_tenant(): void
+    {
+        [$user, $client] = $this->userAtStep('staff_invited');
+        $otherClient = Client::create(['name' => 'Otro Tenant', 'portal_slug' => 'otro-tenant-'.uniqid(), 'is_active' => true]);
+
+        PgsqlRowLevelSecurity::setBypass(true);
+        $foreignSite = Site::create(['client_id' => $otherClient->id, 'name' => 'Sede Ajena', 'address' => 'Dir X', 'type' => 'physical', 'is_active' => true]);
+        PgsqlRowLevelSecurity::clear();
+
+        $agente = User::create([
+            'first_name' => 'Agente', 'paternal_last_name' => 'Test', 'email' => 'agente-aislado@example.test',
+            'password' => Hash::make('x'), 'employee_number' => (string) random_int(100000, 999999),
+            'client_id' => $client->id, 'status' => 'active', 'onboarding_completed' => true,
+        ]);
+
+        $this->actingAs($user, 'web')->post('/onboarding/teams', [
+            'user_id' => $agente->id,
+            'site_ids' => [$foreignSite->id],
+        ])->assertRedirect('/onboarding/teams');
+
+        PgsqlRowLevelSecurity::setBypass(true);
+        $count = $agente->sites()->count();
+        PgsqlRowLevelSecurity::clear();
+
+        $this->assertSame(0, $count, 'Un site de otro tenant no debía quedar asignado.');
+    }
+
+    public function test_teams_step_cannot_assign_a_user_belonging_to_another_tenant(): void
+    {
+        [$user] = $this->userAtStep('staff_invited');
+        [, $otherClient] = $this->userAtStep('staff_invited');
+
+        $foreignUser = User::create([
+            'first_name' => 'Ajeno', 'paternal_last_name' => 'Test', 'email' => 'usuario-ajeno@example.test',
+            'password' => Hash::make('x'), 'employee_number' => (string) random_int(100000, 999999),
+            'client_id' => $otherClient->id, 'status' => 'active', 'onboarding_completed' => true,
+        ]);
+
+        $this->actingAs($user, 'web')->post('/onboarding/teams', [
+            'user_id' => $foreignUser->id,
+            'site_ids' => [],
+        ])->assertStatus(404);
+    }
+
+    public function test_skipping_teams_step_without_assigning_anyone_still_completes_onboarding(): void
+    {
+        Mail::fake();
+        [$user, $client] = $this->userAtStep('staff_invited');
+
+        $this->actingAs($user, 'web')->post('/onboarding/teams/finish')
             ->assertRedirect('/home');
 
         $this->assertTrue((bool) $user->fresh()->onboarding_completed);
-        $this->assertSame('staff_invited', $client->fresh()->onboarding_step);
+        $this->assertSame('completed', $client->fresh()->onboarding_step);
+        $this->assertNull(app(\App\Services\OnboardingRedirectService::class)->redirectPath($user->fresh()));
+    }
+
+    // ── 7.8: TenantWelcomeMail ────────────────────────────────────────────
+
+    /**
+     * Antes de conectar finishTeams() a TenantWelcomeMail, este correo era
+     * código muerto (auditado: 0 sitios que lo dispararan). Este test habría
+     * fallado con el código de antes de este sprint -- confirma que
+     * realmente estaba desconectado y ahora deja de estarlo.
+     */
+    public function test_finishing_onboarding_queues_tenant_welcome_mail_to_the_founding_admin(): void
+    {
+        Mail::fake();
+        [$user, $client] = $this->userAtStep('staff_invited');
+
+        $this->actingAs($user, 'web')->post('/onboarding/teams/finish')->assertRedirect('/home');
+
+        Mail::assertQueued(TenantWelcomeMail::class, function (TenantWelcomeMail $mail) use ($client, $user) {
+            return $mail->client->is($client)
+                && $mail->recipientEmail === $user->email;
+        });
+    }
+
+    // ── Integración: onboarding completo de punta a punta ───────────────
+
+    public function test_end_to_end_onboarding_msp_mode_through_all_sub_steps(): void
+    {
+        Mail::fake();
+        $user = $this->makeFreshUser();
+
+        $this->actingAs($user, 'web')->post('/onboarding', ['business_name' => 'MSP E2E'])
+            ->assertRedirect('/onboarding/company');
+
+        $this->actingAs($user, 'web')->post('/onboarding/company', [
+            'address' => 'Calle 1', 'city' => 'CDMX', 'country' => 'MX',
+        ])->assertRedirect('/onboarding/modality');
+
+        $this->actingAs($user, 'web')->post('/onboarding/modality', ['mode' => 'msp'])
+            ->assertRedirect('/onboarding/customers');
+
+        $this->actingAs($user, 'web')->post('/onboarding/customers', [
+            'customer_name' => 'Cliente A', 'customer_address' => 'Dir A',
+            'sites' => [['name' => 'Matriz A', 'address' => 'Dir A']],
+        ])->assertRedirect('/onboarding/customers');
+
+        $this->actingAs($user, 'web')->post('/onboarding/customers', [
+            'customer_name' => 'Cliente B', 'customer_address' => 'Dir B',
+            'sites' => [['name' => 'Matriz B', 'address' => 'Dir B']],
+        ])->assertRedirect('/onboarding/customers');
+
+        $this->actingAs($user, 'web')->post('/onboarding/customers/finish')
+            ->assertRedirect('/onboarding/staff');
+
+        $this->actingAs($user, 'web')->post('/onboarding/staff', [
+            'email' => 'agente-e2e@example.test', 'role' => 'agente',
+        ])->assertRedirect('/onboarding/staff');
+
+        $this->actingAs($user, 'web')->post('/onboarding/staff', [
+            'email' => 'supervisor-e2e@example.test', 'role' => 'supervisor',
+        ])->assertRedirect('/onboarding/staff');
+
+        $this->actingAs($user, 'web')->post('/onboarding/staff/finish')
+            ->assertRedirect('/onboarding/teams');
+
+        $client = Client::findOrFail($user->fresh()->client_id);
+
+        // Ninguno de los 2 invitados aceptó todavía -- el paso se puede
+        // terminar igual sin asignar sedes (decisión de este sprint).
+        $this->actingAs($user, 'web')->get('/onboarding/teams')
+            ->assertInertia(fn ($page) => $page
+                ->component('Onboarding/Teams', shouldExist: false)
+                ->has('staff', 2)
+                ->where('staff.0.accepted', false)
+                ->where('staff.1.accepted', false)
+            );
+
+        $this->actingAs($user, 'web')->post('/onboarding/teams/finish')
+            ->assertRedirect('/home');
+
+        $user->refresh();
+        $client->refresh();
+        $this->assertTrue((bool) $user->onboarding_completed);
+        $this->assertSame('completed', $client->onboarding_step);
+        $this->assertNull(app(\App\Services\OnboardingRedirectService::class)->redirectPath($user));
+
+        Mail::assertQueued(TenantWelcomeMail::class);
+        Mail::assertQueued(UserInvitationMail::class, 2);
+    }
+
+    public function test_end_to_end_onboarding_internal_mode_skips_customers_through_all_sub_steps(): void
+    {
+        Mail::fake();
+        $user = $this->makeFreshUser();
+
+        $this->actingAs($user, 'web')->post('/onboarding', ['business_name' => 'Interno E2E'])
+            ->assertRedirect('/onboarding/company');
+
+        $this->actingAs($user, 'web')->post('/onboarding/company', [
+            'address' => 'Calle 1', 'city' => 'CDMX', 'country' => 'MX',
+        ])->assertRedirect('/onboarding/modality');
+
+        $this->actingAs($user, 'web')->post('/onboarding/modality', ['mode' => 'internal'])
+            ->assertRedirect('/onboarding/staff');
+
+        $this->actingAs($user, 'web')->post('/onboarding/staff', [
+            'email' => 'agente-interno-e2e@example.test', 'role' => 'agente',
+        ])->assertRedirect('/onboarding/staff');
+
+        $this->actingAs($user, 'web')->post('/onboarding/staff/finish')
+            ->assertRedirect('/onboarding/teams');
+
+        // El invitado acepta de verdad (mismo servicio que usa
+        // AcceptInvitationController) -- confirma que 7.7 puede asignarle un
+        // site al Site por defecto que ya trae su Customer interno (Paso 1
+        // de este sprint), no solo que el paso se puede saltar.
+        // Fuera de una request real (sin ApplyPgsqlTenantRls), la propia
+        // resolución de sede de accept() necesita el mismo bypass puntual
+        // que el resto del archivo -- si no, ni el site del tenant ni el
+        // fallback global 'REMOTO' son visibles bajo RLS y site_id sale 0.
+        PgsqlRowLevelSecurity::setBypass(true);
+        $invitation = UserInvitation::where('email', 'agente-interno-e2e@example.test')->firstOrFail();
+        $agente = app(\App\Services\InvitationAcceptanceService::class)->accept($invitation, [
+            'first_name' => 'Agente', 'paternal_last_name' => 'Interno', 'password' => 'Sup3rSecure!Pass1',
+        ]);
+        PgsqlRowLevelSecurity::clear();
+
+        $client = Client::findOrFail($user->client_id);
+        PgsqlRowLevelSecurity::setBypass(true);
+        $defaultSite = Site::where('client_id', $client->id)->where('name', 'Oficina principal')->firstOrFail();
+        PgsqlRowLevelSecurity::clear();
+
+        $this->actingAs($user, 'web')->get('/onboarding/teams')
+            ->assertInertia(fn ($page) => $page
+                ->component('Onboarding/Teams', shouldExist: false)
+                ->has('staff', 1)
+                ->where('staff.0.accepted', true)
+                ->has('sites', 1)
+                ->where('sites.0.name', 'Oficina principal')
+            );
+
+        $this->actingAs($user, 'web')->post('/onboarding/teams', [
+            'user_id' => $agente->id,
+            'site_ids' => [$defaultSite->id],
+        ])->assertRedirect('/onboarding/teams');
+
+        $this->actingAs($user, 'web')->post('/onboarding/teams/finish')
+            ->assertRedirect('/home');
+
+        $user->refresh();
+        $client->refresh();
+        $this->assertTrue((bool) $user->onboarding_completed);
+        $this->assertSame('completed', $client->onboarding_step);
+        $this->assertSame('internal', $client->mode);
+        $this->assertNull(app(\App\Services\OnboardingRedirectService::class)->redirectPath($user));
+
+        PgsqlRowLevelSecurity::setBypass(true);
+        $assignedSiteIds = $agente->sites()->pluck('site_id')->all();
+        PgsqlRowLevelSecurity::clear();
+        $this->assertSame([$defaultSite->id], $assignedSiteIds);
+
+        Mail::assertQueued(TenantWelcomeMail::class);
+        Mail::assertQueued(UserInvitationMail::class, 1);
     }
 }
