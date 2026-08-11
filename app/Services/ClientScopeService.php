@@ -344,7 +344,20 @@ class ClientScopeService
             return true;
         }
 
-        if ($this->operatorScope->hasMspWideAccess($user)) {
+        // Hallazgo real (2026-08-11): esta rama usaba hasMspWideAccess()
+        // directo -- sin $module (default 'any'), da true con solo
+        // tickets.manage_all, que TODO admin de tenant plano ya trae
+        // (TenantRoleSeeder vía $allWebPermissions), sin ser operador MSP
+        // de verdad. usesOperatorMspWideScope() es el guard correcto ya
+        // establecido para este mismo caso en applyUserScope() e
+        // incidentVisibleToUser() de este mismo archivo -- excluye a un
+        // admin de tenant plano que sí resuelve su propio client_id/site,
+        // aunque tenga manage_all. Sin este cambio, un admin de tenant
+        // normal quedaba evaluado contra los sites del operador que
+        // registró SU tenant (clients.operator_user_id, un dato de
+        // procedencia) en vez de contra su propio tenant -- negaba acceso
+        // a su propio equipo.
+        if ($this->operatorScope->usesOperatorMspWideScope($user)) {
             if ($this->operatorScope->usesLegacyMspWideAccess($user)) {
                 return true;
             }
@@ -370,9 +383,20 @@ class ClientScopeService
             return false;
         }
 
+        // Mismo OR client_id/site que ya usa la rama de portal estricto de
+        // arriba (líneas 330-336) -- esta rama solo comparaba site_id, así
+        // que un usuario vinculado directo por client_id sin site propio
+        // (fundador de un tenant recién creado vía onboarding, o cualquier
+        // alta con site_id null -- ver TenantClientResolver, que documenta
+        // client_id como señal válida igual que site_id) salía como "no
+        // accesible" para su propio tenant. Hallazgo real, no una regla
+        // deliberada: la rama de portal ya lo hacía bien, esta no.
         return DB::table('users')
             ->where('id', $targetUserId)
-            ->whereIn('site_id', $this->siteIdsSubquery($clientId))
+            ->where(function ($q) use ($clientId) {
+                $q->where('client_id', $clientId)
+                    ->orWhereIn('site_id', $this->siteIdsSubquery($clientId));
+            })
             ->exists();
     }
 

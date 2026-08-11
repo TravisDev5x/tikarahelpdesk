@@ -5,8 +5,10 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Permission;
 use App\Models\User;
+use App\Services\ClientScopeService;
 use App\Services\RoleTemplateService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rule;
 
 /**
@@ -17,13 +19,21 @@ use Illuminate\Validation\Rule;
  */
 class UserPermissionOverrideController extends Controller
 {
-    public function __construct(private RoleTemplateService $templates) {}
+    public function __construct(
+        private RoleTemplateService $templates,
+        protected ClientScopeService $clientScope
+    ) {}
 
     /**
      * POST /api/users/{user}/permission-overrides
      */
     public function store(Request $request, User $user)
     {
+        $actor = Auth::user();
+        if ($actor && ! $this->clientScope->assertUserAccessible($actor, $user->id)) {
+            return response()->json(['message' => 'No autorizado'], 403);
+        }
+
         // Hardcoded 'web' -- App\Models\User tiene guard_name='web' fijo
         // por propiedad de clase; leer config('auth.defaults.guard') aquí
         // resolvía 'sanctum' (Authenticate::authenticate() lo muta al
@@ -52,6 +62,11 @@ class UserPermissionOverrideController extends Controller
      */
     public function destroy(User $user, string $permission)
     {
+        $actor = Auth::user();
+        if ($actor && ! $this->clientScope->assertUserAccessible($actor, $user->id)) {
+            return response()->json(['message' => 'No autorizado'], 403);
+        }
+
         $user->revokePermissionTo($permission);
 
         return response()->json($this->templates->permissionBreakdownFor($user));
@@ -63,6 +78,11 @@ class UserPermissionOverrideController extends Controller
      */
     public function show(User $user)
     {
+        $actor = Auth::user();
+        if ($actor && ! $this->clientScope->assertUserAccessible($actor, $user->id)) {
+            return response()->json(['message' => 'No autorizado'], 403);
+        }
+
         return response()->json($this->templates->permissionBreakdownFor($user));
     }
 }

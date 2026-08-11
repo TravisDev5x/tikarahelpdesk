@@ -216,6 +216,11 @@ class UserController extends Controller
 
     public function update(Request $request, User $user)
     {
+        $actor = Auth::user();
+        if ($actor && ! $this->clientScope->assertUserAccessible($actor, $user->id)) {
+            return response()->json(['message' => 'No autorizado'], 403);
+        }
+
         $validated = $request->validate([
             'first_name' => 'required|string|max:255',
             'paternal_last_name' => 'required|string|max:255',
@@ -252,7 +257,6 @@ class UserController extends Controller
         }
         if ($request->has('site')) {
             $newSiteId = \App\Models\Site::where('name', $request->site)->first()->id;
-            $actor = Auth::user();
             if ($actor && ! $this->clientScope->assertSiteAccessible($actor, (int) $newSiteId)) {
                 return response()->json(['message' => 'La sede no pertenece a tu cliente'], 422);
             }

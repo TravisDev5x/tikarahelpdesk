@@ -5,16 +5,25 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Models\Role;
+use App\Services\ClientScopeService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 
 class UserRoleController extends Controller
 {
+    public function __construct(protected ClientScopeService $clientScope) {}
+
     /**
      * POST /api/users/{user}/roles
      * Sincroniza roles del usuario
      */
     public function sync(Request $request, User $user)
     {
+        $actor = Auth::user();
+        if ($actor && ! $this->clientScope->assertUserAccessible($actor, $user->id)) {
+            return response()->json(['message' => 'No autorizado'], 403);
+        }
+
         $data = $request->validate([
             'roles' => ['array'],
             'roles.*' => ['exists:roles,id,deleted_at,NULL'],
