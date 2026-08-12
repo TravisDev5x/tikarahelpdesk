@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Services\TenantClientResolver;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
@@ -14,6 +15,8 @@ use Illuminate\Validation\ValidationException;
 
 class PasswordResetController extends Controller
 {
+    public function __construct(protected TenantClientResolver $tenantResolver) {}
+
     /**
      * Solicitar restablecimiento de contraseña.
      * Acepta correo (envía enlace) o número de empleado (crea solicitud para que un admin restablezca y comunique por medios empresariales).
@@ -71,6 +74,7 @@ class PasswordResetController extends Controller
         if ($user) {
             DB::table('admin_notifications')->insert([
                 'type' => 'password_reset_request',
+                'client_id' => $this->tenantResolver->resolve($user),
                 'payload' => json_encode([
                     'user_id' => $user->id,
                     'requested_at' => now()->toIso8601String(),

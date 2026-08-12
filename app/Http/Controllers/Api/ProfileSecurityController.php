@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\AuditLog;
 use App\Notifications\Security\OauthAutoLinkNotification;
+use App\Services\TenantClientResolver;
 use App\Support\UserAgentParser;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -19,6 +20,8 @@ use Illuminate\Support\Facades\Log;
  */
 class ProfileSecurityController extends Controller
 {
+    public function __construct(protected TenantClientResolver $tenantResolver) {}
+
     /**
      * Sesiones activas del usuario autenticado (un renglón por dispositivo/navegador).
      */
@@ -162,6 +165,7 @@ class ProfileSecurityController extends Controller
 
         DB::table('admin_notifications')->insert([
             'type' => 'account_deletion_request',
+            'client_id' => $this->tenantResolver->resolve($user),
             'payload' => json_encode([
                 'user_id' => $user->id,
                 'requested_at' => now()->toIso8601String(),
