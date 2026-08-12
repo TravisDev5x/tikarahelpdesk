@@ -49,30 +49,32 @@ export default function Navbar() {
                     : "bg-transparent backdrop-blur-0"
             }`}
         >
-            <div className="mx-auto flex h-20 max-w-7xl items-center justify-between gap-6 px-6 py-4 lg:px-8">
+            <div className="flex h-20 w-full items-center justify-between gap-6 px-6 py-4 lg:px-12">
                 <BrandLogo />
 
-                <nav className="hidden lg:flex items-center gap-9">
-                    {NAV_LINKS.map((link) => (
-                        <a key={link.href} href={link.href} className={navLink}>
-                            {link.label}
-                        </a>
-                    ))}
-                </nav>
+                <div className="hidden lg:flex items-center gap-10">
+                    <nav className="flex items-center gap-9">
+                        {NAV_LINKS.map((link) => (
+                            <a key={link.href} href={link.href} className={navLink}>
+                                {link.label}
+                            </a>
+                        ))}
+                    </nav>
 
-                <div className="hidden lg:flex items-center gap-4">
-                    <ThemeToggle variant="icon" />
-                    <Button
-                        variant="outline"
-                        size="lg"
-                        className="rounded-full border-border/80 text-base text-foreground/90 hover:text-foreground"
-                        asChild
-                    >
-                        <Link href="/login">Iniciar sesión</Link>
-                    </Button>
-                    <Button size="lg" className={`rounded-full text-base ${btnBrand}`} asChild>
-                        <Link href="/register">Crear cuenta</Link>
-                    </Button>
+                    <div className="flex items-center gap-4">
+                        <ThemeToggle variant="icon" />
+                        <Button
+                            variant="outline"
+                            size="lg"
+                            className="rounded-full border-border/80 text-base text-foreground/90 hover:text-foreground"
+                            asChild
+                        >
+                            <Link href="/login">Iniciar sesión</Link>
+                        </Button>
+                        <Button size="lg" className={`rounded-full text-base ${btnBrand}`} asChild>
+                            <Link href="/register">Crear cuenta</Link>
+                        </Button>
+                    </div>
                 </div>
 
                 <Sheet open={open} onOpenChange={setOpen}>
