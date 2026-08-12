@@ -59,7 +59,7 @@ const DEFAULT_FILTERS = {
     date_from: "",
     date_to: "",
     area: "all",
-    sede: "all",
+    site: "all",
     type: "all",
     priority: "all",
     state: "all",
@@ -1064,7 +1064,7 @@ function DashboardAdmin() {
                             </Select>
                         </div>
 
-                        <div className="space-y-1.5 xl:block hidden">
+                        <div className="space-y-1.5">
                             <Label className="text-[10px] uppercase font-bold text-muted-foreground ml-1">Tipo</Label>
                             <Select value={filters.type} onValueChange={(v) => setFilters(p => ({ ...p, type: v }))}>
                                 <SelectTrigger className="h-9 text-xs"><SelectValue placeholder="Tipo" /></SelectTrigger>
