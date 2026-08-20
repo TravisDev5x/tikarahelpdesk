@@ -15,14 +15,15 @@ Punto de retoma oficial de este port — no depender de memoria de conversación
 | — | Cuota de activos por plan (previo a fase 7) | `plans.max_assets` (nullable = ilimitado), enforcement en `InvAssetController::store()` e `InvAssetImportService::import()`, mismo patrón que `Plan.max_users`/`seatUsage()` |
 | 7.1 | Dashboard de alertas | `InvMonitorPageController`, página `Inventory/Monitor.jsx` — 4 alertas: garantías por vencer, sin responsable, traslados repetidos, mantenimientos estancados |
 | 7.2 | Exports (Excel/CSV) | `InvAssetExportController`/`InvAssetExport` (4 hojas), `InvMovementExportController` (CSV real, `applyInventoryMovementScope` nuevo en `ClientScopeService`), `InvMonitorExportController`/`InvMonitorExport` (workbook con las 4 alertas). Filtro `assigned` nuevo en `InvAssetController::index()` y en `Assets/Index.jsx` |
+| 7.3 | Refinamiento de `Assets/Index.jsx` (detalle en modal, paginación real, filtros ágiles) | Detalle de activo pasa de página dedicada (`Assets/Show.jsx`, retirada) a modal (`Assets/AssetDetailDialog.jsx`), mismo patrón que alta/edición (`AssetFormDialog.jsx`); `show()` de la API ahora carga `movements`/`components`/`maintenances` completos; paginación real con selector de tamaño de página (antes `InvAssetPageController::index()` ignoraba por completo los filtros del formulario); orden PEPS/UEPS por fecha de compra; filtros restyleados al patrón compacto y de aplicación instantánea de la lista de Tickets (búsqueda con debounce, Selects que aplican solos, badge de conteo, botón Limpiar — sin botón "Aplicar filtros"); paginación con el mismo estilo visual que Tickets. Corrige de paso un bug donde un array PHP vacío serializaba como JSON `[]` en vez de `{}`, tumbando `useState()` en el navegador (`filters.sort` colisionaba con `Array.prototype.sort`), y un N+1 real en `InvMovementExportController` (`cursor()` no respeta `with()`) encontrado con datos de volumen realista |
 
-Todas las fases tienen tests de aislamiento cross-tenant en `tests/Feature/Inventory*Test.php` (344 tests pasando en la suite completa a fecha 2026-08-20).
+Todas las fases tienen tests de aislamiento cross-tenant en `tests/Feature/Inventory*Test.php` (10 archivos, 37 tests / 246 assertions propios de Inventario; suite completa del proyecto en 350 tests pasando a fecha 2026-08-20).
 
 ## Pendiente
 
 ### Vista de asignación consolidada
 
-No iniciada. Parte del roadmap original "Fase 7: vistas de asignación, dashboard, exports" — 7.1 (dashboard) ya cerrada, falta una vista tipo "roster" que muestre de un vistazo qué usuario tiene qué activos asignados (join sobre `inv_assets.current_user_id`), distinta del historial de movimientos que ya existe por activo individual en `Assets/Show.jsx`.
+No iniciada. Parte del roadmap original "Fase 7: vistas de asignación, dashboard, exports" — 7.1 (dashboard) ya cerrada, falta una vista tipo "roster" que muestre de un vistazo qué usuario tiene qué activos asignados (join sobre `inv_assets.current_user_id`), distinta del historial de movimientos que ya existe por activo individual en el modal de detalle (`Assets/AssetDetailDialog.jsx`).
 
 ### Permisos granulares de Inventario
 

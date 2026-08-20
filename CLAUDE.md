@@ -178,7 +178,7 @@ Punto de retoma oficial de este proyecto — no depender de memoria de conversac
 | Fase 6 (RBAC v2 estilo SAP B1 — Spatie teams, plantillas por tenant, `scope_archetype`, catálogo de objetos, overrides por usuario) | **CERRADA** | Ver `docs/RBAC_ROADMAP.md` |
 | Fase 7 (onboarding completo de un tenant nuevo, 7.1-7.8) | **CERRADA** (2026-08-10) | Ver sección "Multi-Tenant / Onboarding" arriba para el recorrido completo |
 | Fase 8 (licenciamiento) | **NO INICIADA** — bloqueada por una pregunta de producto sin resolver | Ver sección "Fase 8 — Licenciamiento" abajo |
-| Módulo Inventario (port desde HelpdeskECD2026) | **EN PROGRESO** — fases 1-6 + cuota por plan + dashboard de alertas (7.1) + exports (7.2) cerradas; vista de asignación consolidada y permisos granulares pendientes | Ver `docs/INVENTORY_ROADMAP.md` |
+| Módulo Inventario (port desde HelpdeskECD2026) | **EN PROGRESO** — fases 1-6 + cuota por plan + dashboard de alertas (7.1) + exports (7.2) + detalle en modal/paginación/filtros ágiles (7.3) cerradas; vista de asignación consolidada y permisos granulares pendientes | Ver `docs/INVENTORY_ROADMAP.md` |
 | M0-M6 (migración a base de datos física por tenant, `stancl/tenancy`) | **NO INICIADA** — pospuesta deliberadamente, sin presión de tiempo | — |
 | UX/UI de todo el flujo | **NO INICIADA** — deliberadamente al final, después de M0-M6 | — |
 
@@ -247,7 +247,7 @@ Este archivo es la guía rápida. Para detalle, cada doc vive en `docs/` (o raí
 **Roadmaps vivos, sin fecha objetivo**:
 - `RBAC_ROADMAP.md`: fase 6 (roles por equipo/Spatie teams) cerrada 2026-08-04; fase 7 (plantilla "Encargado TI") cerrada 2026-08-09. El hallazgo que quedaba anotado ahí sin resolver ("onboarding de un tenant nuevo no siembra roles de RBAC v2 automáticamente") **se resolvió con la Fase 7 del roadmap general** (`TenantOnboardingController` corre `TenantRoleSeeder` en 7.2 para cada tenant nuevo) — no confundir la numeración de fases de este doc (interna del RBAC) con la Fase 7 del roadmap general (onboarding).
 - `MULTITENANT_ROADMAP.md`: fases 0-4 (aislamiento estructural: RLS en prod, índices únicos por tenant, revisión de queries raw) sin empezar. Fase 5 (producto/operaciones): 5.5 (monitoreo cross-tenant) **hecho 2026-08-05**; quedan 5.1 (aislar SIGUA), 5.2 (subdominio MSP `operador.tikara.test`), 5.3 (SSO/OIDC por cliente), 5.4 (panel "URL de portal" + copiar enlace en ficha cliente).
-- `INVENTORY_ROADMAP.md`: fases 1-6 + cuota por plan + dashboard de alertas (7.1) + exports (7.2) cerradas (2026-08-20). Pendiente: vista de asignación consolidada, permisos granulares de lectura/edición (pausados a media conversación, con precedente de HelpdeskECD2026 ya documentado), y una decisión reconsiderable sobre historial persistente de imports.
+- `INVENTORY_ROADMAP.md`: fases 1-6 + cuota por plan + dashboard de alertas (7.1) + exports (7.2) + detalle en modal/paginación/filtros ágiles (7.3) cerradas (2026-08-20). Pendiente: vista de asignación consolidada, permisos granulares de lectura/edición (pausados a media conversación, con precedente de HelpdeskECD2026 ya documentado), y una decisión reconsiderable sobre historial persistente de imports.
 
 **Deuda técnica documentada, no bloqueante** (Fase 7):
 - `sites.unique(client_id, name)` es por tenant completo, no por Customer — compensado con validación de aplicación en `TenantOnboardingController::storeCustomer()`, no de esquema.
