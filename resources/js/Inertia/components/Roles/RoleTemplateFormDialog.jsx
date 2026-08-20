@@ -48,6 +48,7 @@ const SCOPE_ARCHETYPES = [
 
 const LEVEL_LABELS = {
     full: "Full",
+    edit: "Editar (sin eliminar)",
     read: "Solo lectura",
     none: "Ninguno",
 };
@@ -59,6 +60,8 @@ function buildInitialLevels(authorizationObjects, role) {
         (category.children ?? []).forEach((child) => {
             if (child.full_permission && rolePermissionNames.has(child.full_permission)) {
                 levels[child.key] = "full";
+            } else if (child.edit_permission && rolePermissionNames.has(child.edit_permission)) {
+                levels[child.key] = "edit";
             } else if (child.read_permission && rolePermissionNames.has(child.read_permission)) {
                 levels[child.key] = "read";
             } else {
@@ -220,6 +223,9 @@ export default function RoleTemplateFormDialog({ open, onClose, authorizationObj
                                                     <SelectItem value="none">{LEVEL_LABELS.none}</SelectItem>
                                                     {child.read_permission && (
                                                         <SelectItem value="read">{LEVEL_LABELS.read}</SelectItem>
+                                                    )}
+                                                    {child.edit_permission && (
+                                                        <SelectItem value="edit">{LEVEL_LABELS.edit}</SelectItem>
                                                     )}
                                                     <SelectItem value="full">{LEVEL_LABELS.full}</SelectItem>
                                                 </SelectContent>

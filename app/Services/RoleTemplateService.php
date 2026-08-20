@@ -9,15 +9,19 @@ use Illuminate\Support\Collection;
 
 /**
  * RBAC v2 (Fase 6), Paso 5: crea/edita plantillas (roles team-scoped) a
- * partir de una selección Full/Solo lectura/Ninguno por objeto del
+ * partir de una selección Full/Editar/Solo lectura/Ninguno por objeto del
  * catálogo (AuthorizationObject), en vez de pedirle al admin del tenant
- * que arme una lista de nombres de permisos de Spatie a mano.
+ * que arme una lista de nombres de permisos de Spatie a mano. El nivel
+ * "Editar" (LEVEL_EDIT, fase 7.4) solo existe para objetos que definan
+ * edit_permission -- hoy únicamente "Activos" de Inventario.
  */
 class RoleTemplateService
 {
     public const LEVEL_FULL = 'full';
 
     public const LEVEL_READ = 'read';
+
+    public const LEVEL_EDIT = 'edit';
 
     public const LEVEL_NONE = 'none';
 
@@ -42,6 +46,8 @@ class RoleTemplateService
 
             if ($level === self::LEVEL_FULL && $object->full_permission) {
                 $names->push($object->full_permission);
+            } elseif ($level === self::LEVEL_EDIT && $object->edit_permission) {
+                $names->push($object->edit_permission);
             } elseif ($level === self::LEVEL_READ && $object->read_permission) {
                 $names->push($object->read_permission);
             }

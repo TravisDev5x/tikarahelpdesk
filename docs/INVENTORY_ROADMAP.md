@@ -16,30 +16,15 @@ Punto de retoma oficial de este port — no depender de memoria de conversación
 | 7.1 | Dashboard de alertas | `InvMonitorPageController`, página `Inventory/Monitor.jsx` — 4 alertas: garantías por vencer, sin responsable, traslados repetidos, mantenimientos estancados |
 | 7.2 | Exports (Excel/CSV) | `InvAssetExportController`/`InvAssetExport` (4 hojas), `InvMovementExportController` (CSV real, `applyInventoryMovementScope` nuevo en `ClientScopeService`), `InvMonitorExportController`/`InvMonitorExport` (workbook con las 4 alertas). Filtro `assigned` nuevo en `InvAssetController::index()` y en `Assets/Index.jsx` |
 | 7.3 | Refinamiento de `Assets/Index.jsx` (detalle en modal, paginación real, filtros ágiles) | Detalle de activo pasa de página dedicada (`Assets/Show.jsx`, retirada) a modal (`Assets/AssetDetailDialog.jsx`), mismo patrón que alta/edición (`AssetFormDialog.jsx`); `show()` de la API ahora carga `movements`/`components`/`maintenances` completos; paginación real con selector de tamaño de página (antes `InvAssetPageController::index()` ignoraba por completo los filtros del formulario); orden PEPS/UEPS por fecha de compra; filtros restyleados al patrón compacto y de aplicación instantánea de la lista de Tickets (búsqueda con debounce, Selects que aplican solos, badge de conteo, botón Limpiar — sin botón "Aplicar filtros"); paginación con el mismo estilo visual que Tickets. Corrige de paso un bug donde un array PHP vacío serializaba como JSON `[]` en vez de `{}`, tumbando `useState()` en el navegador (`filters.sort` colisionaba con `Array.prototype.sort`), y un N+1 real en `InvMovementExportController` (`cursor()` no respeta `with()`) encontrado con datos de volumen realista |
+| 7.4 | Permisos granulares de Activos (ver/editar/gestionar) | Retomada tras la pausa de media conversación. Decisiones de producto: "editar" = todo lo operativo EXCEPTO eliminar (3 niveles reales, no 2); el split aplica SOLO a Activos, Catálogos/Config sigue atómico. `inventory.view_assets` (solo lectura) e `inventory.edit_assets` (todo lo operativo, SIN eliminar) nuevos, junto al ya existente `inventory.manage_assets` (ahora el nivel completo, incluye eliminar). `routes/api.php` divide el bloque único de Activos en 3 grupos de middleware `perm:a\|b\|c`; `routes/web.php` acepta cualquiera de los 3 para entrar a `/inventory/assets`/`/inventory/monitor`. Catálogo RBAC v2 (`AuthorizationObject`) gana una columna `edit_permission` nueva (nullable, solo la usa "Activos" — todo lo demás sigue siendo full/read de 2 niveles) para que `RoleTemplateFormDialog.jsx` ofrezca un tercer nivel real "Editar (sin eliminar)" junto a Full/Solo lectura/Ninguno. Frontend (`Assets/Index.jsx`, `AssetDetailDialog.jsx`) esconde cada botón de mutar según el nivel real del usuario (`auth.user.permissions`), coherente con lo que la API ya acepta. Config (`inventory.manage_config`) NO se tocó — decisión de producto: el split solo aplica a Activos |
 
-Todas las fases tienen tests de aislamiento cross-tenant en `tests/Feature/Inventory*Test.php` (10 archivos, 37 tests / 246 assertions propios de Inventario; suite completa del proyecto en 350 tests pasando a fecha 2026-08-20).
+Todas las fases tienen tests de aislamiento cross-tenant en `tests/Feature/Inventory*Test.php` (11 archivos, 42 tests propios de Inventario; suite completa del proyecto en 357 tests pasando a fecha 2026-08-20).
 
 ## Pendiente
 
 ### Vista de asignación consolidada
 
 No iniciada. Parte del roadmap original "Fase 7: vistas de asignación, dashboard, exports" — 7.1 (dashboard) ya cerrada, falta una vista tipo "roster" que muestre de un vistazo qué usuario tiene qué activos asignados (join sobre `inv_assets.current_user_id`), distinta del historial de movimientos que ya existe por activo individual en el modal de detalle (`Assets/AssetDetailDialog.jsx`).
-
-### Permisos granulares de Inventario
-
-**Pausada a media conversación (2026-08-20), sin decisión final — no implementar sin retomarla primero.** Hoy solo existen 2 permisos binarios: `inventory.manage_assets` (todo: crear/editar/eliminar/ciclo de vida/componentes/mantenimientos/import) e `inventory.manage_config` (catálogos). El usuario pidió agregar uno de solo lectura y otro de solo edición; se pausó para presentar opciones concretas y no se retomó.
-
-HelpdeskECD2026 ya tiene un modelo más fino que sirve de precedente/nombres sugeridos para cuando se retome:
-- `read inventory` / `edit inventory` / `manage inventory config` — split lectura/edición/configuración.
-- `manage inventory labels` — labels de sede como permiso aparte de config.
-- `read inventory monitor` — acceso al dashboard de alertas (fase 7.1), separado de ver el inventario en sí.
-- `read inventory own assignments` — ver solo lo asignado a uno mismo (Helpdesk se la da a TODOS los roles).
-- `read inventory assignment history` — ver el historial de movimientos, aparte de ver el inventario.
-- Familia `use inventory filter *` — controla qué filtros puede usar cada rol en listados/exports/monitor, no solo qué puede ver (granularidad que hoy no existe en ningún módulo de Tikara).
-
-Preguntas de producto sin resolver antes de implementar:
-1. ¿Qué cubre exactamente "edición"? — ¿todo excepto eliminar (crear/editar/ciclo de vida/import, sin destroy), o solo actualizar campos de un activo ya existente (sin crear/sin ciclo de vida/sin import)?
-2. ¿El split lectura/edición aplica solo a Activos (activos/componentes/mantenimientos, lo operativo), o también a Catálogos/Config?
 
 ### Import con historial persistente + preview antes de confirmar
 

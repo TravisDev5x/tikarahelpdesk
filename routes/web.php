@@ -169,14 +169,21 @@ Route::middleware('auth')->group(function () {
     // mutaciones por /api/inv-assets (InvAssetController). Crear/editar/ver
     // un activo son diálogos montados sobre index() -- sin rutas propias
     // (ver AssetFormDialog.jsx/AssetDetailDialog.jsx), ?asset=ID abre el
-    // detalle de ese activo al cargar (usado por Monitor.jsx).
-    Route::prefix('inventory/assets')->name('inventory.assets.')->middleware('perm:inventory.manage_assets')->group(function () {
-        Route::get('/', [InvAssetPageController::class, 'index'])->name('index');
-    });
+    // detalle de ese activo al cargar (usado por Monitor.jsx). Nivel VER de
+    // los permisos granulares de fase 7.4 -- cualquiera de los 3 niveles
+    // puede entrar a la página, la UI misma esconde los botones de mutar
+    // según el nivel real del usuario (ver Assets/Index.jsx).
+    Route::prefix('inventory/assets')->name('inventory.assets.')
+        ->middleware('perm:inventory.manage_assets|inventory.edit_assets|inventory.view_assets')
+        ->group(function () {
+            Route::get('/', [InvAssetPageController::class, 'index'])->name('index');
+        });
 
     // Inventario — dashboard de alertas (fase 7.1, port desde HelpdeskECD2026).
+    // Mismo nivel VER que el índice de activos -- es de solo lectura.
     Route::get('/inventory/monitor', InvMonitorPageController::class)
-        ->middleware('perm:inventory.manage_assets')->name('inventory.monitor.index');
+        ->middleware('perm:inventory.manage_assets|inventory.edit_assets|inventory.view_assets')
+        ->name('inventory.monitor.index');
 
     // Inventario — catálogos (fase 1, port desde HelpdeskECD2026). A
     // diferencia de areas/campaigns/positions arriba, sí llevan perm: aquí

@@ -318,31 +318,61 @@ Route::middleware(['auth:sanctum','locale','perm:inventory.manage_config'])->nam
 // ==========================
 // INVENTARIO — ACTIVOS (fase 2, port desde HelpdeskECD2026)
 // ==========================
+//
+// Fase 7.4 (permisos granulares, retomada tras pausa -- ver
+// docs/INVENTORY_ROADMAP.md): 3 niveles reales en vez de un solo
+// inventory.manage_assets para todo.
+//   - VER (inventory.view_assets): solo lectura -- listar/ver/exportar.
+//   - EDITAR (inventory.edit_assets): todo lo operativo -- crear, editar,
+//     ciclo de vida, componentes, mantenimientos, import. SIN eliminar.
+//   - GESTIONAR (inventory.manage_assets, ya existía): todo lo anterior +
+//     eliminar (activos, componentes, mantenimientos). Sigue siendo el
+//     único requerido en middleware de arriba en el resto del módulo
+//     (cada grupo de abajo acepta manage_assets O el nivel específico que
+//     le toca, vía el patrón perm:a|b|c ya usado en Tickets/Incidents).
 
-Route::middleware(['auth:sanctum','locale','perm:inventory.manage_assets'])->name('api.')->group(function () {
-    // Import masivo (fase 6) -- antes de apiResource para no chocar con inv-assets/{inv_asset}.
-    Route::post('inv-assets/import', [InvAssetImportController::class, 'store']);
-    Route::get('inv-assets/import/template', [InvAssetImportController::class, 'template']);
-
+Route::middleware(['auth:sanctum','locale','perm:inventory.manage_assets|inventory.edit_assets|inventory.view_assets'])->name('api.')->group(function () {
     // Exports (fase 7.2) -- antes de apiResource, mismo cuidado que import.
     Route::get('inv-assets/export', InvAssetExportController::class);
     Route::get('inv-assets/monitor/export', InvMonitorExportController::class);
     Route::get('inv-movements/export', InvMovementExportController::class);
+    Route::get('inv-assets/import/template', [InvAssetImportController::class, 'template']);
 
-    Route::apiResource('inv-assets', InvAssetController::class);
+    Route::apiResource('inv-assets', InvAssetController::class)->only(['index', 'show']);
+
+    // Ciclo de vida (fase 3) -- solo la lectura de la bitácora aquí.
+    Route::get('inv-assets/{inv_asset}/movements', [InvMovementController::class, 'index']);
+
+    // Componentes + despiece (fase 4) -- solo lectura aquí.
+    Route::apiResource('inv-components', InvComponentController::class)->only(['index', 'show']);
+    Route::get('inv-components/{inv_component}/movements', [InvComponentMovementController::class, 'index']);
+
+    // Mantenimientos (fase 5) -- solo lectura aquí.
+    Route::get('inv-maintenances', [InvMaintenanceController::class, 'index']);
+    Route::get('inv-maintenances/{inv_maintenance}', [InvMaintenanceController::class, 'show']);
+});
+
+Route::middleware(['auth:sanctum','locale','perm:inventory.manage_assets|inventory.edit_assets'])->name('api.')->group(function () {
+    // Import masivo (fase 6) -- crea activos, no los elimina.
+    Route::post('inv-assets/import', [InvAssetImportController::class, 'store']);
+
+    Route::apiResource('inv-assets', InvAssetController::class)->only(['store', 'update']);
     Route::post('inv-assets/{inv_asset}/images', [InvAssetImageController::class, 'store']);
+    // Borrar una foto es corregir un upload propio, no "eliminar un
+    // activo" -- se queda en el nivel EDITAR, no en GESTIONAR.
     Route::delete('inv-assets/{inv_asset}/images/{image}', [InvAssetImageController::class, 'destroy']);
 
-    // Ciclo de vida (fase 3) -- bitácora inmutable, sin update/destroy.
-    Route::get('inv-assets/{inv_asset}/movements', [InvMovementController::class, 'index']);
+    // Ciclo de vida (fase 3) -- mutaciones de la bitácora inmutable
+    // (checkout/checkin/traslado/baja son altas nuevas, nunca update/
+    // destroy sobre una fila existente).
     Route::post('inv-assets/{inv_asset}/checkout', [InvMovementController::class, 'checkout']);
     Route::post('inv-assets/{inv_asset}/checkin', [InvMovementController::class, 'checkin']);
     Route::post('inv-assets/{inv_asset}/transfer', [InvMovementController::class, 'transfer']);
     Route::post('inv-assets/{inv_asset}/retire', [InvMovementController::class, 'retire']);
 
-    // Componentes + despiece (fase 4)
-    Route::apiResource('inv-components', InvComponentController::class);
-    Route::get('inv-components/{inv_component}/movements', [InvComponentMovementController::class, 'index']);
+    // Componentes + despiece (fase 4) -- asignar/desasignar/retirar es
+    // cambiar estado, no destruir la fila.
+    Route::apiResource('inv-components', InvComponentController::class)->only(['store', 'update']);
     Route::post('inv-components/{inv_component}/assign', [InvComponentMovementController::class, 'assign']);
     Route::post('inv-components/{inv_component}/unassign', [InvComponentMovementController::class, 'unassign']);
     Route::post('inv-components/{inv_component}/retire', [InvComponentMovementController::class, 'retire']);
@@ -350,9 +380,13 @@ Route::middleware(['auth:sanctum','locale','perm:inventory.manage_assets'])->nam
 
     // Mantenimientos (fase 5) -- recurso editable, no bitácora inmutable.
     Route::post('inv-assets/{inv_asset}/maintenances', [InvMaintenanceController::class, 'store']);
-    Route::get('inv-maintenances', [InvMaintenanceController::class, 'index']);
-    Route::get('inv-maintenances/{inv_maintenance}', [InvMaintenanceController::class, 'show']);
     Route::put('inv-maintenances/{inv_maintenance}', [InvMaintenanceController::class, 'update']);
+});
+
+Route::middleware(['auth:sanctum','locale','perm:inventory.manage_assets'])->name('api.')->group(function () {
+    // Eliminar de verdad -- único requisito real de GESTIONAR sobre EDITAR.
+    Route::apiResource('inv-assets', InvAssetController::class)->only(['destroy']);
+    Route::apiResource('inv-components', InvComponentController::class)->only(['destroy']);
     Route::delete('inv-maintenances/{inv_maintenance}', [InvMaintenanceController::class, 'destroy']);
 });
 

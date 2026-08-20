@@ -50,8 +50,16 @@ const DEFAULT_SORT = "name";
 export default function Index() {
     const {
         assets, categories, statuses, labels, sites, locations, clientUsers, maintenanceOrigins, maintenanceModalities,
-        assetQuota = { used: 0, max: null }, filters = {}, initialAssetId,
+        assetQuota = { used: 0, max: null }, filters = {}, initialAssetId, auth,
     } = usePage().props;
+    // Permisos granulares de Inventario (fase 7.4): manage_assets sigue
+    // siendo el nivel completo (incluye eliminar); edit_assets es todo lo
+    // operativo SIN eliminar; sin ninguno de los dos, el usuario solo
+    // puede ver (la ruta ya lo garantiza vía perm: en web.php, esto solo
+    // controla qué botones se muestran).
+    const can = (perm) => auth?.user?.permissions?.includes(perm) ?? false;
+    const canManage = can("inventory.manage_assets");
+    const canEdit = canManage || can("inventory.edit_assets");
     const atCapacity = assetQuota.max !== null && assetQuota.used >= assetQuota.max;
     const [search, setSearch] = useState(filters.search ?? "");
     const [categoryId, setCategoryId] = useState(filters.category_id ? String(filters.category_id) : ALL);
@@ -218,14 +226,18 @@ export default function Index() {
                             Exportar
                         </a>
                     </Button>
-                    <Button variant="outline" onClick={() => setImportOpen(true)} disabled={atCapacity}>
-                        <Upload className="mr-2 h-4 w-4" />
-                        {atCapacity ? "Sin cupo en tu plan" : "Importar"}
-                    </Button>
-                    <Button onClick={openCreate} disabled={atCapacity}>
-                        <Plus className="mr-2 h-4 w-4" />
-                        {atCapacity ? "Sin cupo en tu plan" : "Nuevo activo"}
-                    </Button>
+                    {canEdit && (
+                        <Button variant="outline" onClick={() => setImportOpen(true)} disabled={atCapacity}>
+                            <Upload className="mr-2 h-4 w-4" />
+                            {atCapacity ? "Sin cupo en tu plan" : "Importar"}
+                        </Button>
+                    )}
+                    {canEdit && (
+                        <Button onClick={openCreate} disabled={atCapacity}>
+                            <Plus className="mr-2 h-4 w-4" />
+                            {atCapacity ? "Sin cupo en tu plan" : "Nuevo activo"}
+                        </Button>
+                    )}
                 </div>
             </div>
 
@@ -362,12 +374,16 @@ export default function Index() {
                                             <Button variant="ghost" size="icon" onClick={() => openView(asset)}>
                                                 <Eye className="h-4 w-4" />
                                             </Button>
-                                            <Button variant="ghost" size="icon" onClick={() => openEdit(asset)}>
-                                                <Pencil className="h-4 w-4" />
-                                            </Button>
-                                            <Button variant="ghost" size="icon" onClick={() => setDeleteTarget(asset)}>
-                                                <Trash2 className="h-4 w-4 text-destructive" />
-                                            </Button>
+                                            {canEdit && (
+                                                <Button variant="ghost" size="icon" onClick={() => openEdit(asset)}>
+                                                    <Pencil className="h-4 w-4" />
+                                                </Button>
+                                            )}
+                                            {canManage && (
+                                                <Button variant="ghost" size="icon" onClick={() => setDeleteTarget(asset)}>
+                                                    <Trash2 className="h-4 w-4 text-destructive" />
+                                                </Button>
+                                            )}
                                         </TableCell>
                                     </TableRow>
                                 ))
@@ -521,6 +537,7 @@ export default function Index() {
                 clientUsers={clientUsers}
                 maintenanceOrigins={maintenanceOrigins}
                 maintenanceModalities={maintenanceModalities}
+                canEdit={canEdit}
                 onChanged={() => router.reload({ only: ["assets", "assetQuota"] })}
             />
         </>

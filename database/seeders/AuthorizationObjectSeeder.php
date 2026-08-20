@@ -30,10 +30,18 @@ use Illuminate\Database\Seeder;
  * catalogs.manage, notifications.manage, tickets.create/assign/reassign/
  * comment/change_status/escalate/manage_all/filter_by_site,
  * incidents.create/manage_all, clients.create/edit/delete,
- * platform.view_internals, sites.assign_staff, inventory.manage_config,
- * inventory.manage_assets) NO tiene variante de solo lectura en el catálogo
- * actual -- son acciones atómicas, no pares ver/editar. Ninguna se inventó
- * aquí.
+ * platform.view_internals, sites.assign_staff, inventory.manage_config)
+ * NO tiene variante de solo lectura en el catálogo actual -- son acciones
+ * atómicas, no pares ver/editar. Ninguna se inventó aquí.
+ *
+ * Excepción de 3 niveles (fase 7.4, Inventario -- Activos): a diferencia
+ * de todo lo anterior, "Activos" sí tiene un genuino tercer nivel
+ * intermedio -- inventory.edit_assets (crear/editar/ciclo de vida/
+ * componentes/mantenimientos/import, SIN eliminar) entre
+ * inventory.view_assets (read) e inventory.manage_assets (full, incluye
+ * eliminar). Decisión de producto explícita tras pausar esto a media
+ * conversación (ver docs/INVENTORY_ROADMAP.md): el split NO aplica a
+ * Catálogos/Config, que sigue siendo atómico como core.catalogs.
  */
 class AuthorizationObjectSeeder extends Seeder
 {
@@ -77,11 +85,17 @@ class AuthorizationObjectSeeder extends Seeder
             ['key' => 'core.notifications', 'label' => 'Notificaciones', 'full_permission' => 'notifications.manage'],
         ]);
 
-        // Inventario (port desde HelpdeskECD2026, fase 1 -- solo catálogos
-        // base por ahora). Acción atómica, sin variante de solo lectura --
-        // mismo criterio que core.catalogs.
+        // Inventario. "Activos" (fase 7.4): 3 niveles reales -- ver/editar
+        // sin eliminar/gestionar todo. "Catálogos" sigue atómica, sin
+        // variante de lectura -- mismo criterio que core.catalogs.
         $this->seedModule('inventory', 'Inventario', [
-            ['key' => 'inventory.manage_assets', 'label' => 'Activos (registro, fotos)', 'full_permission' => 'inventory.manage_assets'],
+            [
+                'key' => 'inventory.manage_assets',
+                'label' => 'Activos (registro, ciclo de vida, componentes, mantenimientos)',
+                'full_permission' => 'inventory.manage_assets',
+                'read_permission' => 'inventory.view_assets',
+                'edit_permission' => 'inventory.edit_assets',
+            ],
             ['key' => 'inventory.manage_config', 'label' => 'Catálogos (categorías, estatus, etiquetas, mantenimiento)', 'full_permission' => 'inventory.manage_config'],
         ]);
 
@@ -117,6 +131,7 @@ class AuthorizationObjectSeeder extends Seeder
                     'parent_id' => $parent->id,
                     'full_permission' => $child['full_permission'],
                     'read_permission' => $child['read_permission'] ?? null,
+                    'edit_permission' => $child['edit_permission'] ?? null,
                     'sort_order' => $i,
                 ]
             );

@@ -44,6 +44,23 @@ class AuthorizationObjectSeederTest extends TestCase
         $this->assertSame('company.view', $companyManage->read_permission);
     }
 
+    /** Fase 7.4: único objeto con un tercer nivel real (edit_permission), entre read y full. */
+    public function test_inventory_assets_object_has_the_3_level_edit_permission(): void
+    {
+        $this->seed(AuthorizationObjectSeeder::class);
+
+        $assets = AuthorizationObject::where('key', 'inventory.manage_assets')->first();
+        $this->assertNotNull($assets);
+        $this->assertSame('inventory.manage_assets', $assets->full_permission);
+        $this->assertSame('inventory.edit_assets', $assets->edit_permission);
+        $this->assertSame('inventory.view_assets', $assets->read_permission);
+
+        // inventory.manage_config sigue siendo atómica -- ningún split aquí.
+        $config = AuthorizationObject::where('key', 'inventory.manage_config')->first();
+        $this->assertNull($config->edit_permission);
+        $this->assertNull($config->read_permission);
+    }
+
     /** Cada full_permission/read_permission del catálogo debe existir ya en `permissions` -- no se inventa ninguno. */
     public function test_every_referenced_permission_already_exists_in_the_catalog(): void
     {
@@ -61,6 +78,7 @@ class AuthorizationObjectSeederTest extends TestCase
             ->whereNotNull('full_permission')
             ->pluck('full_permission')
             ->merge(AuthorizationObject::whereNotNull('read_permission')->pluck('read_permission'))
+            ->merge(AuthorizationObject::whereNotNull('edit_permission')->pluck('edit_permission'))
             ->unique();
 
         foreach ($names as $name) {

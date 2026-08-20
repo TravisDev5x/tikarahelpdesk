@@ -50,7 +50,9 @@ use Illuminate\Support\Facades\DB;
  * acción "reassigned" de TicketController usa tickets.assign, ver Fase 5),
  * inventory.manage_config e inventory.manage_assets (módulo Inventario,
  * port desde HelpdeskECD2026 fases 1 y 2 -- solo admin las recibe hoy, vía
- * $allWebPermissions).
+ * $allWebPermissions); inventory.view_assets/inventory.edit_assets (fase
+ * 7.4, permisos granulares de Activos -- ninguna plantilla las recibe por
+ * defecto, son opt-in vía RoleTemplateFormDialog u overrides directos).
  */
 class TenantRoleSeeder extends Seeder
 {
@@ -99,6 +101,22 @@ class TenantRoleSeeder extends Seeder
             // operador-compartido como manage_config).
             DB::table('permissions')->insertOrIgnore([
                 'name' => 'inventory.manage_assets',
+                'guard_name' => $guard,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+
+            // Inventario fase 7.4 -- permisos granulares de Activos: ver /
+            // editar (sin eliminar). manage_assets de arriba queda como el
+            // nivel completo (incluye eliminar).
+            DB::table('permissions')->insertOrIgnore([
+                'name' => 'inventory.view_assets',
+                'guard_name' => $guard,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+            DB::table('permissions')->insertOrIgnore([
+                'name' => 'inventory.edit_assets',
                 'guard_name' => $guard,
                 'created_at' => now(),
                 'updated_at' => now(),

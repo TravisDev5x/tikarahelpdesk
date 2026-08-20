@@ -87,6 +87,25 @@ class RoleTemplateTest extends TestCase
         $this->assertFalse($role->hasPermissionTo('tickets.view_area'));
     }
 
+    /** Fase 7.4: "Activos" de Inventario es el único objeto con 3 niveles reales (full/edit/read). */
+    public function test_edit_level_resolves_to_the_edit_permission_not_full_or_read(): void
+    {
+        $response = $this->actingAs($this->admin, 'web')->postJson('/api/role-templates', [
+            'name' => 'Editor de inventario',
+            'scope_archetype' => 'agente',
+            'objects' => [
+                ['key' => 'inventory.manage_assets', 'level' => 'edit'],
+            ],
+        ]);
+
+        $response->assertCreated();
+
+        $role = Role::where('team_id', $this->client->id)->where('name', 'Editor de inventario')->first();
+        $this->assertTrue($role->hasPermissionTo('inventory.edit_assets'));
+        $this->assertFalse($role->hasPermissionTo('inventory.manage_assets'));
+        $this->assertFalse($role->hasPermissionTo('inventory.view_assets'));
+    }
+
     public function test_admin_updates_a_template_and_permissions_are_resynced(): void
     {
         $create = $this->actingAs($this->admin, 'web')->postJson('/api/role-templates', [

@@ -66,7 +66,7 @@ const NONE = "__none__";
  * entrada -- el detalle completo (movimientos/componentes/mantenimientos/
  * fotos) se trae de /api/inv-assets/{id} al abrir, no de props de página.
  */
-export default function AssetDetailDialog({ open, onOpenChange, assetId, categories, statuses, labels, sites, locations, clientUsers, maintenanceOrigins, maintenanceModalities, onChanged }) {
+export default function AssetDetailDialog({ open, onOpenChange, assetId, categories, statuses, labels, sites, locations, clientUsers, maintenanceOrigins, maintenanceModalities, canEdit = true, onChanged }) {
     const [asset, setAsset] = useState(null);
     const [loading, setLoading] = useState(false);
     const [openDialog, setOpenDialog] = useState(null); // 'checkout' | 'checkin' | 'transfer' | 'retire' | null
@@ -225,10 +225,12 @@ export default function AssetDetailDialog({ open, onOpenChange, assetId, categor
                                         <DialogTitle>{asset.name}</DialogTitle>
                                         <p className="text-sm text-muted-foreground font-mono">{asset.internal_tag}</p>
                                     </div>
-                                    <Button size="sm" onClick={() => setEditOpen(true)}>
-                                        <Pencil className="mr-2 h-4 w-4" />
-                                        Editar
-                                    </Button>
+                                    {canEdit && (
+                                        <Button size="sm" onClick={() => setEditOpen(true)}>
+                                            <Pencil className="mr-2 h-4 w-4" />
+                                            Editar
+                                        </Button>
+                                    )}
                                 </div>
                             </DialogHeader>
 
@@ -265,37 +267,41 @@ export default function AssetDetailDialog({ open, onOpenChange, assetId, categor
                                 </CardHeader>
                                 <CardContent className="space-y-4">
                                     <Field label="Responsable actual" value={userLabel(asset.current_user) ?? "Sin asignar"} />
-                                    <div className="flex flex-wrap gap-2">
-                                        {!asset.current_user_id ? (
-                                            <Button size="sm" onClick={() => setOpenDialog("checkout")}>
-                                                <UserPlus className="mr-2 h-4 w-4" />
-                                                Asignar
+                                    {canEdit && (
+                                        <div className="flex flex-wrap gap-2">
+                                            {!asset.current_user_id ? (
+                                                <Button size="sm" onClick={() => setOpenDialog("checkout")}>
+                                                    <UserPlus className="mr-2 h-4 w-4" />
+                                                    Asignar
+                                                </Button>
+                                            ) : (
+                                                <Button size="sm" variant="outline" onClick={() => setOpenDialog("checkin")}>
+                                                    <UserMinus className="mr-2 h-4 w-4" />
+                                                    Devolver
+                                                </Button>
+                                            )}
+                                            <Button size="sm" variant="outline" onClick={() => setOpenDialog("transfer")}>
+                                                <ArrowRightLeft className="mr-2 h-4 w-4" />
+                                                Trasladar
                                             </Button>
-                                        ) : (
-                                            <Button size="sm" variant="outline" onClick={() => setOpenDialog("checkin")}>
-                                                <UserMinus className="mr-2 h-4 w-4" />
-                                                Devolver
+                                            <Button size="sm" variant="outline" className="text-destructive" onClick={() => setOpenDialog("retire")}>
+                                                <PackageMinus className="mr-2 h-4 w-4" />
+                                                Dar de baja
                                             </Button>
-                                        )}
-                                        <Button size="sm" variant="outline" onClick={() => setOpenDialog("transfer")}>
-                                            <ArrowRightLeft className="mr-2 h-4 w-4" />
-                                            Trasladar
-                                        </Button>
-                                        <Button size="sm" variant="outline" className="text-destructive" onClick={() => setOpenDialog("retire")}>
-                                            <PackageMinus className="mr-2 h-4 w-4" />
-                                            Dar de baja
-                                        </Button>
-                                    </div>
+                                        </div>
+                                    )}
                                 </CardContent>
                             </Card>
 
                             <Card>
                                 <CardHeader className="flex flex-row items-center justify-between space-y-0">
                                     <CardTitle>Componentes</CardTitle>
-                                    <Button size="sm" variant="outline" onClick={() => setOpenDialog("add-component")}>
-                                        <Plus className="mr-2 h-4 w-4" />
-                                        Agregar componente
-                                    </Button>
+                                    {canEdit && (
+                                        <Button size="sm" variant="outline" onClick={() => setOpenDialog("add-component")}>
+                                            <Plus className="mr-2 h-4 w-4" />
+                                            Agregar componente
+                                        </Button>
+                                    )}
                                 </CardHeader>
                                 <CardContent className="space-y-3">
                                     {(asset.components ?? []).length === 0 ? (
@@ -329,16 +335,18 @@ export default function AssetDetailDialog({ open, onOpenChange, assetId, categor
                                                     ))}
                                                 </TableBody>
                                             </Table>
-                                            <Button
-                                                size="sm"
-                                                variant="outline"
-                                                className="text-destructive"
-                                                disabled={selectedComponents.length === 0}
-                                                onClick={() => setOpenDialog("disassemble")}
-                                            >
-                                                <Wrench className="mr-2 h-4 w-4" />
-                                                Desarmar seleccionados ({selectedComponents.length})
-                                            </Button>
+                                            {canEdit && (
+                                                <Button
+                                                    size="sm"
+                                                    variant="outline"
+                                                    className="text-destructive"
+                                                    disabled={selectedComponents.length === 0}
+                                                    onClick={() => setOpenDialog("disassemble")}
+                                                >
+                                                    <Wrench className="mr-2 h-4 w-4" />
+                                                    Desarmar seleccionados ({selectedComponents.length})
+                                                </Button>
+                                            )}
                                         </>
                                     )}
                                 </CardContent>
@@ -347,17 +355,19 @@ export default function AssetDetailDialog({ open, onOpenChange, assetId, categor
                             <Card>
                                 <CardHeader className="flex flex-row items-center justify-between space-y-0">
                                     <CardTitle>Mantenimientos</CardTitle>
-                                    <Button
-                                        size="sm"
-                                        variant="outline"
-                                        onClick={() => {
-                                            setMaintenanceForm((p) => ({ ...p, start_date: new Date().toISOString().slice(0, 10) }));
-                                            setOpenDialog("register-maintenance");
-                                        }}
-                                    >
-                                        <Wrench className="mr-2 h-4 w-4" />
-                                        Registrar mantenimiento
-                                    </Button>
+                                    {canEdit && (
+                                        <Button
+                                            size="sm"
+                                            variant="outline"
+                                            onClick={() => {
+                                                setMaintenanceForm((p) => ({ ...p, start_date: new Date().toISOString().slice(0, 10) }));
+                                                setOpenDialog("register-maintenance");
+                                            }}
+                                        >
+                                            <Wrench className="mr-2 h-4 w-4" />
+                                            Registrar mantenimiento
+                                        </Button>
+                                    )}
                                 </CardHeader>
                                 <CardContent className="p-0">
                                     <Table>
@@ -393,7 +403,7 @@ export default function AssetDetailDialog({ open, onOpenChange, assetId, categor
                                                             )}
                                                         </TableCell>
                                                         <TableCell>
-                                                            {!m.end_date && (
+                                                            {!m.end_date && canEdit && (
                                                                 <Button size="sm" variant="ghost" onClick={() => openCloseMaintenance(m)}>
                                                                     <CheckCircle2 className="mr-2 h-4 w-4" />
                                                                     Cerrar
@@ -421,31 +431,35 @@ export default function AssetDetailDialog({ open, onOpenChange, assetId, categor
                                                     alt=""
                                                     className="h-32 w-32 rounded-md object-cover border"
                                                 />
-                                                <button
-                                                    type="button"
-                                                    onClick={() => deleteImage(img)}
-                                                    className="absolute -top-2 -right-2 rounded-full bg-destructive text-destructive-foreground p-1 opacity-0 group-hover:opacity-100 transition-opacity"
-                                                >
-                                                    <Trash2 className="h-3 w-3" />
-                                                </button>
+                                                {canEdit && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => deleteImage(img)}
+                                                        className="absolute -top-2 -right-2 rounded-full bg-destructive text-destructive-foreground p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                                                    >
+                                                        <Trash2 className="h-3 w-3" />
+                                                    </button>
+                                                )}
                                             </div>
                                         ))}
                                     </div>
-                                    <div>
-                                        <Label htmlFor="asset-detail-images" className="inline-flex items-center gap-2 cursor-pointer text-sm text-brand-muted hover:underline">
-                                            <Upload className="h-4 w-4" />
-                                            {uploadingImages ? "Subiendo…" : "Agregar fotos"}
-                                        </Label>
-                                        <input
-                                            id="asset-detail-images"
-                                            type="file"
-                                            accept="image/*"
-                                            multiple
-                                            className="hidden"
-                                            disabled={uploadingImages}
-                                            onChange={(e) => uploadImages(e.target.files)}
-                                        />
-                                    </div>
+                                    {canEdit && (
+                                        <div>
+                                            <Label htmlFor="asset-detail-images" className="inline-flex items-center gap-2 cursor-pointer text-sm text-brand-muted hover:underline">
+                                                <Upload className="h-4 w-4" />
+                                                {uploadingImages ? "Subiendo…" : "Agregar fotos"}
+                                            </Label>
+                                            <input
+                                                id="asset-detail-images"
+                                                type="file"
+                                                accept="image/*"
+                                                multiple
+                                                className="hidden"
+                                                disabled={uploadingImages}
+                                                onChange={(e) => uploadImages(e.target.files)}
+                                            />
+                                        </div>
+                                    )}
                                 </CardContent>
                             </Card>
 

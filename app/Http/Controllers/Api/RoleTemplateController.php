@@ -12,7 +12,8 @@ use Illuminate\Validation\Rule;
 /**
  * RBAC v2 (Fase 6), Paso 5: plantillas editables por tenant -- nombre
  * libre + scope_archetype obligatorio + permisos por objeto del catálogo
- * (Full/Solo lectura/Ninguno), en vez de los 4 roles fijos globales.
+ * (Full/Editar/Solo lectura/Ninguno -- "Editar" solo aplica a objetos con
+ * edit_permission, fase 7.4), en vez de los 4 roles fijos globales.
  * Gateado por roles.manage (perm: en routes/api.php), que ya queda
  * team-scoped automáticamente por ApplyPgsqlTenantRls (Fase 6, Paso 1).
  */
@@ -40,7 +41,7 @@ class RoleTemplateController extends Controller
             'scope_archetype' => ['required', Rule::in(['admin', 'supervisor', 'agente', 'solicitante'])],
             'objects' => ['array'],
             'objects.*.key' => ['required', 'string', Rule::exists('authorization_objects', 'key')],
-            'objects.*.level' => ['required', Rule::in(['full', 'read', 'none'])],
+            'objects.*.level' => ['required', Rule::in(['full', 'edit', 'read', 'none'])],
         ]);
 
         $role = $this->templates->createTemplate(
@@ -70,7 +71,7 @@ class RoleTemplateController extends Controller
             'scope_archetype' => ['required', Rule::in(['admin', 'supervisor', 'agente', 'solicitante'])],
             'objects' => ['array'],
             'objects.*.key' => ['required', 'string', Rule::exists('authorization_objects', 'key')],
-            'objects.*.level' => ['required', Rule::in(['full', 'read', 'none'])],
+            'objects.*.level' => ['required', Rule::in(['full', 'edit', 'read', 'none'])],
         ]);
 
         $role = $this->templates->updateTemplate($role, $data['name'], $data['scope_archetype'], $data['objects'] ?? []);
