@@ -166,11 +166,12 @@ Route::middleware('auth')->group(function () {
     Route::get('/sessions', [CatalogPageController::class, 'sessions'])->name('sessions.index');
 
     // Inventario — activos (fase 2, port desde HelpdeskECD2026). Solo GET;
-    // mutaciones por /api/inv-assets (InvAssetController).
+    // mutaciones por /api/inv-assets (InvAssetController). Crear/editar/ver
+    // un activo son diálogos montados sobre index() -- sin rutas propias
+    // (ver AssetFormDialog.jsx/AssetDetailDialog.jsx), ?asset=ID abre el
+    // detalle de ese activo al cargar (usado por Monitor.jsx).
     Route::prefix('inventory/assets')->name('inventory.assets.')->middleware('perm:inventory.manage_assets')->group(function () {
         Route::get('/', [InvAssetPageController::class, 'index'])->name('index');
-        Route::get('/{inv_asset}', [InvAssetPageController::class, 'show'])
-            ->where('inv_asset', '[0-9]+')->name('show');
     });
 
     // Inventario — dashboard de alertas (fase 7.1, port desde HelpdeskECD2026).

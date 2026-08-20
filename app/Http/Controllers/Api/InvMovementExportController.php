@@ -63,9 +63,14 @@ class InvMovementExportController extends Controller
         return response()->streamDownload(function () use ($query, $headings) {
             $handle = fopen('php://output', 'w');
             fwrite($handle, "\xEF\xBB\xBF"); // BOM UTF-8
-            fputcsv($handle, $headings);
+            fputcsv($handle, $headings, escape: '\\');
 
-            foreach ($query->orderByDesc('date')->cursor() as $m) {
+            // ->get() (con los with() ya aplicados), no ->cursor() -- cursor()
+            // NO respeta el eager loading de with(), cada relación se
+            // resuelve fila por fila (N+1 real, confirmado con datos de
+            // prueba: 85 movimientos -> 212 queries). El volumen por tenant
+            // no justifica cursor() de todos modos.
+            foreach ($query->orderByDesc('date')->get() as $m) {
                 fputcsv($handle, [
                     $m->id,
                     $m->date?->format('Y-m-d H:i:s'),
@@ -79,7 +84,7 @@ class InvMovementExportController extends Controller
                     $m->reason,
                     $m->notes,
                     $m->batch_uuid,
-                ]);
+                ], escape: '\\');
             }
 
             fclose($handle);

@@ -167,7 +167,7 @@ export default function Monitor() {
                                         ? rows.map((m) => (
                                             <TableRow key={m.id}>
                                                 <TableCell>
-                                                    <Link href={`/inventory/assets/${m.asset_id}`} className="hover:underline">
+                                                    <Link href={`/inventory/assets?asset=${m.asset_id}`} className="hover:underline">
                                                         {m.asset?.name} <span className="text-muted-foreground font-mono text-xs">({m.asset?.internal_tag})</span>
                                                     </Link>
                                                 </TableCell>
@@ -178,7 +178,7 @@ export default function Monitor() {
                                         : rows.map((a) => (
                                             <TableRow key={a.id}>
                                                 <TableCell>
-                                                    <Link href={`/inventory/assets/${a.id}`} className="hover:underline">
+                                                    <Link href={`/inventory/assets?asset=${a.id}`} className="hover:underline">
                                                         {a.name}
                                                     </Link>
                                                 </TableCell>

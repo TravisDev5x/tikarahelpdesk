@@ -1,7 +1,8 @@
-import { useState } from "react";
-import { Link, router, usePage } from "@inertiajs/react";
+import { useEffect, useRef, useState } from "react";
+import { router, usePage } from "@inertiajs/react";
 import AuthenticatedLayout from "@/Inertia/Layouts/AuthenticatedLayout";
 import AssetFormDialog from "./AssetFormDialog";
+import AssetDetailDialog from "./AssetDetailDialog";
 import axios from "@/lib/axios";
 import { notify } from "@/lib/notify";
 import { getApiErrorMessage, handleAuthError } from "@/lib/apiErrors";
@@ -41,20 +42,33 @@ import {
     TableHeader,
     TableRow,
 } from "@/components/ui/table";
-import { Download, Eye, FileSpreadsheet, History, Pencil, Plus, Search, Trash2, Upload } from "lucide-react";
+import { ChevronLeft, ChevronRight, Download, Eye, FileSpreadsheet, Filter, History, Pencil, Plus, Search, Trash2, Upload, X } from "lucide-react";
 
 const ALL = "__all__";
+const DEFAULT_SORT = "name";
 
 export default function Index() {
-    const { assets, categories, statuses, labels, sites, locations, assetQuota = { used: 0, max: null } } = usePage().props;
+    const {
+        assets, categories, statuses, labels, sites, locations, clientUsers, maintenanceOrigins, maintenanceModalities,
+        assetQuota = { used: 0, max: null }, filters = {}, initialAssetId,
+    } = usePage().props;
     const atCapacity = assetQuota.max !== null && assetQuota.used >= assetQuota.max;
-    const [search, setSearch] = useState("");
-    const [categoryId, setCategoryId] = useState(ALL);
-    const [statusId, setStatusId] = useState(ALL);
-    const [siteId, setSiteId] = useState(ALL);
-    const [assigned, setAssigned] = useState(ALL);
+    const [search, setSearch] = useState(filters.search ?? "");
+    const [categoryId, setCategoryId] = useState(filters.category_id ? String(filters.category_id) : ALL);
+    const [statusId, setStatusId] = useState(filters.status_id ? String(filters.status_id) : ALL);
+    const [siteId, setSiteId] = useState(filters.site_id ? String(filters.site_id) : ALL);
+    const [assigned, setAssigned] = useState(filters.assigned ?? ALL);
+    const [sort, setSort] = useState(filters.sort ?? DEFAULT_SORT);
     const [deleteTarget, setDeleteTarget] = useState(null);
     const [deleting, setDeleting] = useState(false);
+    const [navLoading, setNavLoading] = useState(false);
+
+    useEffect(() => {
+        const stop1 = router.on("start", () => setNavLoading(true));
+        const stop2 = router.on("finish", () => setNavLoading(false));
+
+        return () => { stop1(); stop2(); };
+    }, []);
 
     const [importOpen, setImportOpen] = useState(false);
     const [importFile, setImportFile] = useState(null);
@@ -64,23 +78,62 @@ export default function Index() {
     const [formOpen, setFormOpen] = useState(false);
     const [formAsset, setFormAsset] = useState(null);
 
+    const [viewAssetId, setViewAssetId] = useState(initialAssetId ?? null);
+    const [viewOpen, setViewOpen] = useState(!!initialAssetId);
+
     const openCreate = () => { setFormAsset(null); setFormOpen(true); };
     const openEdit = (asset) => { setFormAsset(asset); setFormOpen(true); };
+    const openView = (asset) => { setViewAssetId(asset.id); setViewOpen(true); };
     const onAssetSaved = () => router.reload({ only: ["assets", "assetQuota"] });
 
-    const applyFilters = (e) => {
-        e?.preventDefault();
-        router.get(
-            "/inventory/assets",
-            {
-                search: search || undefined,
-                category_id: categoryId !== ALL ? categoryId : undefined,
-                status_id: statusId !== ALL ? statusId : undefined,
-                site_id: siteId !== ALL ? siteId : undefined,
-                assigned: assigned !== ALL ? assigned : undefined,
-            },
-            { preserveState: true, replace: true }
-        );
+    const visit = (overrides = {}) => {
+        const merged = {
+            search: search || undefined,
+            category_id: categoryId !== ALL ? categoryId : undefined,
+            status_id: statusId !== ALL ? statusId : undefined,
+            site_id: siteId !== ALL ? siteId : undefined,
+            assigned: assigned !== ALL ? assigned : undefined,
+            sort: sort !== DEFAULT_SORT ? sort : undefined,
+            per_page: filters.per_page,
+            page: undefined, // cualquier cambio de filtro/orden vuelve a la página 1
+            ...overrides,
+        };
+        router.get("/inventory/assets", merged, { preserveState: true, preserveScroll: true, replace: true });
+    };
+
+    // Búsqueda "ágil": aplica sola tras una pausa al teclear, sin botón. Los
+    // Select (categoría/estatus/sede/responsable/orden) aplican de inmediato
+    // en su propio onValueChange -- ver más abajo.
+    const isFirstSearchRender = useRef(true);
+    useEffect(() => {
+        if (isFirstSearchRender.current) {
+            isFirstSearchRender.current = false;
+            return;
+        }
+        const timeout = setTimeout(() => visit({ search: search || undefined }), 400);
+        return () => clearTimeout(timeout);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [search]);
+
+    const activeFilterCount = [
+        search.trim().length > 0,
+        categoryId !== ALL,
+        statusId !== ALL,
+        siteId !== ALL,
+        assigned !== ALL,
+    ].filter(Boolean).length;
+
+    const clearFilters = () => {
+        setSearch("");
+        setCategoryId(ALL);
+        setStatusId(ALL);
+        setSiteId(ALL);
+        setAssigned(ALL);
+        setSort(DEFAULT_SORT);
+        visit({
+            search: undefined, category_id: undefined, status_id: undefined,
+            site_id: undefined, assigned: undefined, sort: undefined,
+        });
     };
 
     const exportHref = `/api/inv-assets/export${typeof window !== "undefined" ? window.location.search : ""}`;
@@ -176,72 +229,96 @@ export default function Index() {
                 </div>
             </div>
 
-            <Card className="mb-4">
-                <CardContent className="pt-4">
-                    <form onSubmit={applyFilters} className="grid gap-3 md:grid-cols-6 items-end">
-                        <div className="md:col-span-2 space-y-1.5">
-                            <label className="text-xs font-medium text-muted-foreground">Buscar</label>
-                            <div className="relative">
-                                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Card className="mb-4 border border-border/50 shadow-sm bg-card/60 backdrop-blur-sm">
+                <CardContent className="p-4">
+                    <div className="flex flex-col gap-4">
+                        <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                            <div className="relative flex-1">
+                                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                                 <Input
-                                    className="pl-8"
+                                    className="pl-9 bg-background"
                                     placeholder="Nombre, número de inventario o serie…"
                                     value={search}
                                     onChange={(e) => setSearch(e.target.value)}
+                                    onKeyDown={(e) => {
+                                        if (e.key === "Enter") { e.preventDefault(); visit({ search: search || undefined }); }
+                                    }}
                                 />
                             </div>
+                            <div className="flex items-center gap-2 self-end sm:self-auto">
+                                {activeFilterCount > 0 && (
+                                    <Button variant="ghost" size="sm" onClick={clearFilters} className="h-9 text-xs text-destructive hover:bg-destructive/10 px-2">
+                                        <X className="h-3.5 w-3.5 mr-1" /> Limpiar
+                                    </Button>
+                                )}
+                                <Badge variant={activeFilterCount > 0 ? "secondary" : "outline"} className="h-9 px-3">
+                                    <Filter className="w-3 h-3 mr-1" />
+                                    {activeFilterCount > 0 ? `${activeFilterCount} filtros` : "Filtros"}
+                                </Badge>
+                            </div>
                         </div>
-                        <div className="space-y-1.5">
-                            <label className="text-xs font-medium text-muted-foreground">Categoría</label>
-                            <Select value={categoryId} onValueChange={setCategoryId}>
-                                <SelectTrigger><SelectValue /></SelectTrigger>
+                        <div role="separator" className="shrink-0 h-px w-full bg-border/40" />
+                        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                            <Select
+                                value={categoryId}
+                                onValueChange={(v) => { setCategoryId(v); visit({ category_id: v !== ALL ? v : undefined }); }}
+                            >
+                                <SelectTrigger className="h-8 text-xs bg-background"><SelectValue placeholder="Categoría" /></SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value={ALL}>Todas</SelectItem>
+                                    <SelectItem value={ALL}>Todas las categorías</SelectItem>
                                     {(categories ?? []).map((c) => (
                                         <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>
                                     ))}
                                 </SelectContent>
                             </Select>
-                        </div>
-                        <div className="space-y-1.5">
-                            <label className="text-xs font-medium text-muted-foreground">Estatus</label>
-                            <Select value={statusId} onValueChange={setStatusId}>
-                                <SelectTrigger><SelectValue /></SelectTrigger>
+                            <Select
+                                value={statusId}
+                                onValueChange={(v) => { setStatusId(v); visit({ status_id: v !== ALL ? v : undefined }); }}
+                            >
+                                <SelectTrigger className="h-8 text-xs bg-background"><SelectValue placeholder="Estatus" /></SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value={ALL}>Todos</SelectItem>
+                                    <SelectItem value={ALL}>Todos los estatus</SelectItem>
                                     {(statuses ?? []).map((s) => (
                                         <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>
                                     ))}
                                 </SelectContent>
                             </Select>
-                        </div>
-                        <div className="space-y-1.5">
-                            <label className="text-xs font-medium text-muted-foreground">Sede</label>
-                            <Select value={siteId} onValueChange={setSiteId}>
-                                <SelectTrigger><SelectValue /></SelectTrigger>
+                            <Select
+                                value={siteId}
+                                onValueChange={(v) => { setSiteId(v); visit({ site_id: v !== ALL ? v : undefined }); }}
+                            >
+                                <SelectTrigger className="h-8 text-xs bg-background"><SelectValue placeholder="Sede" /></SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value={ALL}>Todas</SelectItem>
+                                    <SelectItem value={ALL}>Todas las sedes</SelectItem>
                                     {(sites ?? []).map((s) => (
                                         <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>
                                     ))}
                                 </SelectContent>
                             </Select>
-                        </div>
-                        <div className="space-y-1.5">
-                            <label className="text-xs font-medium text-muted-foreground">Responsable</label>
-                            <Select value={assigned} onValueChange={setAssigned}>
-                                <SelectTrigger><SelectValue /></SelectTrigger>
+                            <Select
+                                value={assigned}
+                                onValueChange={(v) => { setAssigned(v); visit({ assigned: v !== ALL ? v : undefined }); }}
+                            >
+                                <SelectTrigger className="h-8 text-xs bg-background"><SelectValue placeholder="Responsable" /></SelectTrigger>
                                 <SelectContent>
                                     <SelectItem value={ALL}>Todos</SelectItem>
                                     <SelectItem value="1">Asignados</SelectItem>
                                     <SelectItem value="0">Sin asignar</SelectItem>
                                 </SelectContent>
                             </Select>
+                            <Select
+                                value={sort}
+                                onValueChange={(v) => { setSort(v); visit({ sort: v !== DEFAULT_SORT ? v : undefined }); }}
+                            >
+                                <SelectTrigger className="h-8 text-xs bg-background"><SelectValue placeholder="Orden" /></SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value={DEFAULT_SORT}>Nombre</SelectItem>
+                                    <SelectItem value="peps">PEPS (más antiguos primero)</SelectItem>
+                                    <SelectItem value="ueps">UEPS (más recientes primero)</SelectItem>
+                                </SelectContent>
+                            </Select>
                         </div>
-                        <Button type="submit" variant="outline" className="md:col-span-6 md:w-auto md:justify-self-start">
-                            Aplicar filtros
-                        </Button>
-                    </form>
+                    </div>
                 </CardContent>
             </Card>
 
@@ -269,9 +346,9 @@ export default function Index() {
                                 rows.map((asset) => (
                                     <TableRow key={asset.id}>
                                         <TableCell className="font-medium">
-                                            <Link href={`/inventory/assets/${asset.id}`} className="hover:underline">
+                                            <button type="button" onClick={() => openView(asset)} className="hover:underline text-left">
                                                 {asset.name}
-                                            </Link>
+                                            </button>
                                         </TableCell>
                                         <TableCell className="font-mono text-sm">{asset.internal_tag}</TableCell>
                                         <TableCell>{asset.category?.name ?? "—"}</TableCell>
@@ -282,8 +359,8 @@ export default function Index() {
                                         </TableCell>
                                         <TableCell>{asset.site?.name ?? "—"}</TableCell>
                                         <TableCell className="text-right space-x-1">
-                                            <Button asChild variant="ghost" size="icon">
-                                                <Link href={`/inventory/assets/${asset.id}`}><Eye className="h-4 w-4" /></Link>
+                                            <Button variant="ghost" size="icon" onClick={() => openView(asset)}>
+                                                <Eye className="h-4 w-4" />
                                             </Button>
                                             <Button variant="ghost" size="icon" onClick={() => openEdit(asset)}>
                                                 <Pencil className="h-4 w-4" />
@@ -299,6 +376,44 @@ export default function Index() {
                     </Table>
                 </CardContent>
             </Card>
+
+            <div className="border border-border/50 rounded-lg px-4 py-3 bg-muted/20 flex flex-col sm:flex-row items-center justify-between gap-4">
+                <p className="text-xs text-muted-foreground">
+                    {(assets?.total ?? 0) === 0 ? "Sin resultados" : (
+                        <>Mostrando <span className="font-medium text-foreground">{assets.from}–{assets.to}</span> de <span className="font-medium text-foreground">{assets.total}</span> activos</>
+                    )}
+                </p>
+                <div className="flex items-center gap-2">
+                    <Select
+                        value={String(filters.per_page ?? assets?.per_page ?? 25)}
+                        onValueChange={(v) => visit({ per_page: v, page: 1 })}
+                    >
+                        <SelectTrigger className="w-16 h-8 text-xs bg-background"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                            {[10, 25, 50, 100].map((n) => <SelectItem key={n} value={String(n)}>{n}</SelectItem>)}
+                        </SelectContent>
+                    </Select>
+                    <div className="flex items-center border rounded-md bg-background shadow-sm">
+                        <Button
+                            variant="ghost" size="icon"
+                            className="h-8 w-8 rounded-r-none border-r min-h-[44px] min-w-[44px] md:min-h-0 md:min-w-0"
+                            onClick={() => visit({ page: Math.max(1, (assets?.current_page ?? 1) - 1) })}
+                            disabled={(assets?.current_page ?? 1) <= 1 || navLoading}
+                        >
+                            <ChevronLeft className="h-4 w-4" />
+                        </Button>
+                        <span className="text-xs font-medium w-24 text-center">{assets?.current_page ?? 1} / {assets?.last_page ?? 1}</span>
+                        <Button
+                            variant="ghost" size="icon"
+                            className="h-8 w-8 rounded-l-none border-l min-h-[44px] min-w-[44px] md:min-h-0 md:min-w-0"
+                            onClick={() => visit({ page: Math.min(assets?.last_page ?? 1, (assets?.current_page ?? 1) + 1) })}
+                            disabled={(assets?.current_page ?? 1) >= (assets?.last_page ?? 1) || navLoading}
+                        >
+                            <ChevronRight className="h-4 w-4" />
+                        </Button>
+                    </div>
+                </div>
+            </div>
 
             <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
                 <AlertDialogContent>
@@ -392,6 +507,21 @@ export default function Index() {
                 sites={sites}
                 locations={locations}
                 onSaved={onAssetSaved}
+            />
+
+            <AssetDetailDialog
+                open={viewOpen}
+                onOpenChange={setViewOpen}
+                assetId={viewAssetId}
+                categories={categories}
+                statuses={statuses}
+                labels={labels}
+                sites={sites}
+                locations={locations}
+                clientUsers={clientUsers}
+                maintenanceOrigins={maintenanceOrigins}
+                maintenanceModalities={maintenanceModalities}
+                onChanged={() => router.reload({ only: ["assets", "assetQuota"] })}
             />
         </>
     );

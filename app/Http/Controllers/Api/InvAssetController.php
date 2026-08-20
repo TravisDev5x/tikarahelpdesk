@@ -56,7 +56,16 @@ class InvAssetController extends Controller
     {
         $this->authorizeAssetAccess($inv_asset);
 
-        return $inv_asset->load(['category', 'status', 'label', 'site', 'location', 'currentUser', 'images']);
+        // Detalle completo (fase de modal de detalle) -- el activo se ve en
+        // un diálogo montado sobre Index.jsx, no una página aparte; este
+        // endpoint es ahora la única fuente de datos para esa vista, mismas
+        // relaciones que antes cargaba InvAssetPageController::show().
+        return $inv_asset->load([
+            'category', 'status', 'label', 'site', 'location', 'currentUser', 'images',
+            'movements' => fn ($q) => $q->with(['user', 'previousUser', 'admin'])->orderByDesc('date'),
+            'components' => fn ($q) => $q->orderBy('name'),
+            'maintenances' => fn ($q) => $q->with(['origin', 'modality'])->orderByDesc('start_date'),
+        ]);
     }
 
     public function store(StoreInvAssetRequest $request)
