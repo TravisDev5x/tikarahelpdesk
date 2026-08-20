@@ -4,6 +4,8 @@ use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Request;
+use Inertia\Inertia;
+use Symfony\Component\HttpFoundation\Response;
 use Illuminate\Routing\Middleware\SubstituteBindings;
 use Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful;
 use App\Http\Middleware\EnsureSessionForAuth;
@@ -106,6 +108,44 @@ return Application::configure(basePath: dirname(__DIR__))
             }
 
             return null;
+        });
+
+        /*
+         * Páginas de error con el branding de Tikara (Inertia, no Blade) en vez
+         * del error genérico de Laravel. Nunca para /api/* ni peticiones que
+         * esperan JSON — esas siguen devolviendo JSON plano como siempre.
+         *
+         * 500/503 solo se reemplazan fuera de local/testing: en desarrollo
+         * queremos seguir viendo el stack trace de Laravel (APP_DEBUG) para
+         * depurar errores reales. 404/403/419 sí se muestran siempre porque
+         * son navegación normal, no bugs.
+         */
+        $exceptions->respond(function (Response $response, Throwable $exception, Request $request) {
+            if ($request->expectsJson()) {
+                return $response;
+            }
+
+            $status = $response->getStatusCode();
+
+            if ($status === 419) {
+                return back()->with(['message' => 'Tu sesión expiró, intenta de nuevo.']);
+            }
+
+            $isServerError = in_array($status, [500, 503], true);
+            $shouldRenderBranded = in_array($status, [403, 404], true)
+                || ($isServerError && ! app()->environment(['local', 'testing']));
+
+            if ($shouldRenderBranded) {
+                // rootView explícito: en un 404 real (sin ruta coincidente) el
+                // middleware HandleInertiaRequests -que normalmente fija la vista
+                // raíz 'inertia'- nunca llega a correr.
+                return Inertia::render('Error', ['status' => $status])
+                    ->rootView('inertia')
+                    ->toResponse($request)
+                    ->setStatusCode($status);
+            }
+
+            return $response;
         });
     })
     ->create();
