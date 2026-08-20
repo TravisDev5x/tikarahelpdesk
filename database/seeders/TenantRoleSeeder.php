@@ -46,8 +46,11 @@ use Illuminate\Support\Facades\DB;
  * Los permisos base son los mismos que ya usan los roles legacy
  * equivalentes (FullDemoSeeder::seedRolesAndPermissions) -- Fase 3 es un
  * renombrado/consolidación de roles, no un rediseño del modelo de permisos.
- * La única adición real es tickets.reassign (antes no existía; la acción
- * "reassigned" de TicketController usa tickets.assign, ver Fase 5).
+ * Adiciones reales desde entonces: tickets.reassign (antes no existía; la
+ * acción "reassigned" de TicketController usa tickets.assign, ver Fase 5),
+ * inventory.manage_config e inventory.manage_assets (módulo Inventario,
+ * port desde HelpdeskECD2026 fases 1 y 2 -- solo admin las recibe hoy, vía
+ * $allWebPermissions).
  */
 class TenantRoleSeeder extends Seeder
 {
@@ -79,6 +82,23 @@ class TenantRoleSeeder extends Seeder
         foreach (['web', 'sanctum'] as $guard) {
             DB::table('permissions')->insertOrIgnore([
                 'name' => 'tickets.reassign',
+                'guard_name' => $guard,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+
+            // Inventario (port desde HelpdeskECD2026, fase 1 -- catálogos base).
+            DB::table('permissions')->insertOrIgnore([
+                'name' => 'inventory.manage_config',
+                'guard_name' => $guard,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+
+            // Inventario fase 2 -- registro de activos (client_id-scoped, no
+            // operador-compartido como manage_config).
+            DB::table('permissions')->insertOrIgnore([
+                'name' => 'inventory.manage_assets',
                 'guard_name' => $guard,
                 'created_at' => now(),
                 'updated_at' => now(),

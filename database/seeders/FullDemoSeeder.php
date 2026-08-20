@@ -149,6 +149,8 @@ class FullDemoSeeder extends Seeder
             'roles.manage',
             'permissions.manage',
             'catalogs.manage',
+            'inventory.manage_config',
+            'inventory.manage_assets',
             'notifications.manage',
             'incidents.create',
             'incidents.view_own',

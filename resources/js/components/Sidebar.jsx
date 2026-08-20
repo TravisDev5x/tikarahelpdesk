@@ -71,6 +71,9 @@ import {
     Grid3X3,
     FileText,
     Inbox,
+    Package,
+    Tag,
+    Wrench,
 } from 'lucide-react'
 
 const ICON_SIZE = 20
@@ -474,6 +477,36 @@ export function Sidebar({ collapsed, onToggle, onNavigate, currentPath: currentP
                 children: catalogChildren,
             }
             sections.push({ sectionId: 'catalogs', label: t('section.catalogs'), items: [catalogGroup] })
+        }
+
+        // BLOQUE: INVENTARIO (port desde HelpdeskECD2026 — fase 1 catálogos,
+        // fase 2 activos). Dos permisos independientes: manage_assets ve el
+        // registro de activos, manage_config ve los catálogos de
+        // configuración — un técnico podría tener uno sin el otro. Mismo
+        // criterio que el bloque de Catálogos: gate explícito aquí, no solo
+        // en el backend.
+        {
+            const inventoryChildren = []
+            if (can('inventory.manage_assets')) {
+                inventoryChildren.push(inertiaNav('/inventory/assets', { label: t('nav.inventoryAssets'), icon: Package }))
+                inventoryChildren.push(inertiaNav('/inventory/monitor', { label: t('nav.inventoryMonitor'), icon: AlertTriangle }))
+            }
+            if (can('inventory.manage_config')) {
+                inventoryChildren.push({ type: 'separator', label: t('nav.catalogs') })
+                inventoryChildren.push(inertiaNav('/inventory/categories', { label: t('nav.inventoryCategories'), icon: Tags }))
+                inventoryChildren.push(inertiaNav('/inventory/statuses', { label: t('nav.inventoryStatuses'), icon: CircleDot }))
+                inventoryChildren.push(inertiaNav('/inventory/labels', { label: t('nav.inventoryLabels'), icon: Tag }))
+                inventoryChildren.push(inertiaNav('/inventory/maintenance-origins', { label: t('nav.inventoryMaintenanceOrigins'), icon: Wrench }))
+                inventoryChildren.push(inertiaNav('/inventory/maintenance-modalities', { label: t('nav.inventoryMaintenanceModalities'), icon: Wrench }))
+            }
+            if (inventoryChildren.length > 0) {
+                const inventoryGroup = {
+                    label: t('nav.inventory'),
+                    icon: Package,
+                    children: inventoryChildren,
+                }
+                sections.push({ sectionId: 'inventory', label: t('nav.inventory'), items: [inventoryGroup] })
+            }
         }
 
         // BLOQUE 3: SISTEMA (solo administradores; colapsable; incluye Roles y Permisos)

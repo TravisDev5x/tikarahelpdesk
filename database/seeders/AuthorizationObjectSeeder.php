@@ -30,10 +30,10 @@ use Illuminate\Database\Seeder;
  * catalogs.manage, notifications.manage, tickets.create/assign/reassign/
  * comment/change_status/escalate/manage_all/filter_by_site,
  * incidents.create/manage_all, clients.create/edit/delete,
- * platform.view_internals, sites.assign_staff) NO tiene variante de solo
- * lectura en el catálogo actual -- son acciones atómicas, no pares
- * ver/editar. Ninguna
- * se inventó aquí.
+ * platform.view_internals, sites.assign_staff, inventory.manage_config,
+ * inventory.manage_assets) NO tiene variante de solo lectura en el catálogo
+ * actual -- son acciones atómicas, no pares ver/editar. Ninguna se inventó
+ * aquí.
  */
 class AuthorizationObjectSeeder extends Seeder
 {
@@ -75,6 +75,14 @@ class AuthorizationObjectSeeder extends Seeder
             ['key' => 'core.permissions', 'label' => 'Permisos', 'full_permission' => 'permissions.manage'],
             ['key' => 'core.catalogs', 'label' => 'Catálogos', 'full_permission' => 'catalogs.manage'],
             ['key' => 'core.notifications', 'label' => 'Notificaciones', 'full_permission' => 'notifications.manage'],
+        ]);
+
+        // Inventario (port desde HelpdeskECD2026, fase 1 -- solo catálogos
+        // base por ahora). Acción atómica, sin variante de solo lectura --
+        // mismo criterio que core.catalogs.
+        $this->seedModule('inventory', 'Inventario', [
+            ['key' => 'inventory.manage_assets', 'label' => 'Activos (registro, fotos)', 'full_permission' => 'inventory.manage_assets'],
+            ['key' => 'inventory.manage_config', 'label' => 'Catálogos (categorías, estatus, etiquetas, mantenimiento)', 'full_permission' => 'inventory.manage_config'],
         ]);
 
         $this->seedModule('platform', 'Plataforma', [

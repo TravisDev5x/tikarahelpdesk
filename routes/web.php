@@ -7,6 +7,8 @@ use App\Http\Controllers\Auth\AcceptInvitationController;
 use App\Http\Controllers\CompanyController;
 use App\Http\Controllers\LandingController;
 use App\Http\Controllers\Inertia\CatalogPageController;
+use App\Http\Controllers\Inertia\InvAssetPageController;
+use App\Http\Controllers\Inertia\InvMonitorPageController;
 use App\Http\Controllers\Inertia\ResolbebIndexController;
 use App\Http\Controllers\Inertia\UserController as InertiaUserController;
 use App\Http\Controllers\Onboarding\TenantOnboardingController;
@@ -162,6 +164,33 @@ Route::middleware('auth')->group(function () {
     Route::get('/positions', [CatalogPageController::class, 'positions'])->name('positions.index');
     Route::get('/roles', [CatalogPageController::class, 'roles'])->name('roles.index');
     Route::get('/sessions', [CatalogPageController::class, 'sessions'])->name('sessions.index');
+
+    // Inventario — activos (fase 2, port desde HelpdeskECD2026). Solo GET;
+    // mutaciones por /api/inv-assets (InvAssetController).
+    Route::prefix('inventory/assets')->name('inventory.assets.')->middleware('perm:inventory.manage_assets')->group(function () {
+        Route::get('/', [InvAssetPageController::class, 'index'])->name('index');
+        Route::get('/{inv_asset}', [InvAssetPageController::class, 'show'])
+            ->where('inv_asset', '[0-9]+')->name('show');
+    });
+
+    // Inventario — dashboard de alertas (fase 7.1, port desde HelpdeskECD2026).
+    Route::get('/inventory/monitor', InvMonitorPageController::class)
+        ->middleware('perm:inventory.manage_assets')->name('inventory.monitor.index');
+
+    // Inventario — catálogos (fase 1, port desde HelpdeskECD2026). A
+    // diferencia de areas/campaigns/positions arriba, sí llevan perm: aquí
+    // mismo (no solo en las mutaciones API) — cierra el gap documentado en
+    // CLAUDE.md en vez de repetirlo para un módulo nuevo.
+    Route::get('/inventory/categories', [CatalogPageController::class, 'inventoryCategories'])
+        ->middleware('perm:inventory.manage_config')->name('inventory.categories.index');
+    Route::get('/inventory/statuses', [CatalogPageController::class, 'inventoryStatuses'])
+        ->middleware('perm:inventory.manage_config')->name('inventory.statuses.index');
+    Route::get('/inventory/labels', [CatalogPageController::class, 'inventoryLabels'])
+        ->middleware('perm:inventory.manage_config')->name('inventory.labels.index');
+    Route::get('/inventory/maintenance-origins', [CatalogPageController::class, 'inventoryMaintenanceOrigins'])
+        ->middleware('perm:inventory.manage_config')->name('inventory.maintenance-origins.index');
+    Route::get('/inventory/maintenance-modalities', [CatalogPageController::class, 'inventoryMaintenanceModalities'])
+        ->middleware('perm:inventory.manage_config')->name('inventory.maintenance-modalities.index');
 
     Route::get('/home', fn () => Inertia::render('Home/Dashboard'))
         ->middleware('onboarding')

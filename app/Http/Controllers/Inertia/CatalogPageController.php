@@ -5,6 +5,12 @@ namespace App\Http\Controllers\Inertia;
 use App\Http\Controllers\Controller;
 use App\Models\Area;
 use App\Models\AuthorizationObject;
+use App\Models\InvCategory;
+use App\Models\InvLabel;
+use App\Models\InvMaintenanceModality;
+use App\Models\InvMaintenanceOrigin;
+use App\Models\InvStatus;
+use App\Services\OperatorCatalogScopeService;
 use App\Services\OperatorScopeService;
 use App\Models\Campaign;
 use App\Models\Client;
@@ -31,7 +37,8 @@ use Inertia\Response;
 class CatalogPageController extends Controller
 {
     public function __construct(
-        protected OperatorScopeService $operatorScope
+        protected OperatorScopeService $operatorScope,
+        protected OperatorCatalogScopeService $catalogScope
     ) {}
 
     public function areas(): Response
@@ -73,6 +80,75 @@ class CatalogPageController extends Controller
     {
         return Inertia::render('Catalogs/Positions', [
             'positions' => Position::orderBy('name')->get(['id', 'name', 'is_active', 'created_at']),
+        ]);
+    }
+
+    /**
+     * Catálogos de Inventario (fase 1, port desde HelpdeskECD2026). A
+     * diferencia de areas()/campaigns()/positions() arriba, sí aplica
+     * OperatorCatalogScopeService::apply() desde el primer render — no
+     * repite el gap ya documentado (páginas de catálogo sin filtrar por
+     * operador, solo las mutaciones API lo hacían).
+     */
+    public function inventoryCategories(): Response
+    {
+        $user = auth()->user();
+
+        return Inertia::render('Inventory/Config/Categories', [
+            'categories' => $this->catalogScope
+                ->apply(InvCategory::query(), $user, 'inv_categories')
+                ->orderBy('name')
+                ->get(),
+        ]);
+    }
+
+    public function inventoryStatuses(): Response
+    {
+        $user = auth()->user();
+
+        return Inertia::render('Inventory/Config/Statuses', [
+            'statuses' => $this->catalogScope
+                ->apply(InvStatus::query(), $user, 'inv_statuses')
+                ->orderBy('name')
+                ->get(),
+        ]);
+    }
+
+    public function inventoryLabels(): Response
+    {
+        $user = auth()->user();
+
+        return Inertia::render('Inventory/Config/Labels', [
+            'labels' => $this->catalogScope
+                ->apply(InvLabel::query(), $user, 'inv_labels')
+                ->orderBy('name')
+                ->get(),
+        ]);
+    }
+
+    public function inventoryMaintenanceOrigins(): Response
+    {
+        $user = auth()->user();
+
+        return Inertia::render('Inventory/Config/MaintenanceOrigins', [
+            'maintenanceOrigins' => $this->catalogScope
+                ->apply(InvMaintenanceOrigin::query(), $user, 'inv_maintenance_origins')
+                ->orderBy('sort_order')
+                ->orderBy('name')
+                ->get(),
+        ]);
+    }
+
+    public function inventoryMaintenanceModalities(): Response
+    {
+        $user = auth()->user();
+
+        return Inertia::render('Inventory/Config/MaintenanceModalities', [
+            'maintenanceModalities' => $this->catalogScope
+                ->apply(InvMaintenanceModality::query(), $user, 'inv_maintenance_modalities')
+                ->orderBy('sort_order')
+                ->orderBy('name')
+                ->get(),
         ]);
     }
 

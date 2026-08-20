@@ -18,6 +18,7 @@ class Plan extends Model
         'max_clients',
         'max_users',
         'max_agents',
+        'max_assets',
         'features',
         'is_active',
         'is_public',

@@ -55,6 +55,7 @@ class OperatorScopeService
         return match ($module) {
             'tickets'   => $user->can('tickets.manage_all'),
             'incidents' => $user->can('incidents.manage_all'),
+            'inventory' => $user->can('inventory.manage_assets'),
             default     => $user->can('tickets.manage_all') || $user->can('incidents.manage_all'),
         };
     }
@@ -278,6 +279,148 @@ class OperatorScopeService
                     $sub->select('id')->from('sites')->where('client_id', $clientId);
                 });
         });
+    }
+
+    /**
+     * Inventario (fase 2, port desde HelpdeskECD2026) -- mismo esqueleto que
+     * applyOnIncidents/applyOnTickets. Sin fallback "sin tenant" propio de
+     * incidencias (reporter_id): un activo sin client_id resoluble
+     * simplemente no se ve, no hay un dueño individual al que replegarse.
+     */
+    public function applyOnInventoryAssets(Builder $query, User $user): Builder
+    {
+        if ($enforced = $this->tenantContext->enforcedClientId()) {
+            return $query->where(function ($q) use ($enforced) {
+                $q->where('client_id', $enforced)
+                    ->orWhereIn('site_id', function ($sub) use ($enforced) {
+                        $sub->select('id')->from('sites')->where('client_id', $enforced);
+                    });
+            });
+        }
+
+        if ($this->bypassesOperatorScope($user)) {
+            return $query;
+        }
+
+        if ($this->usesOperatorMspWideScope($user, 'inventory')) {
+            $operatorId = $this->resolveOperatorUserId($user);
+            if (! $operatorId) {
+                return $this->usesLegacyMspWideAccess($user) ? $query : $query->whereRaw('0 = 1');
+            }
+
+            return $query->where(function ($q) use ($operatorId) {
+                $q->whereIn('client_id', $this->clientIdsSubquery($operatorId))
+                    ->orWhereIn('site_id', $this->siteIdsSubquery($operatorId));
+            });
+        }
+
+        $clientId = $this->tenantResolver->resolve($user);
+        if (! $clientId) {
+            return $query->whereRaw('0 = 1');
+        }
+
+        return $query->where(function ($q) use ($clientId) {
+            $q->where('client_id', $clientId)
+                ->orWhereIn('site_id', function ($sub) use ($clientId) {
+                    $sub->select('id')->from('sites')->where('client_id', $clientId);
+                });
+        });
+    }
+
+    /**
+     * Componentes de inventario (fase 4, port desde HelpdeskECD2026) --
+     * mismo esqueleto que applyOnInventoryAssets. Sin fallback "sin tenant"
+     * propio, igual razón que assets: no hay un dueño individual al que
+     * replegarse.
+     */
+    public function applyOnInventoryComponents(Builder $query, User $user): Builder
+    {
+        if ($enforced = $this->tenantContext->enforcedClientId()) {
+            return $query->where('client_id', $enforced);
+        }
+
+        if ($this->bypassesOperatorScope($user)) {
+            return $query;
+        }
+
+        if ($this->usesOperatorMspWideScope($user, 'inventory')) {
+            $operatorId = $this->resolveOperatorUserId($user);
+            if (! $operatorId) {
+                return $this->usesLegacyMspWideAccess($user) ? $query : $query->whereRaw('0 = 1');
+            }
+
+            return $query->whereIn('client_id', $this->clientIdsSubquery($operatorId));
+        }
+
+        $clientId = $this->tenantResolver->resolve($user);
+        if (! $clientId) {
+            return $query->whereRaw('0 = 1');
+        }
+
+        return $query->where('client_id', $clientId);
+    }
+
+    /**
+     * Mantenimientos de inventario (fase 5, port desde HelpdeskECD2026) --
+     * mismo esqueleto que applyOnInventoryComponents.
+     */
+    public function applyOnInventoryMaintenances(Builder $query, User $user): Builder
+    {
+        if ($enforced = $this->tenantContext->enforcedClientId()) {
+            return $query->where('client_id', $enforced);
+        }
+
+        if ($this->bypassesOperatorScope($user)) {
+            return $query;
+        }
+
+        if ($this->usesOperatorMspWideScope($user, 'inventory')) {
+            $operatorId = $this->resolveOperatorUserId($user);
+            if (! $operatorId) {
+                return $this->usesLegacyMspWideAccess($user) ? $query : $query->whereRaw('0 = 1');
+            }
+
+            return $query->whereIn('client_id', $this->clientIdsSubquery($operatorId));
+        }
+
+        $clientId = $this->tenantResolver->resolve($user);
+        if (! $clientId) {
+            return $query->whereRaw('0 = 1');
+        }
+
+        return $query->where('client_id', $clientId);
+    }
+
+    /**
+     * Movimientos de inventario (fase 7.2, port desde HelpdeskECD2026 --
+     * export de historial de asignaciones) -- mismo esqueleto que
+     * applyOnInventoryComponents/applyOnInventoryMaintenances.
+     */
+    public function applyOnInventoryMovements(Builder $query, User $user): Builder
+    {
+        if ($enforced = $this->tenantContext->enforcedClientId()) {
+            return $query->where('client_id', $enforced);
+        }
+
+        if ($this->bypassesOperatorScope($user)) {
+            return $query;
+        }
+
+        if ($this->usesOperatorMspWideScope($user, 'inventory')) {
+            $operatorId = $this->resolveOperatorUserId($user);
+            if (! $operatorId) {
+                return $this->usesLegacyMspWideAccess($user) ? $query : $query->whereRaw('0 = 1');
+            }
+
+            return $query->whereIn('client_id', $this->clientIdsSubquery($operatorId));
+        }
+
+        $clientId = $this->tenantResolver->resolve($user);
+        if (! $clientId) {
+            return $query->whereRaw('0 = 1');
+        }
+
+        return $query->where('client_id', $clientId);
     }
 
     public function assertClientAccessible(User $user, Client $client): bool

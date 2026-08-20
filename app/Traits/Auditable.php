@@ -3,6 +3,10 @@
 namespace App\Traits;
 
 use App\Models\AuditLog;
+use App\Models\InvAsset;
+use App\Models\InvComponent;
+use App\Models\InvComponentMovement;
+use App\Models\InvMovement;
 use App\Models\Ticket;
 use Illuminate\Support\Facades\Log;
 
@@ -89,6 +93,22 @@ trait Auditable
                 $payload['client_id'] = $model->client_id
                     ?? ($model->relationLoaded('site') ? $model->site?->client_id : null)
                     ?? \App\Models\Site::where('id', $model->site_id)->value('client_id');
+            }
+
+            // InvAsset (fase 2 Inventario) ya trae client_id propio y
+            // obligatorio -- no necesita resolverlo vía site como Ticket.
+            if ($model instanceof InvAsset) {
+                $payload['client_id'] = $model->client_id;
+            }
+
+            // InvMovement (fase 3) -- mismo caso, client_id propio.
+            if ($model instanceof InvMovement) {
+                $payload['client_id'] = $model->client_id;
+            }
+
+            // InvComponent / InvComponentMovement (fase 4) -- mismo caso.
+            if ($model instanceof InvComponent || $model instanceof InvComponentMovement) {
+                $payload['client_id'] = $model->client_id;
             }
 
             AuditLog::create($payload);

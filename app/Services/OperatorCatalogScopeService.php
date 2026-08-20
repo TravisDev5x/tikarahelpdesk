@@ -29,6 +29,11 @@ class OperatorCatalogScopeService
         'areas',
         'campaigns',
         'positions',
+        'inv_categories',
+        'inv_statuses',
+        'inv_labels',
+        'inv_maintenance_origins',
+        'inv_maintenance_modalities',
     ];
 
     public function __construct(

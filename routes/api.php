@@ -6,6 +6,22 @@ use App\Http\Controllers\Api\RoleController;
 use App\Http\Controllers\Api\CampaignController;
 use App\Http\Controllers\Api\AreaController;
 use App\Http\Controllers\Api\PositionController;
+use App\Http\Controllers\Api\InvCategoryController;
+use App\Http\Controllers\Api\InvStatusController;
+use App\Http\Controllers\Api\InvLabelController;
+use App\Http\Controllers\Api\InvMaintenanceOriginController;
+use App\Http\Controllers\Api\InvMaintenanceModalityController;
+use App\Http\Controllers\Api\InvAssetController;
+use App\Http\Controllers\Api\InvAssetImageController;
+use App\Http\Controllers\Api\InvMovementController;
+use App\Http\Controllers\Api\InvComponentController;
+use App\Http\Controllers\Api\InvComponentMovementController;
+use App\Http\Controllers\Api\InvAssetDisassemblyController;
+use App\Http\Controllers\Api\InvMaintenanceController;
+use App\Http\Controllers\Api\InvAssetImportController;
+use App\Http\Controllers\Api\InvAssetExportController;
+use App\Http\Controllers\Api\InvMonitorExportController;
+use App\Http\Controllers\Api\InvMovementExportController;
 use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\InvitationController;
 use App\Http\Controllers\Api\UserRoleController;
@@ -279,6 +295,65 @@ Route::middleware(['auth:sanctum','locale','perm:catalogs.manage'])->name('api.'
 Route::middleware(['auth:sanctum','locale','perm:catalogs.manage'])->name('api.')->group(function () {
     Route::apiResource('positions', PositionController::class)
         ->only(['index', 'store', 'update', 'destroy']);
+});
+
+
+// ==========================
+// INVENTARIO — CATÁLOGOS (fase 1, port desde HelpdeskECD2026)
+// ==========================
+
+Route::middleware(['auth:sanctum','locale','perm:inventory.manage_config'])->name('api.')->group(function () {
+    Route::apiResource('inv-categories', InvCategoryController::class)
+        ->only(['index', 'store', 'update', 'destroy']);
+    Route::apiResource('inv-statuses', InvStatusController::class)
+        ->only(['index', 'store', 'update', 'destroy']);
+    Route::apiResource('inv-labels', InvLabelController::class)
+        ->only(['index', 'store', 'update', 'destroy']);
+    Route::apiResource('inv-maintenance-origins', InvMaintenanceOriginController::class)
+        ->only(['index', 'store', 'update', 'destroy']);
+    Route::apiResource('inv-maintenance-modalities', InvMaintenanceModalityController::class)
+        ->only(['index', 'store', 'update', 'destroy']);
+});
+
+// ==========================
+// INVENTARIO — ACTIVOS (fase 2, port desde HelpdeskECD2026)
+// ==========================
+
+Route::middleware(['auth:sanctum','locale','perm:inventory.manage_assets'])->name('api.')->group(function () {
+    // Import masivo (fase 6) -- antes de apiResource para no chocar con inv-assets/{inv_asset}.
+    Route::post('inv-assets/import', [InvAssetImportController::class, 'store']);
+    Route::get('inv-assets/import/template', [InvAssetImportController::class, 'template']);
+
+    // Exports (fase 7.2) -- antes de apiResource, mismo cuidado que import.
+    Route::get('inv-assets/export', InvAssetExportController::class);
+    Route::get('inv-assets/monitor/export', InvMonitorExportController::class);
+    Route::get('inv-movements/export', InvMovementExportController::class);
+
+    Route::apiResource('inv-assets', InvAssetController::class);
+    Route::post('inv-assets/{inv_asset}/images', [InvAssetImageController::class, 'store']);
+    Route::delete('inv-assets/{inv_asset}/images/{image}', [InvAssetImageController::class, 'destroy']);
+
+    // Ciclo de vida (fase 3) -- bitácora inmutable, sin update/destroy.
+    Route::get('inv-assets/{inv_asset}/movements', [InvMovementController::class, 'index']);
+    Route::post('inv-assets/{inv_asset}/checkout', [InvMovementController::class, 'checkout']);
+    Route::post('inv-assets/{inv_asset}/checkin', [InvMovementController::class, 'checkin']);
+    Route::post('inv-assets/{inv_asset}/transfer', [InvMovementController::class, 'transfer']);
+    Route::post('inv-assets/{inv_asset}/retire', [InvMovementController::class, 'retire']);
+
+    // Componentes + despiece (fase 4)
+    Route::apiResource('inv-components', InvComponentController::class);
+    Route::get('inv-components/{inv_component}/movements', [InvComponentMovementController::class, 'index']);
+    Route::post('inv-components/{inv_component}/assign', [InvComponentMovementController::class, 'assign']);
+    Route::post('inv-components/{inv_component}/unassign', [InvComponentMovementController::class, 'unassign']);
+    Route::post('inv-components/{inv_component}/retire', [InvComponentMovementController::class, 'retire']);
+    Route::post('inv-assets/{inv_asset}/disassemble', [InvAssetDisassemblyController::class, 'store']);
+
+    // Mantenimientos (fase 5) -- recurso editable, no bitácora inmutable.
+    Route::post('inv-assets/{inv_asset}/maintenances', [InvMaintenanceController::class, 'store']);
+    Route::get('inv-maintenances', [InvMaintenanceController::class, 'index']);
+    Route::get('inv-maintenances/{inv_maintenance}', [InvMaintenanceController::class, 'show']);
+    Route::put('inv-maintenances/{inv_maintenance}', [InvMaintenanceController::class, 'update']);
+    Route::delete('inv-maintenances/{inv_maintenance}', [InvMaintenanceController::class, 'destroy']);
 });
 
 

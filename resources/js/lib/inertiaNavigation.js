@@ -28,6 +28,7 @@ const INERTIA_PATH_PREFIXES = [
     "/incident-types",
     "/incident-severities",
     "/incident-statuses",
+    "/inventory",
     "/resolbeb",
     "/tickets/wallboard",
     "/onboarding",

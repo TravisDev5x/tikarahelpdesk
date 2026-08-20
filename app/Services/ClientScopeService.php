@@ -125,6 +125,125 @@ class ClientScopeService
         return $this->applyIncidentsWithoutTenant($query, $user);
     }
 
+    /**
+     * Restringe activos de inventario al cliente o al operador MSP del
+     * usuario (fase 2, port desde HelpdeskECD2026). Mismo esqueleto que
+     * applyIncidentScope, delega el ramal MSP-wide a
+     * OperatorScopeService::applyOnInventoryAssets().
+     */
+    public function applyInventoryAssetScope(Builder $query, User $user): Builder
+    {
+        if ($this->tenantContext->enforcedClientId()) {
+            return $this->applyStrictPortalClient($query, $user);
+        }
+
+        if ($this->operatorScope->bypassesOperatorScope($user)) {
+            return $query;
+        }
+
+        if ($this->operatorScope->hasMspWideAccess($user, 'inventory')) {
+            return $this->operatorScope->applyOnInventoryAssets($query, $user);
+        }
+
+        $clientId = $this->resolveUserClientId($user);
+        if ($clientId) {
+            return $query->where(function ($q) use ($clientId) {
+                $q->where('client_id', $clientId)
+                    ->orWhereIn('site_id', $this->siteIdsSubquery($clientId));
+            });
+        }
+
+        return $query->whereRaw('0 = 1');
+    }
+
+    /**
+     * Restringe componentes de inventario al cliente o al operador MSP del
+     * usuario (fase 4, port desde HelpdeskECD2026). Filtra por client_id
+     * directo -- a diferencia de assets, un componente no tiene site_id
+     * propio (puede estar suelto, sin activo), así que no hay columna de
+     * sede por la que hacer OR.
+     */
+    public function applyInventoryComponentScope(Builder $query, User $user): Builder
+    {
+        if ($this->tenantContext->enforcedClientId()) {
+            return $this->applyStrictPortalClient($query, $user);
+        }
+
+        if ($this->operatorScope->bypassesOperatorScope($user)) {
+            return $query;
+        }
+
+        if ($this->operatorScope->hasMspWideAccess($user, 'inventory')) {
+            return $this->operatorScope->applyOnInventoryComponents($query, $user);
+        }
+
+        $clientId = $this->resolveUserClientId($user);
+        if ($clientId) {
+            return $query->where('client_id', $clientId);
+        }
+
+        return $query->whereRaw('0 = 1');
+    }
+
+    /**
+     * Restringe mantenimientos de inventario al cliente o al operador MSP
+     * del usuario (fase 5, port desde HelpdeskECD2026). Calcado de
+     * applyInventoryComponentScope -- inv_maintenances también filtra por
+     * client_id directo, sin columna de sede propia.
+     */
+    public function applyInventoryMaintenanceScope(Builder $query, User $user): Builder
+    {
+        if ($this->tenantContext->enforcedClientId()) {
+            return $this->applyStrictPortalClient($query, $user);
+        }
+
+        if ($this->operatorScope->bypassesOperatorScope($user)) {
+            return $query;
+        }
+
+        if ($this->operatorScope->hasMspWideAccess($user, 'inventory')) {
+            return $this->operatorScope->applyOnInventoryMaintenances($query, $user);
+        }
+
+        $clientId = $this->resolveUserClientId($user);
+        if ($clientId) {
+            return $query->where('client_id', $clientId);
+        }
+
+        return $query->whereRaw('0 = 1');
+    }
+
+    /**
+     * Restringe movimientos de inventario al cliente o al operador MSP del
+     * usuario (fase 7.2, port desde HelpdeskECD2026 -- export de historial
+     * de asignaciones). Calcado de applyInventoryComponentScope --
+     * inv_movements también filtra por client_id directo. Hasta fase 7.1
+     * los movimientos solo se leían indirectamente vía el activo padre
+     * (InvMovementController::index() ya autoriza el activo primero); este
+     * scope es para el export, que lee todo el tenant de una vez.
+     */
+    public function applyInventoryMovementScope(Builder $query, User $user): Builder
+    {
+        if ($this->tenantContext->enforcedClientId()) {
+            return $this->applyStrictPortalClient($query, $user);
+        }
+
+        if ($this->operatorScope->bypassesOperatorScope($user)) {
+            return $query;
+        }
+
+        if ($this->operatorScope->hasMspWideAccess($user, 'inventory')) {
+            return $this->operatorScope->applyOnInventoryMovements($query, $user);
+        }
+
+        $clientId = $this->resolveUserClientId($user);
+        if ($clientId) {
+            return $query->where('client_id', $clientId);
+        }
+
+        return $query->whereRaw('0 = 1');
+    }
+
     public function incidentVisibleToUser(User $user, \App\Models\Incident $incident): bool
     {
         if ($enforced = $this->tenantContext->enforcedClientId()) {
