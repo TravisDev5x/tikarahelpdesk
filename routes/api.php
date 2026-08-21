@@ -9,9 +9,12 @@ use App\Http\Controllers\Api\PositionController;
 use App\Http\Controllers\Api\InvCategoryController;
 use App\Http\Controllers\Api\InvStatusController;
 use App\Http\Controllers\Api\InvLabelController;
+use App\Http\Controllers\Api\InvManufacturerController;
 use App\Http\Controllers\Api\InvMaintenanceOriginController;
 use App\Http\Controllers\Api\InvMaintenanceModalityController;
 use App\Http\Controllers\Api\InvAssetController;
+use App\Http\Controllers\Api\InvAssetDocumentController;
+use App\Http\Controllers\Api\InvAssetWarrantyController;
 use App\Http\Controllers\Api\InvAssetImageController;
 use App\Http\Controllers\Api\InvMovementController;
 use App\Http\Controllers\Api\InvComponentController;
@@ -21,6 +24,7 @@ use App\Http\Controllers\Api\InvMaintenanceController;
 use App\Http\Controllers\Api\InvAssetImportController;
 use App\Http\Controllers\Api\InvAssetExportController;
 use App\Http\Controllers\Api\InvMonitorExportController;
+use App\Http\Controllers\Api\InvMonitorSummaryController;
 use App\Http\Controllers\Api\InvMovementExportController;
 use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\InvitationController;
@@ -309,6 +313,8 @@ Route::middleware(['auth:sanctum','locale','perm:inventory.manage_config'])->nam
         ->only(['index', 'store', 'update', 'destroy']);
     Route::apiResource('inv-labels', InvLabelController::class)
         ->only(['index', 'store', 'update', 'destroy']);
+    Route::apiResource('inv-manufacturers', InvManufacturerController::class)
+        ->only(['index', 'store', 'update', 'destroy']);
     Route::apiResource('inv-maintenance-origins', InvMaintenanceOriginController::class)
         ->only(['index', 'store', 'update', 'destroy']);
     Route::apiResource('inv-maintenance-modalities', InvMaintenanceModalityController::class)
@@ -335,10 +341,20 @@ Route::middleware(['auth:sanctum','locale','perm:inventory.manage_assets|invento
     // Exports (fase 7.2) -- antes de apiResource, mismo cuidado que import.
     Route::get('inv-assets/export', InvAssetExportController::class);
     Route::get('inv-assets/monitor/export', InvMonitorExportController::class);
+    // Resumen ligero para el panel general de Inicio (fase 1, separación de
+    // dashboards) -- antes de monitor/export por el mismo cuidado de rutas
+    // fijas antes que segmentos dinámicos ya usado en el resto del archivo.
+    Route::get('inv-assets/monitor/summary', InvMonitorSummaryController::class);
     Route::get('inv-movements/export', InvMovementExportController::class);
     Route::get('inv-assets/import/template', [InvAssetImportController::class, 'template']);
 
     Route::apiResource('inv-assets', InvAssetController::class)->only(['index', 'show']);
+
+    // Ver una foto es una lectura -- fase 1 de la auditoría de Inventario:
+    // antes se servía directo en disco público sin este chequeo.
+    Route::get('inv-assets/{inv_asset}/images/{image}', [InvAssetImageController::class, 'show']);
+    // Documentos y evidencias (fase 2.2) -- descarga, mismo criterio que fotos.
+    Route::get('inv-assets/{inv_asset}/documents/{document}', [InvAssetDocumentController::class, 'show']);
 
     // Ciclo de vida (fase 3) -- solo la lectura de la bitácora aquí.
     Route::get('inv-assets/{inv_asset}/movements', [InvMovementController::class, 'index']);
@@ -361,6 +377,12 @@ Route::middleware(['auth:sanctum','locale','perm:inventory.manage_assets|invento
     // Borrar una foto es corregir un upload propio, no "eliminar un
     // activo" -- se queda en el nivel EDITAR, no en GESTIONAR.
     Route::delete('inv-assets/{inv_asset}/images/{image}', [InvAssetImageController::class, 'destroy']);
+    // Documentos y evidencias (fase 2.2) -- subir/eliminar.
+    Route::post('inv-assets/{inv_asset}/documents', [InvAssetDocumentController::class, 'store']);
+    Route::delete('inv-assets/{inv_asset}/documents/{document}', [InvAssetDocumentController::class, 'destroy']);
+    // Garantías (fase 2.3) -- sin update a propósito, ver InvAssetWarrantyController.
+    Route::post('inv-assets/{inv_asset}/warranties', [InvAssetWarrantyController::class, 'store']);
+    Route::delete('inv-assets/{inv_asset}/warranties/{warranty}', [InvAssetWarrantyController::class, 'destroy']);
 
     // Ciclo de vida (fase 3) -- mutaciones de la bitácora inmutable
     // (checkout/checkin/traslado/baja son altas nuevas, nunca update/

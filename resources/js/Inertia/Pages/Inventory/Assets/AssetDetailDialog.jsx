@@ -32,7 +32,7 @@ import {
     TableHeader,
     TableRow,
 } from "@/components/ui/table";
-import { ArrowRightLeft, CheckCircle2, Cpu, Loader2, PackageMinus, Pencil, Plus, Trash2, Upload, UserMinus, UserPlus, Wrench } from "lucide-react";
+import { ArrowRightLeft, CheckCircle2, Cpu, Download, FileText, Loader2, PackageMinus, Pencil, Plus, Trash2, Upload, UserMinus, UserPlus, Wrench } from "lucide-react";
 
 function Field({ label, value }) {
     return (
@@ -56,6 +56,26 @@ const MOVEMENT_LABELS = {
     MAINTENANCE: "Mantenimiento",
 };
 
+// Auditoría de Inventario, fase 2.2 (documentos y bajas estructuradas).
+const DOCUMENT_TYPES = [
+    { value: "invoice", label: "Factura" },
+    { value: "warranty", label: "Garantía" },
+    { value: "acta_entrega", label: "Acta de entrega" },
+    { value: "acta_devolucion", label: "Acta de devolución" },
+    { value: "disposal_evidence", label: "Evidencia de baja" },
+    { value: "other", label: "Otro" },
+];
+
+const DISPOSAL_METHODS = [
+    { value: "VENTA", label: "Venta" },
+    { value: "RECICLAJE", label: "Reciclaje" },
+    { value: "DONACION", label: "Donación" },
+    { value: "ROBO", label: "Robo" },
+    { value: "PERDIDA", label: "Pérdida" },
+    { value: "OBSOLESCENCIA", label: "Obsolescencia" },
+    { value: "DANO_IRREPARABLE", label: "Daño irreparable" },
+];
+
 const NONE = "__none__";
 
 /**
@@ -66,22 +86,28 @@ const NONE = "__none__";
  * entrada -- el detalle completo (movimientos/componentes/mantenimientos/
  * fotos) se trae de /api/inv-assets/{id} al abrir, no de props de página.
  */
-export default function AssetDetailDialog({ open, onOpenChange, assetId, categories, statuses, labels, sites, locations, clientUsers, maintenanceOrigins, maintenanceModalities, canEdit = true, onChanged }) {
+export default function AssetDetailDialog({ open, onOpenChange, assetId, categories, manufacturers, statuses, labels, sites, locations, specSchema, clientUsers, maintenanceOrigins, maintenanceModalities, canEdit = true, onChanged }) {
     const [asset, setAsset] = useState(null);
     const [loading, setLoading] = useState(false);
     const [openDialog, setOpenDialog] = useState(null); // 'checkout' | 'checkin' | 'transfer' | 'retire' | null
     const [saving, setSaving] = useState(false);
     const [editOpen, setEditOpen] = useState(false);
     const [uploadingImages, setUploadingImages] = useState(false);
+    const [uploadingDocument, setUploadingDocument] = useState(false);
+    const [documentType, setDocumentType] = useState(DOCUMENT_TYPES[0].value);
 
     const [checkoutUserId, setCheckoutUserId] = useState("");
     const [transferSiteId, setTransferSiteId] = useState("");
     const [transferLocationId, setTransferLocationId] = useState(NONE);
     const [retireStatusId, setRetireStatusId] = useState("");
     const [retireReason, setRetireReason] = useState("");
+    const [retireMethod, setRetireMethod] = useState("");
+    const [retireAuthorizedBy, setRetireAuthorizedBy] = useState(NONE);
+    const [retireResidualValue, setRetireResidualValue] = useState("");
 
     const [selectedComponents, setSelectedComponents] = useState([]);
     const [newComponent, setNewComponent] = useState({ name: "", marca: "", modelo: "", serie: "", capacidad: "" });
+    const [newWarranty, setNewWarranty] = useState({ provider: "", warranty_number: "", coverage: "", starts_at: "", ends_at: "" });
 
     const [maintenanceForm, setMaintenanceForm] = useState({ origin_id: NONE, modality_id: NONE, title: "", diagnosis: "", start_date: "" });
     const [closingMaintenanceId, setClosingMaintenanceId] = useState(null);
@@ -119,7 +145,11 @@ export default function AssetDetailDialog({ open, onOpenChange, assetId, categor
         setTransferLocationId(NONE);
         setRetireStatusId("");
         setRetireReason("");
+        setRetireMethod("");
+        setRetireAuthorizedBy(NONE);
+        setRetireResidualValue("");
         setNewComponent({ name: "", marca: "", modelo: "", serie: "", capacidad: "" });
+        setNewWarranty({ provider: "", warranty_number: "", coverage: "", starts_at: "", ends_at: "" });
         setMaintenanceForm({ origin_id: NONE, modality_id: NONE, title: "", diagnosis: "", start_date: "" });
         setClosingMaintenanceId(null);
         setCloseForm({ end_date: "", solution: "", cost: "" });
@@ -164,6 +194,49 @@ export default function AssetDetailDialog({ open, onOpenChange, assetId, categor
         } catch (err) {
             if (!handleAuthError(err)) {
                 notify.error(getApiErrorMessage(err, "No se pudo borrar la foto"));
+            }
+        }
+    };
+
+    const uploadDocument = async (file, type) => {
+        if (!file) return;
+        setUploadingDocument(true);
+        const form = new FormData();
+        form.append("file", file);
+        form.append("type", type);
+        try {
+            await axios.post(`/api/inv-assets/${asset.id}/documents`, form, {
+                headers: { "Content-Type": "multipart/form-data" },
+            });
+            notify.success("Documento agregado");
+            reload();
+        } catch (err) {
+            if (!handleAuthError(err)) {
+                notify.error(getApiErrorMessage(err, "No se pudo subir el documento"));
+            }
+        } finally {
+            setUploadingDocument(false);
+        }
+    };
+
+    const deleteDocument = async (document) => {
+        try {
+            await axios.delete(`/api/inv-assets/${asset.id}/documents/${document.id}`);
+            reload();
+        } catch (err) {
+            if (!handleAuthError(err)) {
+                notify.error(getApiErrorMessage(err, "No se pudo borrar el documento"));
+            }
+        }
+    };
+
+    const deleteWarranty = async (warranty) => {
+        try {
+            await axios.delete(`/api/inv-assets/${asset.id}/warranties/${warranty.id}`);
+            reload();
+        } catch (err) {
+            if (!handleAuthError(err)) {
+                notify.error(getApiErrorMessage(err, "No se pudo borrar la garantía"));
             }
         }
     };
@@ -240,6 +313,8 @@ export default function AssetDetailDialog({ open, onOpenChange, assetId, categor
                                 </CardHeader>
                                 <CardContent className="grid gap-4 md:grid-cols-3">
                                     <Field label="Categoría" value={asset.category?.name} />
+                                    <Field label="Fabricante" value={asset.manufacturer?.name} />
+                                    <Field label="Modelo" value={asset.model} />
                                     <Field
                                         label="Estatus"
                                         value={asset.status ? <Badge variant="outline">{asset.status.name}</Badge> : null}
@@ -254,7 +329,6 @@ export default function AssetDetailDialog({ open, onOpenChange, assetId, categor
                                     <Field label="Número de factura" value={asset.invoice_number} />
                                     <Field label="Fecha de compra" value={asset.purchase_date} />
                                     <Field label="Vencimiento de garantía" value={asset.warranty_expiry} />
-                                    <Field label="Especificaciones" value={asset.specs?.notes} />
                                     <div className="md:col-span-3">
                                         <Field label="Notas" value={asset.notes} />
                                     </div>
@@ -262,11 +336,80 @@ export default function AssetDetailDialog({ open, onOpenChange, assetId, categor
                             </Card>
 
                             <Card>
+                                <CardHeader className="flex flex-row items-center justify-between space-y-0">
+                                    <CardTitle>Garantías</CardTitle>
+                                    {canEdit && (
+                                        <Button size="sm" variant="outline" onClick={() => setOpenDialog("add-warranty")}>
+                                            <Plus className="mr-2 h-4 w-4" />
+                                            Agregar garantía
+                                        </Button>
+                                    )}
+                                </CardHeader>
+                                <CardContent>
+                                    {(asset.warranties ?? []).length === 0 ? (
+                                        <p className="text-sm text-muted-foreground">Sin garantías registradas además del vencimiento de arriba.</p>
+                                    ) : (
+                                        <Table>
+                                            <TableHeader>
+                                                <TableRow>
+                                                    <TableHead>Proveedor</TableHead>
+                                                    <TableHead>Número</TableHead>
+                                                    <TableHead>Vigencia</TableHead>
+                                                    <TableHead className="w-10" />
+                                                </TableRow>
+                                            </TableHeader>
+                                            <TableBody>
+                                                {asset.warranties.map((w) => (
+                                                    <TableRow key={w.id}>
+                                                        <TableCell className="text-sm">{w.provider}</TableCell>
+                                                        <TableCell className="text-sm font-mono">{w.warranty_number || "—"}</TableCell>
+                                                        <TableCell className="text-sm">{w.starts_at ? `${w.starts_at} – ` : ""}{w.ends_at}</TableCell>
+                                                        <TableCell>
+                                                            {canEdit && (
+                                                                <Button variant="ghost" size="icon" onClick={() => deleteWarranty(w)}>
+                                                                    <Trash2 className="h-4 w-4 text-destructive" />
+                                                                </Button>
+                                                            )}
+                                                        </TableCell>
+                                                    </TableRow>
+                                                ))}
+                                            </TableBody>
+                                        </Table>
+                                    )}
+                                </CardContent>
+                            </Card>
+
+                            {(asset.specs ?? []).length > 0 && (
+                                <Card>
+                                    <CardHeader>
+                                        <CardTitle>Especificaciones técnicas</CardTitle>
+                                    </CardHeader>
+                                    <CardContent className="grid gap-4 md:grid-cols-3">
+                                        {asset.specs.map((spec) => {
+                                            const schemaFields = specSchema?.[asset.category?.type] ?? [];
+                                            const label = schemaFields.find((f) => f.key === spec.key)?.label ?? spec.key;
+                                            return <Field key={spec.id} label={label} value={spec.value} />;
+                                        })}
+                                    </CardContent>
+                                </Card>
+                            )}
+
+                            <Card>
                                 <CardHeader>
                                     <CardTitle>Responsable y ciclo de vida</CardTitle>
                                 </CardHeader>
                                 <CardContent className="space-y-4">
                                     <Field label="Responsable actual" value={userLabel(asset.current_user) ?? "Sin asignar"} />
+                                    {asset.disposal && (
+                                        <div className="grid gap-4 md:grid-cols-3 rounded-lg border border-destructive/30 bg-destructive/5 p-3">
+                                            <Field
+                                                label="Baja: método"
+                                                value={DISPOSAL_METHODS.find((m) => m.value === asset.disposal.method)?.label ?? asset.disposal.method}
+                                            />
+                                            <Field label="Autorizó" value={userLabel(asset.disposal.authorized_by) ?? "—"} />
+                                            <Field label="Valor residual" value={asset.disposal.residual_value ? `$${asset.disposal.residual_value}` : "—"} />
+                                        </div>
+                                    )}
                                     {canEdit && (
                                         <div className="flex flex-wrap gap-2">
                                             {!asset.current_user_id ? (
@@ -427,7 +570,7 @@ export default function AssetDetailDialog({ open, onOpenChange, assetId, categor
                                         {(asset.images ?? []).map((img) => (
                                             <div key={img.id} className="relative group">
                                                 <img
-                                                    src={`/storage/${img.path}`}
+                                                    src={`/api/inv-assets/${asset.id}/images/${img.id}`}
                                                     alt=""
                                                     className="h-32 w-32 rounded-md object-cover border"
                                                 />
@@ -457,6 +600,74 @@ export default function AssetDetailDialog({ open, onOpenChange, assetId, categor
                                                 className="hidden"
                                                 disabled={uploadingImages}
                                                 onChange={(e) => uploadImages(e.target.files)}
+                                            />
+                                        </div>
+                                    )}
+                                </CardContent>
+                            </Card>
+
+                            <Card>
+                                <CardHeader>
+                                    <CardTitle>Documentos</CardTitle>
+                                </CardHeader>
+                                <CardContent className="space-y-4">
+                                    {(asset.documents ?? []).length === 0 ? (
+                                        <p className="text-sm text-muted-foreground">Sin documentos todavía.</p>
+                                    ) : (
+                                        <ul className="divide-y rounded-md border">
+                                            {asset.documents.map((doc) => (
+                                                <li key={doc.id} className="flex items-center justify-between gap-3 px-3 py-2">
+                                                    <div className="flex items-center gap-2 min-w-0">
+                                                        <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
+                                                        <div className="min-w-0">
+                                                            <p className="text-sm truncate">{doc.original_name}</p>
+                                                            <p className="text-xs text-muted-foreground">
+                                                                {DOCUMENT_TYPES.find((t) => t.value === doc.type)?.label ?? doc.type}
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex items-center gap-1 shrink-0">
+                                                        <Button asChild variant="ghost" size="icon">
+                                                            <a href={`/api/inv-assets/${asset.id}/documents/${doc.id}`} download>
+                                                                <Download className="h-4 w-4" />
+                                                            </a>
+                                                        </Button>
+                                                        {canEdit && (
+                                                            <Button variant="ghost" size="icon" onClick={() => deleteDocument(doc)}>
+                                                                <Trash2 className="h-4 w-4 text-destructive" />
+                                                            </Button>
+                                                        )}
+                                                    </div>
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    )}
+                                    {canEdit && (
+                                        <div className="flex flex-wrap items-end gap-2">
+                                            <div className="space-y-1.5">
+                                                <Label className="text-xs">Tipo de documento</Label>
+                                                <Select value={documentType} onValueChange={setDocumentType}>
+                                                    <SelectTrigger className="w-48"><SelectValue /></SelectTrigger>
+                                                    <SelectContent>
+                                                        {DOCUMENT_TYPES.map((t) => (
+                                                            <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                                                        ))}
+                                                    </SelectContent>
+                                                </Select>
+                                            </div>
+                                            <Label htmlFor="asset-detail-documents" className="inline-flex h-9 items-center gap-2 cursor-pointer text-sm text-brand-muted hover:underline">
+                                                <Upload className="h-4 w-4" />
+                                                {uploadingDocument ? "Subiendo…" : "Subir documento"}
+                                            </Label>
+                                            <input
+                                                id="asset-detail-documents"
+                                                type="file"
+                                                className="hidden"
+                                                disabled={uploadingDocument}
+                                                onChange={(e) => {
+                                                    uploadDocument(e.target.files?.[0], documentType);
+                                                    e.target.value = "";
+                                                }}
                                             />
                                         </div>
                                     )}
@@ -625,15 +836,45 @@ export default function AssetDetailDialog({ open, onOpenChange, assetId, categor
                                     <Label>Motivo *</Label>
                                     <Textarea rows={2} value={retireReason} onChange={(e) => setRetireReason(e.target.value)} placeholder="Ej. Equipo dañado sin reparación viable" />
                                 </div>
+                                <div className="space-y-1.5">
+                                    <Label>Método de disposición *</Label>
+                                    <Select value={retireMethod} onValueChange={setRetireMethod}>
+                                        <SelectTrigger><SelectValue placeholder="Seleccionar…" /></SelectTrigger>
+                                        <SelectContent>
+                                            {DISPOSAL_METHODS.map((m) => (
+                                                <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                                <div className="space-y-1.5">
+                                    <Label>Autorizado por</Label>
+                                    <Select value={retireAuthorizedBy} onValueChange={setRetireAuthorizedBy}>
+                                        <SelectTrigger><SelectValue placeholder="Sin especificar" /></SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value={NONE}>Sin especificar</SelectItem>
+                                            {(clientUsers ?? []).map((u) => (
+                                                <SelectItem key={u.id} value={String(u.id)}>{userLabel(u)}</SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                                <div className="space-y-1.5">
+                                    <Label>Valor residual</Label>
+                                    <Input type="number" min="0" step="0.01" value={retireResidualValue} onChange={(e) => setRetireResidualValue(e.target.value)} />
+                                </div>
                             </div>
                             <DialogFooter>
                                 <Button variant="outline" onClick={close} disabled={saving}>Cancelar</Button>
                                 <Button
                                     variant="destructive"
-                                    disabled={!retireStatusId || !retireReason.trim() || saving}
+                                    disabled={!retireStatusId || !retireReason.trim() || !retireMethod || saving}
                                     onClick={() => runAction(`/api/inv-assets/${asset.id}/retire`, {
                                         status_id: retireStatusId,
                                         reason: retireReason,
+                                        method: retireMethod,
+                                        authorized_by: retireAuthorizedBy === NONE ? null : retireAuthorizedBy,
+                                        residual_value: retireResidualValue === "" ? null : retireResidualValue,
                                     }, "Activo dado de baja")}
                                 >
                                     Dar de baja
@@ -679,6 +920,55 @@ export default function AssetDetailDialog({ open, onOpenChange, assetId, categor
                                 <Button
                                     disabled={!newComponent.name.trim() || saving}
                                     onClick={() => runAction("/api/inv-components", { ...newComponent, asset_id: asset.id }, "Componente agregado")}
+                                >
+                                    Agregar
+                                </Button>
+                            </DialogFooter>
+                        </DialogContent>
+                    </Dialog>
+
+                    {/* Agregar garantía */}
+                    <Dialog open={openDialog === "add-warranty"} onOpenChange={(o) => !o && close()}>
+                        <DialogContent>
+                            <DialogHeader><DialogTitle>Agregar garantía</DialogTitle></DialogHeader>
+                            <div className="space-y-3">
+                                <div className="space-y-1.5">
+                                    <Label>Proveedor *</Label>
+                                    <Input
+                                        value={newWarranty.provider}
+                                        onChange={(e) => setNewWarranty((p) => ({ ...p, provider: e.target.value }))}
+                                        placeholder="Ej. Dell, seguro extendido, taller X"
+                                    />
+                                </div>
+                                <div className="space-y-1.5">
+                                    <Label>Número de garantía</Label>
+                                    <Input value={newWarranty.warranty_number} onChange={(e) => setNewWarranty((p) => ({ ...p, warranty_number: e.target.value }))} />
+                                </div>
+                                <div className="space-y-1.5">
+                                    <Label>Cobertura</Label>
+                                    <Textarea rows={2} value={newWarranty.coverage} onChange={(e) => setNewWarranty((p) => ({ ...p, coverage: e.target.value }))} placeholder="Ej. Piezas y mano de obra" />
+                                </div>
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div className="space-y-1.5">
+                                        <Label>Inicio</Label>
+                                        <Input type="date" value={newWarranty.starts_at} onChange={(e) => setNewWarranty((p) => ({ ...p, starts_at: e.target.value }))} />
+                                    </div>
+                                    <div className="space-y-1.5">
+                                        <Label>Vence *</Label>
+                                        <Input type="date" value={newWarranty.ends_at} onChange={(e) => setNewWarranty((p) => ({ ...p, ends_at: e.target.value }))} />
+                                    </div>
+                                </div>
+                            </div>
+                            <DialogFooter>
+                                <Button variant="outline" onClick={close} disabled={saving}>Cancelar</Button>
+                                <Button
+                                    disabled={!newWarranty.provider.trim() || !newWarranty.ends_at || saving}
+                                    onClick={() => runAction(`/api/inv-assets/${asset.id}/warranties`, {
+                                        ...newWarranty,
+                                        starts_at: newWarranty.starts_at || null,
+                                        warranty_number: newWarranty.warranty_number || null,
+                                        coverage: newWarranty.coverage || null,
+                                    }, "Garantía agregada")}
                                 >
                                     Agregar
                                 </Button>
@@ -847,10 +1137,12 @@ export default function AssetDetailDialog({ open, onOpenChange, assetId, categor
                         onOpenChange={setEditOpen}
                         asset={asset}
                         categories={categories}
+                        manufacturers={manufacturers}
                         statuses={statuses}
                         labels={labels}
                         sites={sites}
                         locations={locations}
+                        specSchema={specSchema}
                         onSaved={reload}
                     />
                 </>

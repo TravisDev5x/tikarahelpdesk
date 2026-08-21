@@ -43,7 +43,7 @@ const NONE = "__none__";
  * El padre debe montar este componente con `key={asset?.id ?? "new"}`
  * para que el estado interno se reinicie al cambiar de activo objetivo.
  */
-export default function AssetFormDialog({ open, onOpenChange, asset, categories, statuses, labels, sites, locations, onSaved }) {
+export default function AssetFormDialog({ open, onOpenChange, asset, categories, manufacturers, statuses, labels, sites, locations, specSchema, onSaved }) {
     const isEdit = !!asset;
 
     const [data, setData] = useState({
@@ -51,12 +51,16 @@ export default function AssetFormDialog({ open, onOpenChange, asset, categories,
         serial: asset?.serial ?? "",
         name: asset?.name ?? "",
         category_id: asset?.category_id ? String(asset.category_id) : "",
+        manufacturer_id: asset?.manufacturer_id ? String(asset.manufacturer_id) : NONE,
+        model: asset?.model ?? "",
         status_id: asset?.status_id ? String(asset.status_id) : "",
         label_id: asset?.label_id ? String(asset.label_id) : NONE,
         condition: asset?.condition ?? NONE,
         site_id: asset?.site_id ? String(asset.site_id) : "",
         location_id: asset?.location_id ? String(asset.location_id) : NONE,
-        specs: asset?.specs?.notes ?? "",
+        // Ficha técnica estructurada (fase 2.1) -- {key: value}, no más el
+        // textarea libre de antes (specs.notes, ya no se escribe).
+        specs: Object.fromEntries((asset?.specs ?? []).map((s) => [s.key, s.value ?? ""])),
         cost: asset?.cost ?? "",
         purchase_date: asset?.purchase_date ?? "",
         warranty_expiry: asset?.warranty_expiry ?? "",
@@ -82,6 +86,16 @@ export default function AssetFormDialog({ open, onOpenChange, asset, categories,
         return (locations ?? []).filter((l) => String(l.site_id) === data.site_id);
     }, [locations, data.site_id]);
 
+    const selectedCategory = useMemo(
+        () => (categories ?? []).find((c) => String(c.id) === data.category_id),
+        [categories, data.category_id]
+    );
+    const specFields = specSchema?.[selectedCategory?.type] ?? [];
+
+    const setSpecField = (key, value) => {
+        setData((prev) => ({ ...prev, specs: { ...prev.specs, [key]: value } }));
+    };
+
     const handleSiteChange = (value) => {
         setData((prev) => ({ ...prev, site_id: value, location_id: NONE }));
         setErrors((prev) => {
@@ -100,9 +114,11 @@ export default function AssetFormDialog({ open, onOpenChange, asset, categories,
         const payload = {
             ...data,
             label_id: data.label_id === NONE ? null : data.label_id,
+            manufacturer_id: data.manufacturer_id === NONE ? null : data.manufacturer_id,
             condition: data.condition === NONE ? null : data.condition,
             location_id: data.location_id === NONE ? null : data.location_id,
             cost: data.cost === "" ? null : data.cost,
+            specs: Object.entries(data.specs).map(([key, value]) => ({ key, value })),
         };
 
         try {
@@ -172,6 +188,24 @@ export default function AssetFormDialog({ open, onOpenChange, asset, categories,
                                 </SelectContent>
                             </Select>
                             {fieldError("category_id") && <p className="text-xs text-destructive">{fieldError("category_id")}</p>}
+                        </div>
+
+                        <div className="space-y-1.5">
+                            <Label>Fabricante</Label>
+                            <Select value={data.manufacturer_id} onValueChange={(v) => setField("manufacturer_id", v)}>
+                                <SelectTrigger><SelectValue /></SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value={NONE}>Sin especificar</SelectItem>
+                                    {(manufacturers ?? []).map((m) => (
+                                        <SelectItem key={m.id} value={String(m.id)}>{m.name}</SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+
+                        <div className="space-y-1.5">
+                            <Label>Modelo</Label>
+                            <Input value={data.model} onChange={(e) => setField("model", e.target.value)} placeholder="Ej. Latitude 5420" />
                         </div>
 
                         <div className="space-y-1.5">
@@ -264,10 +298,22 @@ export default function AssetFormDialog({ open, onOpenChange, asset, categories,
                             <Input type="date" value={data.warranty_expiry ?? ""} onChange={(e) => setField("warranty_expiry", e.target.value)} />
                         </div>
 
-                        <div className="space-y-1.5 md:col-span-2">
-                            <Label>Especificaciones técnicas</Label>
-                            <Textarea rows={3} value={data.specs} onChange={(e) => setField("specs", e.target.value)} placeholder="Ej. RAM 16GB, SSD 512GB, i7-1265U" />
-                        </div>
+                        {specFields.length > 0 && (
+                            <div className="space-y-2 md:col-span-2">
+                                <Label>Especificaciones técnicas</Label>
+                                <div className="grid gap-3 sm:grid-cols-2 rounded-lg border p-3">
+                                    {specFields.map((field) => (
+                                        <div key={field.key} className="space-y-1">
+                                            <Label className="text-xs font-normal text-muted-foreground">{field.label}</Label>
+                                            <Input
+                                                value={data.specs[field.key] ?? ""}
+                                                onChange={(e) => setSpecField(field.key, e.target.value)}
+                                            />
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
 
                         <div className="space-y-1.5 md:col-span-2">
                             <Label>Notas</Label>

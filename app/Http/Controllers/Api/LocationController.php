@@ -12,7 +12,7 @@ class LocationController extends Controller
     public function index(Request $request)
     {
         $siteId = $request->query('site_id');
-        $query = Location::with('site:id,name,type');
+        $query = Location::with(['site:id,name,type', 'parent:id,name']);
         if ($siteId) {
             $query->where('site_id', $siteId);
         }
@@ -25,6 +25,10 @@ class LocationController extends Controller
             'site_id' => ['required', 'exists:sites,id'],
             'name' => ['required', 'min:2'],
             'code' => ['nullable', 'max:20', 'unique:locations,code'],
+            // Ubicación jerárquica (fase 2.3, auditoría de Inventario) --
+            // aditivo, ambos opcionales.
+            'parent_id' => ['nullable', 'exists:locations,id'],
+            'type' => ['nullable', 'string', 'in:building,floor,room,rack,warehouse,other'],
             'is_active' => ['boolean'],
         ]);
         $data['is_active'] = $data['is_active'] ?? true;
@@ -45,6 +49,8 @@ class LocationController extends Controller
             'site_id' => ['required', 'exists:sites,id'],
             'name' => ['required', 'min:2'],
             'code' => ['nullable', 'max:20', Rule::unique('locations', 'code')->ignore($location->id)],
+            'parent_id' => ['nullable', 'exists:locations,id', Rule::notIn([$location->id])],
+            'type' => ['nullable', 'string', 'in:building,floor,room,rack,warehouse,other'],
             'is_active' => ['boolean'],
         ]);
         $request->validate([

@@ -4,9 +4,14 @@ namespace App\Traits;
 
 use App\Models\AuditLog;
 use App\Models\InvAsset;
+use App\Models\InvAssetSpec;
 use App\Models\InvComponent;
 use App\Models\InvComponentMovement;
+use App\Models\InvDisposal;
+use App\Models\InvDocument;
+use App\Models\InvMaintenance;
 use App\Models\InvMovement;
+use App\Models\InvWarranty;
 use App\Models\Ticket;
 use Illuminate\Support\Facades\Log;
 
@@ -108,6 +113,31 @@ trait Auditable
 
             // InvComponent / InvComponentMovement (fase 4) -- mismo caso.
             if ($model instanceof InvComponent || $model instanceof InvComponentMovement) {
+                $payload['client_id'] = $model->client_id;
+            }
+
+            // InvMaintenance (fase 5) -- mismo caso, client_id propio. Hueco
+            // real encontrado en la auditoría de Inventario (fase 1,
+            // crítico): sin esta rama, audit_logs.client_id quedaba null
+            // para cada cambio sobre un mantenimiento, invisible para
+            // cualquier consulta de auditoría filtrada por tenant.
+            if ($model instanceof InvMaintenance) {
+                $payload['client_id'] = $model->client_id;
+            }
+
+            // InvAssetSpec (fase 2.1, ficha técnica estructurada) -- mismo caso.
+            if ($model instanceof InvAssetSpec) {
+                $payload['client_id'] = $model->client_id;
+            }
+
+            // InvDocument / InvDisposal (fase 2.2, documentos y bajas
+            // estructuradas) -- mismo caso, client_id propio.
+            if ($model instanceof InvDocument || $model instanceof InvDisposal) {
+                $payload['client_id'] = $model->client_id;
+            }
+
+            // InvWarranty (fase 2.3, garantías) -- mismo caso.
+            if ($model instanceof InvWarranty) {
                 $payload['client_id'] = $model->client_id;
             }
 

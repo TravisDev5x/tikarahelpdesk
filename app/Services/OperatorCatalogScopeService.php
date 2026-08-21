@@ -34,6 +34,7 @@ class OperatorCatalogScopeService
         'inv_labels',
         'inv_maintenance_origins',
         'inv_maintenance_modalities',
+        'inv_manufacturers',
     ];
 
     public function __construct(

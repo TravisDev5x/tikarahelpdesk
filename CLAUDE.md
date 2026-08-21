@@ -178,7 +178,7 @@ Punto de retoma oficial de este proyecto — no depender de memoria de conversac
 | Fase 6 (RBAC v2 estilo SAP B1 — Spatie teams, plantillas por tenant, `scope_archetype`, catálogo de objetos, overrides por usuario) | **CERRADA** | Ver `docs/RBAC_ROADMAP.md` |
 | Fase 7 (onboarding completo de un tenant nuevo, 7.1-7.8) | **CERRADA** (2026-08-10) | Ver sección "Multi-Tenant / Onboarding" arriba para el recorrido completo |
 | Fase 8 (licenciamiento) | **NO INICIADA** — bloqueada por una pregunta de producto sin resolver | Ver sección "Fase 8 — Licenciamiento" abajo |
-| Módulo Inventario (port desde HelpdeskECD2026) | **EN PROGRESO** — fases 1-6 + cuota por plan + dashboard de alertas (7.1) + exports (7.2) + detalle en modal/paginación/filtros ágiles (7.3) + permisos granulares ver/editar/gestionar (7.4) cerradas; falta vista de asignación consolidada | Ver `docs/INVENTORY_ROADMAP.md` |
+| Módulo Inventario (port desde HelpdeskECD2026) | **EN PROGRESO** — fases 1-7.5 (port + dashboard/wallboard) cerradas; auditoría ITAM/CMDB 2026-08-21: fase Crítico + fases 2.1-2.3 ITAM (specs, documentos/bajas, garantías/fabricantes/ubicación) cerradas, falta fase 3 CMDB (relaciones entre activos + **Activo↔Ticket**, la más importante) | Ver `docs/INVENTORY_ROADMAP.md` |
 | M0-M6 (migración a base de datos física por tenant, `stancl/tenancy`) | **NO INICIADA** — pospuesta deliberadamente, sin presión de tiempo | — |
 | UX/UI de todo el flujo | **NO INICIADA** — deliberadamente al final, después de M0-M6 | — |
 
@@ -234,7 +234,7 @@ Este archivo es la guía rápida. Para detalle, cada doc vive en `docs/` (o raí
 | `docs/PENDING_TICKET_REVIEW.md` | Cola de revisión de correos no reconocidos — construida 2026-08-09 |
 | `docs/RBAC_ROADMAP.md` | Bitácora de fases del modelo de roles/permisos (`team_id`, RBAC v2) |
 | `docs/MULTITENANT_ROADMAP.md` | Roadmap de aislamiento multi-tenant hasta "100% sólido" |
-| `docs/INVENTORY_ROADMAP.md` | Bitácora de fases del port de Inventario (HelpdeskECD2026 → Tikara) — qué está cerrado y qué falta (vista de asignación consolidada) |
+| `docs/INVENTORY_ROADMAP.md` | Bitácora de fases del port de Inventario (HelpdeskECD2026 → Tikara) + roadmap de la auditoría ITAM/CMDB (2026-08-21) — qué está cerrado y qué falta (Fase 3 CMDB: relaciones entre activos + Activo↔Ticket) |
 | `docs/PENDING.md` | **Índice consolidado de pendientes** — punto de entrada, ver sección siguiente |
 
 ---
@@ -248,7 +248,7 @@ Este archivo es la guía rápida. Para detalle, cada doc vive en `docs/` (o raí
 **Roadmaps vivos, sin fecha objetivo**:
 - `RBAC_ROADMAP.md`: fase 6 (roles por equipo/Spatie teams) cerrada 2026-08-04; fase 7 (plantilla "Encargado TI") cerrada 2026-08-09. El hallazgo que quedaba anotado ahí sin resolver ("onboarding de un tenant nuevo no siembra roles de RBAC v2 automáticamente") **se resolvió con la Fase 7 del roadmap general** (`TenantOnboardingController` corre `TenantRoleSeeder` en 7.2 para cada tenant nuevo) — no confundir la numeración de fases de este doc (interna del RBAC) con la Fase 7 del roadmap general (onboarding).
 - `MULTITENANT_ROADMAP.md`: fases 0-4 (aislamiento estructural: RLS en prod, índices únicos por tenant, revisión de queries raw) sin empezar. Fase 5 (producto/operaciones): 5.5 (monitoreo cross-tenant) **hecho 2026-08-05**; quedan 5.1 (aislar SIGUA), 5.2 (subdominio MSP `operador.tikara.test`), 5.3 (SSO/OIDC por cliente), 5.4 (panel "URL de portal" + copiar enlace en ficha cliente).
-- `INVENTORY_ROADMAP.md`: fases 1-6 + cuota por plan + dashboard de alertas (7.1) + exports (7.2) + detalle en modal/paginación/filtros ágiles (7.3) + permisos granulares ver/editar/gestionar (7.4) cerradas (2026-08-20). Pendiente: vista de asignación consolidada, y una decisión reconsiderable sobre historial persistente de imports.
+- `INVENTORY_ROADMAP.md`: fases 1-7.5 del port cerradas (2026-08-20/21, incluye panel general ligero + wallboard/modo TV). Auditoría técnica ITAM/CMDB (2026-08-21): fase Crítico + fases 2.1-2.3 ITAM (ficha técnica, documentos/bajas estructuradas, garantías/fabricantes/ubicación jerárquica) cerradas. Pendiente: Fase 3 de la auditoría (CMDB — relaciones entre activos + Activo↔Ticket, la brecha más importante marcada por el negocio), vista de asignación consolidada, y una decisión reconsiderable sobre historial persistente de imports.
 
 **Deuda técnica documentada, no bloqueante** (Fase 7):
 - `sites.unique(client_id, name)` es por tenant completo, no por Customer — compensado con validación de aplicación en `TenantOnboardingController::storeCustomer()`, no de esquema.

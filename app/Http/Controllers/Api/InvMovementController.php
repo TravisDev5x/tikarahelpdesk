@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Concerns\AuthorizesInvAssetAccess;
 use App\Http\Controllers\Controller;
 use App\Models\InvAsset;
+use App\Models\InvDisposal;
 use App\Models\InvMovement;
 use App\Models\InvStatus;
 use App\Models\Site;
@@ -153,6 +154,13 @@ class InvMovementController extends Controller
         return response()->json($movement->load(['user', 'previousUser', 'admin']), 201);
     }
 
+    /**
+     * Métodos de disposición (auditoría de Inventario, fase 2.2) --
+     * `retire()` antes solo pedía un `reason` de texto libre, sin nada
+     * estructurado para reportar "cuántas bajas por robo/venta/etc.".
+     */
+    public const DISPOSAL_METHODS = ['VENTA', 'RECICLAJE', 'DONACION', 'ROBO', 'PERDIDA', 'OBSOLESCENCIA', 'DANO_IRREPARABLE'];
+
     public function retire(Request $request, InvAsset $inv_asset)
     {
         $this->authorizeAssetAccess($inv_asset);
@@ -162,11 +170,18 @@ class InvMovementController extends Controller
             'status_id' => 'required|exists:inv_statuses,id',
             'reason' => 'required|string|max:255',
             'notes' => 'nullable|string|max:2000',
+            'method' => 'required|string|in:'.implode(',', self::DISPOSAL_METHODS),
+            'authorized_by' => 'nullable|exists:users,id',
+            'residual_value' => 'nullable|numeric|min:0',
         ]);
 
         $status = InvStatus::find($data['status_id']);
         if ($status && $status->assignable) {
             return response()->json(['message' => 'Elige un estatus marcado como no asignable para dar de baja'], 422);
+        }
+
+        if (! empty($data['authorized_by']) && ! $this->clientScope()->assertUserAccessible($user, (int) $data['authorized_by'])) {
+            return response()->json(['message' => 'El usuario seleccionado no pertenece a tu cliente'], 422);
         }
 
         $movement = DB::transaction(function () use ($inv_asset, $data, $user) {
@@ -185,6 +200,15 @@ class InvMovementController extends Controller
             $inv_asset->update([
                 'status_id' => $data['status_id'],
                 'current_user_id' => null,
+            ]);
+
+            InvDisposal::create([
+                'asset_id' => $inv_asset->id,
+                'movement_id' => $movement->id,
+                'method' => $data['method'],
+                'authorized_by' => $data['authorized_by'] ?? null,
+                'residual_value' => $data['residual_value'] ?? null,
+                'client_id' => $inv_asset->client_id,
             ]);
 
             return $movement;

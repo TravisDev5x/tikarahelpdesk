@@ -5,14 +5,12 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
-class InvStatus extends Model
+class InvManufacturer extends Model
 {
     use SoftDeletes;
 
     protected $fillable = [
         'name',
-        'badge_class',
-        'assignable',
         'is_active',
         'operator_user_id',
         'client_id',
@@ -21,7 +19,6 @@ class InvStatus extends Model
     protected function casts(): array
     {
         return [
-            'assignable' => 'boolean',
             'is_active' => 'boolean',
         ];
     }

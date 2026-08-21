@@ -7,6 +7,7 @@ use App\Models\Client;
 use App\Models\InvAsset;
 use App\Models\InvCategory;
 use App\Models\InvLabel;
+use App\Models\InvManufacturer;
 use App\Models\InvMaintenanceModality;
 use App\Models\InvMaintenanceOrigin;
 use App\Models\InvStatus;
@@ -15,6 +16,7 @@ use App\Models\Site;
 use App\Models\User;
 use App\Services\ClientScopeService;
 use App\Services\OperatorCatalogScopeService;
+use App\Support\Inventory\AssetSpecSchema;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
@@ -68,6 +70,14 @@ class InvAssetPageController extends Controller
                 ? $query->whereNotNull('current_user_id')
                 : $query->whereNull('current_user_id');
         }
+        // Auditoría de Inventario (fase 1, crítico): esta página nunca leía
+        // ?user_id=, a diferencia de InvAssetController::index() (API) --
+        // el click en una barra de "Top responsables" de Monitor.jsx
+        // (router.visit(`/inventory/assets?user_id=${id}`)) navegaba aquí
+        // pero aterrizaba en la lista completa sin filtrar.
+        if ($request->filled('user_id')) {
+            $query->where('current_user_id', $request->input('user_id'));
+        }
 
         $this->applySort($query, $request->input('sort'));
 
@@ -85,11 +95,15 @@ class InvAssetPageController extends Controller
             // "filters.sort ?? DEFAULT_SORT" nunca caía al default y
             // useState() terminaba "inicializando" con esa función. Con
             // (object) siempre es "{}", y "{}.sort" sí es undefined.
-            'filters' => (object) $request->only(['search', 'category_id', 'status_id', 'site_id', 'assigned', 'sort', 'per_page']),
+            'filters' => (object) $request->only(['search', 'category_id', 'status_id', 'site_id', 'assigned', 'user_id', 'sort', 'per_page']),
             // Catálogos completos (fase de modal de alta/edición/detalle) --
             // los diálogos de crear/editar/ver un activo viven montados
             // sobre esta página, ya no hay ruta /show aparte.
             ...$this->formCatalogs(),
+            // Ficha técnica estructurada (fase 2.1) -- schema estático por
+            // category.type, misma fuente que usa el backend para filtrar
+            // en InvAssetController::syncSpecs(), cero riesgo de desincronía.
+            'assetSpecSchema' => AssetSpecSchema::all(),
             'clientUsers' => $this->clientUsers($user),
             'maintenanceOrigins' => $this->activeCatalog(InvMaintenanceOrigin::class, 'inv_maintenance_origins'),
             'maintenanceModalities' => $this->activeCatalog(InvMaintenanceModality::class, 'inv_maintenance_modalities'),
@@ -154,6 +168,7 @@ class InvAssetPageController extends Controller
             // detalle (filtra a los estatus marcados como no asignables).
             'statuses' => $this->activeCatalog(InvStatus::class, 'inv_statuses', ['id', 'name', 'badge_class', 'assignable']),
             'labels' => $this->activeCatalog(InvLabel::class, 'inv_labels'),
+            'manufacturers' => $this->activeCatalog(InvManufacturer::class, 'inv_manufacturers'),
             'sites' => Site::where('is_active', true)->orderBy('name')->get(['id', 'name']),
             'locations' => Location::where('is_active', true)->orderBy('name')->get(['id', 'name', 'site_id']),
         ];

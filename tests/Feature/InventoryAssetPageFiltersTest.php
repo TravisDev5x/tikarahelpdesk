@@ -153,6 +153,29 @@ class InventoryAssetPageFiltersTest extends TestCase
         );
     }
 
+    /**
+     * Auditoría de Inventario (fase 1, crítico): esta página nunca leía
+     * ?user_id=, a diferencia de InvAssetController::index() (API) -- el
+     * click en "Top responsables" de Monitor.jsx aterrizaba en la lista
+     * completa sin filtrar.
+     */
+    public function test_index_page_applies_user_id_filter(): void
+    {
+        $fx = $this->fixtures();
+        $owner = $this->clientUser($fx['client']->id, $fx['site']);
+        $other = $this->clientUser($fx['client']->id, $fx['site']);
+        $this->makeAsset($fx, 'OWNED-1', ['current_user_id' => $owner->id]);
+        $this->makeAsset($fx, 'OTHER-1', ['current_user_id' => $other->id]);
+
+        $response = $this->actingAs($fx['admin'], 'web')->get("/inventory/assets?user_id={$owner->id}");
+
+        $response->assertInertia(fn ($page) => $page
+            ->component('Inventory/Assets/Index', shouldExist: false)
+            ->has('assets.data', 1)
+            ->where('assets.data.0.internal_tag', 'OWNED-1')
+        );
+    }
+
     private function makeSite(int $clientId): int
     {
         $now = now();

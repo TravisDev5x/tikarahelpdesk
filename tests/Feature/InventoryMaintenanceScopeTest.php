@@ -120,6 +120,49 @@ class InventoryMaintenanceScopeTest extends TestCase
         $response->assertStatus(403);
     }
 
+    /** Auditoría de Inventario (fase 1, crítico): destroy() debe ser un soft delete, no borrar la fila para siempre. */
+    public function test_deleting_a_maintenance_soft_deletes_it(): void
+    {
+        if (! \Schema::hasTable('inv_maintenances')) {
+            $this->markTestSkipped('Migración de inv_maintenances no aplicada.');
+        }
+
+        ['admin' => $admin, 'asset' => $asset] = $this->baseFixtures();
+
+        $maintenance = InvMaintenance::create([
+            'asset_id' => $asset->id, 'title' => 'Diagnóstico',
+            'start_date' => now()->toDateString(),
+            'logged_by' => $admin->id, 'client_id' => $asset->client_id,
+        ]);
+
+        $this->actingAs($admin, 'web')->deleteJson("/api/inv-maintenances/{$maintenance->id}")->assertNoContent();
+
+        $this->assertSoftDeleted('inv_maintenances', ['id' => $maintenance->id]);
+    }
+
+    /** Auditoría de Inventario (fase 1, crítico): antes quedaba client_id null en audit_logs para mantenimientos. */
+    public function test_maintenance_audit_log_resolves_client_id(): void
+    {
+        if (! \Schema::hasTable('inv_maintenances')) {
+            $this->markTestSkipped('Migración de inv_maintenances no aplicada.');
+        }
+
+        ['admin' => $admin, 'asset' => $asset] = $this->baseFixtures();
+
+        $response = $this->actingAs($admin, 'web')->postJson("/api/inv-assets/{$asset->id}/maintenances", [
+            'title' => 'Cambio de teclado',
+            'start_date' => now()->toDateString(),
+        ]);
+        $maintenanceId = $response->json('id');
+
+        $this->assertDatabaseHas('audit_logs', [
+            'auditable_type' => (new InvMaintenance)->getMorphClass(),
+            'auditable_id' => $maintenanceId,
+            'action' => 'created',
+            'client_id' => $asset->client_id,
+        ]);
+    }
+
     private function makeSite(int $clientId): int
     {
         $now = now();

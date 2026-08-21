@@ -24,15 +24,42 @@ class InvAssetImageController extends Controller
 
         $saved = [];
         foreach ($request->file('images', []) as $file) {
-            $path = $file->store("inv-assets/{$inv_asset->id}", ['disk' => 'public']);
+            // Auditoría de Inventario (fase 1, crítico): antes se guardaba
+            // en disco 'public' (storage/app/public, symlinkeado y servido
+            // directo por el webserver) -- cualquiera con la URL veía la
+            // foto sin sesión ni pertenecer al tenant, sin pasar por
+            // ningún middleware de Laravel. 'local' (storage/app/private)
+            // no tiene symlink público; solo show() de abajo, autenticado
+            // y con el mismo chequeo de tenant que store()/destroy(), sirve
+            // el archivo.
+            $path = $file->store("inv-assets/{$inv_asset->id}", ['disk' => 'local']);
             $saved[] = InvAssetImage::create([
                 'inv_asset_id' => $inv_asset->id,
                 'path' => $path,
-                'disk' => 'public',
+                'disk' => 'local',
             ]);
         }
 
         return response()->json($saved, 201);
+    }
+
+    /**
+     * Sirve el archivo autenticado -- disk por fila (image->disk), así que
+     * también sirve las imágenes ya subidas antes de este fix bajo 'public'
+     * sin necesidad de moverlas físicamente.
+     */
+    public function show(InvAsset $inv_asset, InvAssetImage $image)
+    {
+        $this->authorizeAssetAccess($inv_asset);
+
+        if ((int) $image->inv_asset_id !== (int) $inv_asset->id) {
+            abort(404, 'Imagen no válida');
+        }
+
+        $disk = Storage::disk($image->disk ?: 'public');
+        abort_unless($disk->exists($image->path), 404, 'Archivo no encontrado');
+
+        return $disk->response($image->path);
     }
 
     public function destroy(InvAsset $inv_asset, InvAssetImage $image)

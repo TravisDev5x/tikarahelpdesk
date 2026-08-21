@@ -49,8 +49,8 @@ const DEFAULT_SORT = "name";
 
 export default function Index() {
     const {
-        assets, categories, statuses, labels, sites, locations, clientUsers, maintenanceOrigins, maintenanceModalities,
-        assetQuota = { used: 0, max: null }, filters = {}, initialAssetId, auth,
+        assets, categories, statuses, labels, sites, locations, manufacturers, clientUsers, maintenanceOrigins, maintenanceModalities,
+        assetSpecSchema, assetQuota = { used: 0, max: null }, filters = {}, initialAssetId, auth,
     } = usePage().props;
     // Permisos granulares de Inventario (fase 7.4): manage_assets sigue
     // siendo el nivel completo (incluye eliminar); edit_assets es todo lo
@@ -518,10 +518,12 @@ export default function Index() {
                 onOpenChange={setFormOpen}
                 asset={formAsset}
                 categories={categories}
+                manufacturers={manufacturers}
                 statuses={statuses}
                 labels={labels}
                 sites={sites}
                 locations={locations}
+                specSchema={assetSpecSchema}
                 onSaved={onAssetSaved}
             />
 
@@ -530,10 +532,12 @@ export default function Index() {
                 onOpenChange={setViewOpen}
                 assetId={viewAssetId}
                 categories={categories}
+                manufacturers={manufacturers}
                 statuses={statuses}
                 labels={labels}
                 sites={sites}
                 locations={locations}
+                specSchema={assetSpecSchema}
                 clientUsers={clientUsers}
                 maintenanceOrigins={maintenanceOrigins}
                 maintenanceModalities={maintenanceModalities}

@@ -3,6 +3,9 @@
 namespace Tests\Feature;
 
 use App\Models\InvCategory;
+use App\Models\InvMaintenanceModality;
+use App\Models\InvMaintenanceOrigin;
+use App\Models\InvStatus;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -49,6 +52,43 @@ class InventoryCatalogApiScopeTest extends TestCase
         $this->assertFalse($names->contains('Foreign category'));
     }
 
+    /** Auditoría de Inventario, fase 2.3 (catálogo de fabricantes) -- mismo criterio de scope que categorías. */
+    public function test_inv_manufacturers_index_excludes_other_operator_rows(): void
+    {
+        $operatorA = $this->bareUser(['is_operator' => true]);
+        $operatorB = $this->bareUser(['is_operator' => true, 'email' => 'op-manuf-b@test.local']);
+        setPermissionsTeamId(config('tenancy.super_admin_team_id'));
+        $operatorA->givePermissionTo('inventory.manage_config');
+
+        \App\Models\InvManufacturer::create(['name' => 'Global', 'is_active' => true, 'operator_user_id' => null]);
+        \App\Models\InvManufacturer::create(['name' => 'Propio', 'is_active' => true, 'operator_user_id' => $operatorA->id]);
+        \App\Models\InvManufacturer::create(['name' => 'Ajeno', 'is_active' => true, 'operator_user_id' => $operatorB->id]);
+
+        $response = $this->actingAs($operatorA, 'web')->getJson('/api/inv-manufacturers');
+
+        $response->assertOk();
+        $names = collect($response->json())->pluck('name');
+        $this->assertTrue($names->contains('Global'));
+        $this->assertTrue($names->contains('Propio'));
+        $this->assertFalse($names->contains('Ajeno'));
+    }
+
+    public function test_update_foreign_inv_manufacturer_returns_403(): void
+    {
+        $operatorA = $this->bareUser(['is_operator' => true]);
+        $operatorB = $this->bareUser(['is_operator' => true, 'email' => 'op-manuf-c@test.local']);
+        setPermissionsTeamId(config('tenancy.super_admin_team_id'));
+        $operatorA->givePermissionTo('inventory.manage_config');
+
+        $foreign = \App\Models\InvManufacturer::create(['name' => 'Ajeno', 'is_active' => true, 'operator_user_id' => $operatorB->id]);
+
+        $response = $this->actingAs($operatorA, 'web')->putJson("/api/inv-manufacturers/{$foreign->id}", [
+            'name' => 'Hackeado', 'is_active' => true,
+        ]);
+
+        $response->assertForbidden();
+    }
+
     public function test_update_foreign_inv_category_returns_403(): void
     {
         if (! \Schema::hasColumn('inv_categories', 'operator_user_id')) {
@@ -68,6 +108,32 @@ class InventoryCatalogApiScopeTest extends TestCase
         ]);
 
         $response->assertForbidden();
+    }
+
+    /**
+     * Auditoría de Inventario (fase 1, crítico): inv_statuses,
+     * inv_maintenance_origins e inv_maintenance_modalities eran los únicos
+     * catálogos del módulo sin soft delete -- destroy() los borraba para
+     * siempre pese a usar el mismo ->delete() que inv_categories/inv_labels
+     * (que sí lo tenían).
+     */
+    public function test_destroying_status_origin_and_modality_soft_deletes_them(): void
+    {
+        $operator = $this->bareUser(['is_operator' => true]);
+        setPermissionsTeamId(config('tenancy.super_admin_team_id'));
+        $operator->givePermissionTo('inventory.manage_config');
+
+        $status = InvStatus::create(['name' => 'Temporal', 'is_active' => true, 'operator_user_id' => $operator->id]);
+        $origin = InvMaintenanceOrigin::create(['name' => 'Temporal', 'is_active' => true, 'operator_user_id' => $operator->id]);
+        $modality = InvMaintenanceModality::create(['name' => 'Temporal', 'is_active' => true, 'operator_user_id' => $operator->id]);
+
+        $this->actingAs($operator, 'web')->deleteJson("/api/inv-statuses/{$status->id}")->assertNoContent();
+        $this->actingAs($operator, 'web')->deleteJson("/api/inv-maintenance-origins/{$origin->id}")->assertNoContent();
+        $this->actingAs($operator, 'web')->deleteJson("/api/inv-maintenance-modalities/{$modality->id}")->assertNoContent();
+
+        $this->assertSoftDeleted('inv_statuses', ['id' => $status->id]);
+        $this->assertSoftDeleted('inv_maintenance_origins', ['id' => $origin->id]);
+        $this->assertSoftDeleted('inv_maintenance_modalities', ['id' => $modality->id]);
     }
 
     public function test_inventory_config_pages_render_for_admin(): void

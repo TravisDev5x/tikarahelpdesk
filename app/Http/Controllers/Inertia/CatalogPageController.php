@@ -7,6 +7,7 @@ use App\Models\Area;
 use App\Models\AuthorizationObject;
 use App\Models\InvCategory;
 use App\Models\InvLabel;
+use App\Models\InvManufacturer;
 use App\Models\InvMaintenanceModality;
 use App\Models\InvMaintenanceOrigin;
 use App\Models\InvStatus;
@@ -121,6 +122,18 @@ class CatalogPageController extends Controller
         return Inertia::render('Inventory/Config/Labels', [
             'labels' => $this->catalogScope
                 ->apply(InvLabel::query(), $user, 'inv_labels')
+                ->orderBy('name')
+                ->get(),
+        ]);
+    }
+
+    public function inventoryManufacturers(): Response
+    {
+        $user = auth()->user();
+
+        return Inertia::render('Inventory/Config/Manufacturers', [
+            'manufacturers' => $this->catalogScope
+                ->apply(InvManufacturer::query(), $user, 'inv_manufacturers')
                 ->orderBy('name')
                 ->get(),
         ]);

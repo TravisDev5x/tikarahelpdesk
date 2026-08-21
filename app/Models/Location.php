@@ -15,8 +15,10 @@ class Location extends Model
 
     protected $fillable = [
         'site_id',
+        'parent_id',
         'name',
         'code',
+        'type',
         'is_active',
     ];
 
@@ -32,5 +34,16 @@ class Location extends Model
     public function users(): HasMany
     {
         return $this->hasMany(User::class, 'location_id');
+    }
+
+    /** Ubicación jerárquica (fase 2.3, auditoría de Inventario) -- aditivo, parent_id nulo = como antes. */
+    public function parent(): BelongsTo
+    {
+        return $this->belongsTo(self::class, 'parent_id');
+    }
+
+    public function children(): HasMany
+    {
+        return $this->hasMany(self::class, 'parent_id');
     }
 }

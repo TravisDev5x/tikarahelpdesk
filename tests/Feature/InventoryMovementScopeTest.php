@@ -172,13 +172,21 @@ class InventoryMovementScopeTest extends TestCase
 
         // Rechaza si el estatus destino sigue siendo asignable.
         $bad = $this->actingAs($admin, 'web')->postJson("/api/inv-assets/{$asset->id}/retire", [
-            'status_id' => $available->id, 'reason' => 'Dañado',
+            'status_id' => $available->id, 'reason' => 'Dañado', 'method' => 'OBSOLESCENCIA',
         ]);
         $bad->assertStatus(422);
 
-        // Con estatus no asignable + motivo, sí procede.
-        $ok = $this->actingAs($admin, 'web')->postJson("/api/inv-assets/{$asset->id}/retire", [
+        // Auditoría de Inventario, fase 2.2: method es obligatorio -- sin
+        // método de disposición, 422 (rompe a propósito el contrato viejo
+        // que solo pedía reason).
+        $noMethod = $this->actingAs($admin, 'web')->postJson("/api/inv-assets/{$asset->id}/retire", [
             'status_id' => $retired->id, 'reason' => 'Dañado sin reparación viable',
+        ]);
+        $noMethod->assertStatus(422);
+
+        // Con estatus no asignable + motivo + método, sí procede.
+        $ok = $this->actingAs($admin, 'web')->postJson("/api/inv-assets/{$asset->id}/retire", [
+            'status_id' => $retired->id, 'reason' => 'Dañado sin reparación viable', 'method' => 'OBSOLESCENCIA',
         ]);
         $ok->assertCreated();
         $fresh = $asset->fresh();
@@ -186,6 +194,9 @@ class InventoryMovementScopeTest extends TestCase
         $this->assertNull($fresh->current_user_id);
         $this->assertDatabaseHas('inv_movements', [
             'asset_id' => $asset->id, 'type' => 'BAJA', 'reason' => 'Dañado sin reparación viable',
+        ]);
+        $this->assertDatabaseHas('inv_disposals', [
+            'asset_id' => $asset->id, 'method' => 'OBSOLESCENCIA',
         ]);
     }
 

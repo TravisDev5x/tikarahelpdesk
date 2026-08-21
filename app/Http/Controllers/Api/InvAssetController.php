@@ -8,6 +8,8 @@ use App\Http\Requests\StoreInvAssetRequest;
 use App\Http\Requests\UpdateInvAssetRequest;
 use App\Models\Client;
 use App\Models\InvAsset;
+use App\Models\InvAssetSpec;
+use App\Support\Inventory\AssetSpecSchema;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
@@ -19,7 +21,7 @@ class InvAssetController extends Controller
     public function index(Request $request)
     {
         $query = $this->clientScope()->applyInventoryAssetScope(
-            InvAsset::query()->with(['category', 'status', 'label', 'site', 'location', 'currentUser']),
+            InvAsset::query()->with(['category', 'manufacturer', 'status', 'label', 'site', 'location', 'currentUser']),
             Auth::user()
         );
 
@@ -61,7 +63,9 @@ class InvAssetController extends Controller
         // endpoint es ahora la única fuente de datos para esa vista, mismas
         // relaciones que antes cargaba InvAssetPageController::show().
         return $inv_asset->load([
-            'category', 'status', 'label', 'site', 'location', 'currentUser', 'images',
+            'category', 'manufacturer', 'status', 'label', 'site', 'location', 'currentUser', 'images', 'specs', 'documents',
+            'warranties' => fn ($q) => $q->orderByDesc('ends_at'),
+            'disposal' => fn ($q) => $q->with('authorizedBy'),
             'movements' => fn ($q) => $q->with(['user', 'previousUser', 'admin'])->orderByDesc('date'),
             'components' => fn ($q) => $q->orderBy('name'),
             'maintenances' => fn ($q) => $q->with(['origin', 'modality'])->orderByDesc('start_date'),
@@ -72,6 +76,8 @@ class InvAssetController extends Controller
     {
         $user = Auth::user();
         $data = $request->validated();
+        $specs = $data['specs'] ?? null;
+        unset($data['specs']);
 
         if (! $this->clientScope()->assertSiteAccessible($user, (int) $data['site_id'])) {
             return response()->json(['message' => 'La sede seleccionada no pertenece a tu cliente'], 422);
@@ -84,11 +90,11 @@ class InvAssetController extends Controller
         }
 
         $data['uuid'] = $data['uuid'] ?? (string) Str::uuid();
-        $data['specs'] = $this->packSpecs($data['specs'] ?? null);
 
         $asset = InvAsset::create($data);
+        $this->syncSpecs($asset, $specs);
 
-        return response()->json($asset->load(['category', 'status', 'label', 'site', 'location']), 201);
+        return response()->json($asset->load(['category', 'manufacturer', 'status', 'label', 'site', 'location', 'specs']), 201);
     }
 
     public function update(UpdateInvAssetRequest $request, InvAsset $inv_asset)
@@ -96,17 +102,19 @@ class InvAssetController extends Controller
         $this->authorizeAssetAccess($inv_asset);
         $user = Auth::user();
         $data = $request->validated();
+        $specs = $data['specs'] ?? null;
+        unset($data['specs']);
 
         if (! $this->clientScope()->assertSiteAccessible($user, (int) $data['site_id'])) {
             return response()->json(['message' => 'La sede seleccionada no pertenece a tu cliente'], 422);
         }
 
         $data['client_id'] = $this->clientScope()->syncClientIdFromSite((int) $data['site_id']);
-        $data['specs'] = $this->packSpecs($data['specs'] ?? null);
 
         $inv_asset->update($data);
+        $this->syncSpecs($inv_asset, $specs);
 
-        return response()->json($inv_asset->load(['category', 'status', 'label', 'site', 'location']));
+        return response()->json($inv_asset->load(['category', 'manufacturer', 'status', 'label', 'site', 'location', 'specs']));
     }
 
     public function destroy(InvAsset $inv_asset)
@@ -133,13 +141,32 @@ class InvAssetController extends Controller
         return null;
     }
 
-    /** specs se captura como texto libre en fase 2 (ver plan) -- se guarda como json simple. */
-    private function packSpecs(?string $freeform): ?array
+    /**
+     * Ficha técnica estructurada (fase 2.1) -- sincroniza inv_asset_specs
+     * contra el schema del tipo de categoría (App\Support\Inventory\AssetSpecSchema),
+     * filtrando en silencio cualquier key fuera de ese schema (el único
+     * llamador real es AssetFormDialog.jsx, que ya solo manda keys
+     * válidas -- no vale la pena un 422 por esto). inv_assets.specs (json,
+     * texto libre) ya no se escribe pero se deja intacto para filas viejas.
+     *
+     * @param  array<int, array{key?: string, value?: string}>|null  $specs
+     */
+    private function syncSpecs(InvAsset $asset, ?array $specs): void
     {
-        if ($freeform === null || trim($freeform) === '') {
-            return null;
-        }
+        $asset->loadMissing('category');
+        $validKeys = AssetSpecSchema::validKeysForType($asset->category?->type);
 
-        return ['notes' => $freeform];
+        $incoming = collect($specs ?? [])
+            ->filter(fn ($row) => in_array($row['key'] ?? null, $validKeys, true) && filled($row['value'] ?? null))
+            ->keyBy('key');
+
+        $asset->specs()->whereNotIn('key', $incoming->keys())->delete();
+
+        foreach ($incoming as $key => $row) {
+            InvAssetSpec::updateOrCreate(
+                ['asset_id' => $asset->id, 'key' => $key],
+                ['client_id' => $asset->client_id, 'value' => $row['value']]
+            );
+        }
     }
 }
