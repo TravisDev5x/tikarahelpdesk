@@ -16,7 +16,10 @@ use Inertia\Response;
  * desde HelpdeskECD2026 -- página estática por request, sin filtros, se
  * sirve como props ya calculadas en el Inertia::render, a diferencia de
  * TicketAnalyticsController (que sí necesita cache+axios por tener
- * filtros dinámicos). De las 5 alertas del original se portan 4 --
+ * filtros dinámicos). wallboard() reusa los mismos props para la versión
+ * standalone (/inventory/wallboard), mismo patrón que
+ * ResolbebIndexController/Resolbeb/Wallboard.jsx del lado de Tickets.
+ * De las 5 alertas del original se portan 4 --
  * "activos sin empresa" no aplica aquí: inv_assets.client_id es NOT NULL
  * a nivel de columna, ese estado es estructuralmente imposible. Las
  * queries de alertas viven en InvMonitorAlertsService (fase 7.2 las
@@ -39,15 +42,28 @@ class InvMonitorPageController extends Controller
 
     public function __invoke(): Response
     {
-        $user = Auth::user();
+        return Inertia::render('Inventory/Monitor', $this->props(Auth::user()));
+    }
 
-        return Inertia::render('Inventory/Monitor', [
+    /**
+     * Wallboard (fase siguiente a 7.4, mismo patrón que Resolbeb/Wallboard):
+     * mismos props que /inventory/monitor, en una página standalone sin
+     * layout -- pensada para abrirse en un monitor/TV aparte.
+     */
+    public function wallboard(): Response
+    {
+        return Inertia::render('Inventory/Wallboard', $this->props(Auth::user()));
+    }
+
+    private function props(User $user): array
+    {
+        return [
             'warrantyExpiring' => $this->alerts->warrantyExpiring($user),
             'unassigned' => $this->alerts->unassigned($user),
             'repeatedTransfers' => $this->alerts->repeatedTransfers($user),
             'staleMaintenances' => $this->alerts->staleMaintenances($user),
             ...$this->reports($user),
-        ]);
+        ];
     }
 
     private function reports(User $user): array

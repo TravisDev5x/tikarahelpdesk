@@ -185,6 +185,13 @@ Route::middleware('auth')->group(function () {
         ->middleware('perm:inventory.manage_assets|inventory.edit_assets|inventory.view_assets')
         ->name('inventory.monitor.index');
 
+    // Wallboard standalone (sin layout, pensado para un monitor/TV aparte)
+    // -- mismo patrón que /tickets/wallboard: SIN middleware 'onboarding'
+    // a propósito (una TV no debe quedar bloqueada por el wizard).
+    Route::get('/inventory/wallboard', [InvMonitorPageController::class, 'wallboard'])
+        ->middleware('perm:inventory.manage_assets|inventory.edit_assets|inventory.view_assets')
+        ->name('inventory.wallboard');
+
     // Inventario — catálogos (fase 1, port desde HelpdeskECD2026). A
     // diferencia de areas/campaigns/positions arriba, sí llevan perm: aquí
     // mismo (no solo en las mutaciones API) — cierra el gap documentado en
@@ -195,6 +202,8 @@ Route::middleware('auth')->group(function () {
         ->middleware('perm:inventory.manage_config')->name('inventory.statuses.index');
     Route::get('/inventory/labels', [CatalogPageController::class, 'inventoryLabels'])
         ->middleware('perm:inventory.manage_config')->name('inventory.labels.index');
+    Route::get('/inventory/manufacturers', [CatalogPageController::class, 'inventoryManufacturers'])
+        ->middleware('perm:inventory.manage_config')->name('inventory.manufacturers.index');
     Route::get('/inventory/maintenance-origins', [CatalogPageController::class, 'inventoryMaintenanceOrigins'])
         ->middleware('perm:inventory.manage_config')->name('inventory.maintenance-origins.index');
     Route::get('/inventory/maintenance-modalities', [CatalogPageController::class, 'inventoryMaintenanceModalities'])

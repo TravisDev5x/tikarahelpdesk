@@ -13,11 +13,12 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { UserAvatar } from "@/components/user-avatar";
+import { DashboardWelcome } from "@/components/dashboard/DashboardWelcome";
 import { DashboardStackedBar } from "@/components/dashboard/DashboardStackedBar";
 import { ChartErrorBoundary } from "@/components/dashboard/ChartErrorBoundary";
 import { TinyVerticalBarChart } from "@/components/dashboard/TinyVerticalBarChart";
 import { DashboardOperativo } from "@/components/dashboard/DashboardOperativo";
+import HomeSummary from "@/components/dashboard/HomeSummary";
 import { TicketCreateDialog } from "@/components/tickets/TicketCreateDialog";
 import { getDashboardProfile } from "@/lib/dashboardProfile";
 import { chartColor } from "@/lib/chartColors";
@@ -292,52 +293,6 @@ const DashboardSkeleton = () => (
         </div>
     </div>
 );
-
-/**
- * Bloque de bienvenida común a todos los dashboards: avatar + Hola + saludo por hora + reloj + día actual.
- * Opcional: children (subtítulo/acciones bajo el reloj), actions (nodo a la derecha, ej. botones).
- */
-function DashboardWelcome({ user, children, actions }) {
-    const [currentTime, setCurrentTime] = useState(() => new Date());
-    useEffect(() => {
-        const interval = setInterval(() => setCurrentTime(new Date()), 1000);
-        return () => clearInterval(interval);
-    }, []);
-    const greeting = useMemo(() => {
-        const h = currentTime.getHours();
-        if (h >= 5 && h < 12) return "Buenos días";
-        if (h >= 12 && h < 19) return "Buenas tardes";
-        return "Buenas noches";
-    }, [currentTime]);
-    const clock = currentTime.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
-    const dayLabel = currentTime.toLocaleDateString("es-ES", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
-
-    return (
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <div className="flex flex-wrap items-center gap-4">
-                <UserAvatar
-                    name={user?.name}
-                    avatarUrl={user?.avatar_url}
-                    avatarPath={user?.avatar_path}
-                    size={48}
-                    className="shrink-0"
-                />
-                <div className="min-w-0">
-                    <h1 className="text-2xl font-bold text-foreground">
-                        Hola, {user?.name ?? "Usuario"}. {greeting}.
-                    </h1>
-                    <p className="text-sm text-muted-foreground mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0">
-                        <span className="font-mono tabular-nums" aria-label="Hora actual">{clock}</span>
-                        <span className="text-foreground/80">·</span>
-                        <span>{dayLabel}</span>
-                    </p>
-                    {children}
-                </div>
-            </div>
-            {actions && <div className="flex flex-wrap items-center gap-2 shrink-0">{actions}</div>}
-        </div>
-    );
-}
 
 // --- COMPONENTE PRINCIPAL ---
 
@@ -1270,6 +1225,11 @@ export default function HomeDashboard() {
             return <DashboardOperativo variant="supervisor" />;
         case "admin":
         default:
-            return <DashboardAdmin />;
+            // Fase 1 (separación de dashboards, 2026-08-20): admin ya no ve
+            // aquí el análisis pesado de tickets (filtros, gráficas,
+            // /api/tickets/analytics) -- ese contenido vive en DashboardAdmin
+            // más abajo, que se queda sin montar (código muerto documentado,
+            // no borrado) por si se fusiona a /resolbeb en una fase futura.
+            return <HomeSummary />;
     }
 }

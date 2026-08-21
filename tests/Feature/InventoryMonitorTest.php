@@ -147,6 +147,21 @@ class InventoryMonitorTest extends TestCase
         );
     }
 
+    /** Wallboard standalone: mismos props que /inventory/monitor, mismo gate de permiso. */
+    public function test_wallboard_renders_the_same_data_as_the_monitor_page(): void
+    {
+        $fx = $this->baseFixtures();
+        $this->makeAsset($fx, 'WARR-1', ['warranty_expiry' => now()->addDays(10)->toDateString()]);
+
+        $response = $this->actingAs($fx['admin'], 'web')->get('/inventory/wallboard');
+
+        $response->assertInertia(fn ($page) => $page
+            ->component('Inventory/Wallboard', shouldExist: false)
+            ->has('warrantyExpiring', 1)
+            ->where('warrantyExpiring.0.internal_tag', 'WARR-1')
+        );
+    }
+
     private function makeSite(int $clientId): int
     {
         $now = now();
