@@ -47,7 +47,18 @@ class InvIntegrationController extends Controller
         $row = InvIntegration::firstOrNew(['client_id' => $clientId, 'provider' => $provider]);
         $existingConfig = $row->exists ? ($row->config ?? []) : [];
 
-        // Campos secretos vacíos/omitidos = conservar el valor ya guardado.
+        // Auditoría de bugs críticos (2026-08-22): antes solo se protegían
+        // los SECRET_FIELDS -- cualquier otro campo (use_ssl, port, base_dn,
+        // etc.) que el cliente no mandara en el payload se perdía sin aviso
+        // en cada re-guardado, porque $data reemplazaba a $existingConfig
+        // por completo. Ahora se parte de lo ya guardado y solo se
+        // sobreescribe lo que realmente vino en el request.
+        $data = array_merge($existingConfig, $data);
+
+        // Campos secretos vacíos/omitidos = conservar el valor ya guardado
+        // (con el merge de arriba esto ya casi nunca se dispara si el
+        // frontend manda el string vacío explícito, pero se deja como
+        // defensa adicional).
         foreach (self::SECRET_FIELDS[$provider] ?? [] as $secretField) {
             if (! filled($data[$secretField] ?? null)) {
                 if (array_key_exists($secretField, $existingConfig)) {
@@ -125,20 +136,35 @@ class InvIntegrationController extends Controller
         return $clientId;
     }
 
-    /** @return array<string, mixed> */
+    /**
+     * Auditoría de bugs críticos (2026-08-22): antes solo devolvía los
+     * has_<secreto> booleanos -- el formulario nunca tenía forma de
+     * prellenarse con los valores no-secretos ya guardados (host, tenant_id,
+     * use_ssl, etc.), así que cada re-guardado los volvía a mandar en blanco
+     * y los borraba en silencio. Ahora los campos no-secretos van directo en
+     * la respuesta (mismas keys que field.key en integrationProviders.js);
+     * los secretos siguen sin exponerse jamás, solo el booleano has_*.
+     *
+     * @return array<string, mixed>
+     */
     private function present(string $provider, ?InvIntegration $row): array
     {
         $config = $row?->config ?? [];
+        $secretFields = self::SECRET_FIELDS[$provider] ?? [];
+
         $hasFields = [];
-        foreach (self::SECRET_FIELDS[$provider] ?? [] as $secretField) {
+        foreach ($secretFields as $secretField) {
             $hasFields["has_{$secretField}"] = filled($config[$secretField] ?? null);
         }
+
+        $nonSecretValues = collect($config)->except($secretFields)->all();
 
         return [
             'provider' => $provider,
             'status' => $row?->status ?? 'not_configured',
             'status_message' => $row?->status_message,
             'last_tested_at' => $row?->last_tested_at?->toIso8601String(),
+            ...$nonSecretValues,
             ...$hasFields,
         ];
     }

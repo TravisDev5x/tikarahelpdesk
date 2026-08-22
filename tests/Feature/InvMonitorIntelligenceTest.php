@@ -85,6 +85,34 @@ class InvMonitorIntelligenceTest extends TestCase
         $this->assertSame(now()->addDays(5)->toDateString(), $rows->first()['expires_on']);
     }
 
+    /**
+     * Auditoría de bugs críticos (2026-08-22): warranty_expiry es Carbon
+     * (cast 'date'), inv_warranties.ends_at ya se normalizaba con
+     * toDateString() -- sin el mismo toDateString() del lado de
+     * warranty_expiry, PHP siempre ordenaba el objeto Carbon como "mayor"
+     * que el string sin importar la fecha real, así que el dedupe se
+     * quedaba con la fuente equivocada cuando warranty_expiry era la
+     * genuinamente más próxima (el caso inverso al test de arriba, donde
+     * por casualidad el sesgo del bug coincidía con el resultado correcto).
+     */
+    public function test_warranty_expiring_keeps_the_soonest_even_when_warranty_expiry_column_is_the_earliest(): void
+    {
+        ['client' => $client, 'admin' => $admin, 'asset' => $asset] = $this->fixtures();
+        $laptop = $asset('LAP-1');
+        $laptop->update(['warranty_expiry' => now()->addDays(5)->toDateString()]);
+
+        InvWarranty::create([
+            'asset_id' => $laptop->id, 'client_id' => $client->id, 'provider' => 'Dell',
+            'ends_at' => now()->addDays(20),
+        ]);
+
+        $rows = app(InvMonitorAlertsService::class)->warrantyExpiring($admin);
+
+        $this->assertCount(1, $rows);
+        $this->assertSame(now()->addDays(5)->toDateString(), $rows->first()['expires_on']);
+        $this->assertSame('warranty_expiry', $rows->first()['source']);
+    }
+
     public function test_warranty_expiring_severity_buckets(): void
     {
         ['admin' => $admin, 'asset' => $asset] = $this->fixtures();

@@ -62,7 +62,13 @@ class InvMonitorAlertsService
                 'id' => $a->id,
                 'name' => $a->name,
                 'internal_tag' => $a->internal_tag,
-                'expires_on' => $a->warranty_expiry,
+                // Auditoría de bugs críticos (2026-08-22): warranty_expiry
+                // está cast a 'date' (Carbon), no string -- sin
+                // toDateString() esta rama comparaba/ordenaba distinto que
+                // $fromWarranties (que sí lo hacía), corrompiendo el
+                // dedupe/severidad/orden cuando un activo tenía ambas
+                // fuentes.
+                'expires_on' => $a->warranty_expiry->toDateString(),
                 'source' => 'warranty_expiry',
             ]);
 

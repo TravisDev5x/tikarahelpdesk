@@ -113,6 +113,64 @@ class InvIntegrationsTest extends TestCase
         $this->assertSame('tenant-2', $decoded['tenant_id']);
     }
 
+    /** Auditoría de bugs críticos (2026-08-22): present() ahora sí expone los campos no-secretos, para que el frontend pueda prellenar el form. */
+    public function test_index_exposes_non_secret_fields_but_never_the_secret(): void
+    {
+        [, $admin] = $this->tenantAdmin();
+
+        Http::fake([
+            'login.microsoftonline.com/*' => Http::response(['access_token' => 'tok'], 200),
+            'graph.microsoft.com/v1.0/organization' => Http::response(['value' => []], 200),
+        ]);
+
+        $this->actingAs($admin, 'web')->putJson('/api/inv-integrations/entra_id', [
+            'tenant_id' => 'tenant-visible', 'client_id' => 'client-visible', 'client_secret' => 'super-secreto',
+        ])->assertOk();
+
+        $response = $this->actingAs($admin, 'web')->getJson('/api/inv-integrations');
+
+        $response->assertOk();
+        $entraRow = collect($response->json())->firstWhere('provider', 'entra_id');
+        $this->assertSame('tenant-visible', $entraRow['tenant_id']);
+        $this->assertSame('client-visible', $entraRow['client_id']);
+        $this->assertTrue($entraRow['has_client_secret']);
+        $this->assertArrayNotHasKey('client_secret', $entraRow);
+        $this->assertStringNotContainsString('super-secreto', $response->getContent());
+    }
+
+    /**
+     * Auditoría de bugs críticos (2026-08-22): antes store() reemplazaba
+     * config por completo con lo que llegara en el request -- un campo
+     * opcional que el cliente no mandara en absoluto (ej. un payload
+     * parcial) se perdía en silencio. Ahora se parte de lo ya guardado.
+     */
+    public function test_omitting_an_optional_field_entirely_preserves_the_previous_value(): void
+    {
+        [$client, $admin] = $this->tenantAdmin();
+
+        // El tester real de AD puede reportar error sin la extensión
+        // php-ldap, pero el guardado/merge de config ocurre antes de eso --
+        // esta prueba solo le importa la persistencia, no status_message.
+        $this->actingAs($admin, 'web')->putJson('/api/inv-integrations/ad', [
+            'host' => 'dc01.local', 'bind_dn' => 'CN=svc', 'bind_password' => 'secreto',
+            'port' => '636', 'base_dn' => 'DC=empresa,DC=local', 'use_ssl' => true,
+        ])->assertOk();
+
+        // Reguardado que omite port/base_dn/use_ssl por completo (no solo
+        // vacíos) -- simula un payload parcial de un cliente distinto al
+        // frontend actual.
+        $this->actingAs($admin, 'web')->putJson('/api/inv-integrations/ad', [
+            'host' => 'dc01.local', 'bind_dn' => 'CN=svc',
+        ])->assertOk();
+
+        $raw = DB::table('inv_integrations')->where('client_id', $client->id)->where('provider', 'ad')->value('config');
+        $decoded = json_decode(Crypt::decryptString($raw), true);
+        $this->assertSame('636', $decoded['port']);
+        $this->assertSame('DC=empresa,DC=local', $decoded['base_dn']);
+        $this->assertTrue((bool) $decoded['use_ssl']);
+        $this->assertSame('secreto', $decoded['bind_password']);
+    }
+
     public function test_ad_without_ldap_extension_reports_a_clear_error(): void
     {
         if (extension_loaded('ldap')) {

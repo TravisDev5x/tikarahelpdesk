@@ -114,6 +114,32 @@ class InvAssetRelationshipsTest extends TestCase
         $reversed->assertStatus(422);
     }
 
+    /**
+     * Auditoría de bugs críticos (2026-08-22): antes de este fix, un choque
+     * directo contra el índice único de BD (ej. doble clic/reintento del
+     * mismo request) no estaba envuelto en try/catch y salía como 500 en
+     * vez del 422 esperado. Fuerza el choque insertando directo con el
+     * modelo (bypassa el chequeo de la app) y confirma que el endpoint
+     * sigue respondiendo 422, no 500.
+     */
+    public function test_a_direct_db_level_duplicate_still_returns_422_not_500(): void
+    {
+        ['admin' => $admin, 'laptop' => $laptop, 'dock' => $dock, 'client' => $client] = $this->fixtures();
+
+        \App\Models\InvAssetRelationship::create([
+            'parent_asset_id' => $laptop->id, 'child_asset_id' => $dock->id,
+            'relationship_type' => 'component_of', 'client_id' => $client->id,
+            'created_by' => $admin->id,
+        ]);
+
+        $response = $this->actingAs($admin, 'web')->postJson("/api/inv-assets/{$laptop->id}/relationships", [
+            'child_asset_id' => $dock->id, 'relationship_type' => 'component_of',
+        ]);
+
+        $response->assertStatus(422);
+        $this->assertSame(1, \App\Models\InvAssetRelationship::count());
+    }
+
     public function test_unlinking_removes_the_relationship(): void
     {
         ['admin' => $admin, 'laptop' => $laptop, 'dock' => $dock] = $this->fixtures();

@@ -52,6 +52,15 @@ Con esto quedan cerradas las 3 fases del roadmap de la auditoría con trabajo co
 
 ✅ **Cerrada (2026-08-22)**. Parte del roadmap original "Fase 7: vistas de asignación, dashboard, exports" — 7.1 (dashboard) ya cerrada, faltaba una vista tipo "roster" que mostrara de un vistazo qué usuario tiene qué activos asignados. `GET /inventory/assignments` (`InvAssetAssignmentPageController`, mismo nivel VER que `/inventory/assets`/`/inventory/monitor`): un solo query scoped por tenant, agrupado en memoria por `current_user_id` (mismo criterio que `InvMonitorPageController::reports()->topAssignees`, que solo mostraba el top 5 dentro de una gráfica -- aquí se lista el roster completo). Página de solo lectura (`Inventory/Assignments.jsx`): tabla por usuario con conteo y valor total, fila expandible con los activos (link directo a `?asset=ID` para abrir el detalle) y un "Ver todos" hacia `/inventory/assets?user_id=ID` (filtro que ya existía). Deliberadamente sin export ni filtros de fecha en este corte -- se marcó como funcionalidad opcional/baja prioridad.
 
+### Auditoría de bugs críticos (2026-08-22)
+
+✅ **Cerrada**. Reporte completo (Inventario + Tickets, checklist con severidad y veredicto): `https://claude.ai/code/artifact/57038096-d576-4760-ba43-5237c5d238d8`. 5 hallazgos, todos corregidos con tests de regresión:
+- 🔴 `LocationController` sin scoping de tenant (IDOR) y `InvAssetPageController::formCatalogs()` filtrando sedes/ubicaciones de otros tenants — corregidos antes del reporte final (commit `509e205`).
+- 🟠 `Integrations.jsx`/`InvIntegrationController`: reguardar podía degradar LDAPS→LDAP en silencio (`present()` ahora expone los campos no-secretos, `store()` parte de la config ya guardada en vez de reemplazarla).
+- 🟠 `InvMonitorAlertsService::warrantyExpiring()`: mezcla de tipos Carbon/string corrompía el dedupe/orden de la alerta de renovación cuando un activo tenía garantía en ambas fuentes.
+- 🟡 `InvAssetRelationshipController::store()`: condición de carrera podía duplicar el par en reversa o devolver 500 en vez de 422 -- ahora usa `Cache::lock()` por par + `DB::transaction()` + catch del constraint único.
+- Fuera de Inventario: se encontró y corrigió el mismo bug de disco público en adjuntos de **Tickets e Incidents** (este último ni siquiera tenía una acción de descarga autenticada).
+
 ## Pendiente
 
 ### Import con historial persistente + preview antes de confirmar

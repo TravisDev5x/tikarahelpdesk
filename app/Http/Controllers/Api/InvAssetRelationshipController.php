@@ -6,8 +6,11 @@ use App\Http\Controllers\Concerns\AuthorizesInvAssetAccess;
 use App\Http\Controllers\Controller;
 use App\Models\InvAsset;
 use App\Models\InvAssetRelationship;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Relaciones entre activos (auditoría de Inventario, fase 3.2 -- CMDB,
@@ -40,26 +43,51 @@ class InvAssetRelationshipController extends Controller
             return response()->json(['message' => 'El activo no pertenece a este tenant'], 422);
         }
 
-        $alreadyLinked = InvAssetRelationship::query()
-            ->where(function ($q) use ($inv_asset, $child) {
-                $q->where('parent_asset_id', $inv_asset->id)->where('child_asset_id', $child->id);
-            })
-            ->orWhere(function ($q) use ($inv_asset, $child) {
-                $q->where('parent_asset_id', $child->id)->where('child_asset_id', $inv_asset->id);
-            })
-            ->exists();
-        if ($alreadyLinked) {
+        // Auditoría de bugs críticos (2026-08-22): el índice único de BD
+        // solo cubre la tupla exacta (parent,child), no ambas direcciones
+        // -- dos requests casi simultáneos en direcciones opuestas podían
+        // pasar el exists() de abajo antes de que cualquiera de los dos
+        // hiciera commit, duplicando el par en reversa. Un lock atómico por
+        // par (sin importar el orden) cierra la ventana; funciona con
+        // cualquier driver de cache configurado, no depende de una feature
+        // específica de Postgres/MySQL.
+        $pairKey = 'inv-asset-relationship:'.min($inv_asset->id, $child->id).'-'.max($inv_asset->id, $child->id);
+
+        try {
+            $relationship = Cache::lock($pairKey, 5)->block(3, function () use ($inv_asset, $child, $data) {
+                return DB::transaction(function () use ($inv_asset, $child, $data) {
+                    $alreadyLinked = InvAssetRelationship::query()
+                        ->where(function ($q) use ($inv_asset, $child) {
+                            $q->where('parent_asset_id', $inv_asset->id)->where('child_asset_id', $child->id);
+                        })
+                        ->orWhere(function ($q) use ($inv_asset, $child) {
+                            $q->where('parent_asset_id', $child->id)->where('child_asset_id', $inv_asset->id);
+                        })
+                        ->exists();
+                    if ($alreadyLinked) {
+                        return null;
+                    }
+
+                    return InvAssetRelationship::create([
+                        'parent_asset_id' => $inv_asset->id,
+                        'child_asset_id' => $child->id,
+                        'relationship_type' => $data['relationship_type'],
+                        'notes' => $data['notes'] ?? null,
+                        'client_id' => $inv_asset->client_id,
+                        'created_by' => Auth::id(),
+                    ]);
+                });
+            });
+        } catch (UniqueConstraintViolationException) {
+            // Choque exacto contra el índice único (doble clic/reintento) --
+            // mismo mensaje que el chequeo "ya están relacionados" de arriba,
+            // no un 500.
             return response()->json(['message' => 'Estos activos ya están relacionados'], 422);
         }
 
-        $relationship = InvAssetRelationship::create([
-            'parent_asset_id' => $inv_asset->id,
-            'child_asset_id' => $child->id,
-            'relationship_type' => $data['relationship_type'],
-            'notes' => $data['notes'] ?? null,
-            'client_id' => $inv_asset->client_id,
-            'created_by' => Auth::id(),
-        ]);
+        if ($relationship === null) {
+            return response()->json(['message' => 'Estos activos ya están relacionados'], 422);
+        }
 
         return response()->json($relationship->load('childAsset:id,name,internal_tag'), 201);
     }

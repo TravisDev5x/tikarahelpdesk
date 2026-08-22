@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { usePage } from "@inertiajs/react";
 import AuthenticatedLayout from "@/Inertia/Layouts/AuthenticatedLayout";
 import axios from "@/lib/axios";
@@ -41,11 +41,26 @@ function relativeTime(iso) {
     return new Date(iso).toLocaleString("es-ES");
 }
 
+/**
+ * Auditoría de bugs críticos (2026-08-22): antes el form siempre arrancaba
+ * en blanco (el backend nunca devolvía los valores no-secretos), así que
+ * cualquier re-guardado (ej. solo rotar el secreto) mandaba use_ssl/port/
+ * base_dn vacíos y los borraba en silencio. Ahora se prellena con lo que
+ * present() sí trae -- los campos secret:true siguen SIEMPRE en blanco,
+ * nunca se prellenan con el valor real.
+ */
+function buildForm(provider, initial) {
+    return Object.fromEntries(
+        provider.fields.map((f) => [
+            f.key,
+            f.secret ? "" : (initial[f.key] ?? (f.type === "checkbox" ? false : "")),
+        ])
+    );
+}
+
 function IntegrationCard({ provider, initial, onChange }) {
     const Icon = provider.icon;
-    const [form, setForm] = useState(() =>
-        Object.fromEntries(provider.fields.map((f) => [f.key, f.type === "checkbox" ? false : ""]))
-    );
+    const [form, setForm] = useState(() => buildForm(provider, initial));
     const [saving, setSaving] = useState(false);
     const [testing, setTesting] = useState(false);
     const [disconnectOpen, setDisconnectOpen] = useState(false);
@@ -54,6 +69,13 @@ function IntegrationCard({ provider, initial, onChange }) {
     const meta = STATUS_META[initial.status] ?? STATUS_META.not_configured;
     const StatusIcon = meta.icon;
     const isConfigured = initial.status !== "not_configured";
+
+    // Resincroniza el form cuando initial cambia de verdad (tras guardar/
+    // probar/desconectar) -- no en cada render, initial solo cambia de
+    // referencia cuando onChange() lo actualiza de verdad.
+    useEffect(() => {
+        setForm(buildForm(provider, initial));
+    }, [initial]);
 
     const setField = (key, value) => setForm((f) => ({ ...f, [key]: value }));
 
@@ -69,7 +91,7 @@ function IntegrationCard({ provider, initial, onChange }) {
             } else {
                 notify.error(data.status_message || "Se guardó, pero la prueba de conexión falló");
             }
-            setForm(Object.fromEntries(provider.fields.map((f) => [f.key, f.type === "checkbox" ? false : ""])));
+            setForm(buildForm(provider, data));
         } catch (err) {
             if (!handleAuthError(err)) {
                 setErrors(err?.response?.data?.errors ?? {});
