@@ -160,8 +160,20 @@ class InvAssetPageController extends Controller
         };
     }
 
+    /**
+     * Auditoría de bugs críticos (2026-08-22): 'sites'/'locations' aquí
+     * consultaban SIN scope alguno -- cualquier usuario con
+     * inventory.view_assets recibía en los props de esta página los
+     * nombres de sedes/ubicaciones de TODOS los tenants de la plataforma,
+     * a diferencia de los demás catálogos de este mismo método (todos ya
+     * scoped vía activeCatalog()). sitesQueryForUser() es la misma fuente
+     * que ya usan ResolbebIndexController/CatalogController/UserController
+     * para este caso exacto.
+     */
     private function formCatalogs(): array
     {
+        $siteIds = $this->clientScope->sitesQueryForUser(Auth::user())->pluck('id');
+
         return [
             'categories' => $this->activeCatalog(InvCategory::class, 'inv_categories'),
             // "assignable" -- lo necesita el diálogo de "Dar de baja" del
@@ -169,8 +181,8 @@ class InvAssetPageController extends Controller
             'statuses' => $this->activeCatalog(InvStatus::class, 'inv_statuses', ['id', 'name', 'badge_class', 'assignable']),
             'labels' => $this->activeCatalog(InvLabel::class, 'inv_labels'),
             'manufacturers' => $this->activeCatalog(InvManufacturer::class, 'inv_manufacturers'),
-            'sites' => Site::where('is_active', true)->orderBy('name')->get(['id', 'name']),
-            'locations' => Location::where('is_active', true)->orderBy('name')->get(['id', 'name', 'site_id']),
+            'sites' => Site::whereIn('id', $siteIds)->where('is_active', true)->orderBy('name')->get(['id', 'name']),
+            'locations' => Location::whereIn('site_id', $siteIds)->where('is_active', true)->orderBy('name')->get(['id', 'name', 'site_id']),
         ];
     }
 

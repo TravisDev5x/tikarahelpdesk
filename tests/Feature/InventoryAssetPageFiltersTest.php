@@ -176,6 +176,31 @@ class InventoryAssetPageFiltersTest extends TestCase
         );
     }
 
+    /**
+     * Auditoría de bugs críticos (2026-08-22): formCatalogs() mandaba
+     * 'sites'/'locations' sin ningún scope -- cualquier usuario con acceso
+     * a esta página recibía sedes/ubicaciones de TODOS los tenants.
+     */
+    public function test_form_catalogs_only_expose_sites_and_locations_of_the_same_tenant(): void
+    {
+        $fx = $this->fixtures();
+        \App\Models\Location::create(['site_id' => $fx['site'], 'name' => 'Mía', 'is_active' => true]);
+
+        $otherClient = Client::factory()->create();
+        $otherSite = $this->makeSite($otherClient->id);
+        \App\Models\Location::create(['site_id' => $otherSite, 'name' => 'Ajena', 'is_active' => true]);
+        DB::table('sites')->where('id', $otherSite)->update(['name' => 'Sede ajena']);
+
+        $response = $this->actingAs($fx['admin'], 'web')->get('/inventory/assets');
+
+        $response->assertInertia(fn ($page) => $page
+            ->component('Inventory/Assets/Index', shouldExist: false)
+            ->where('locations', fn ($locations) => collect($locations)->pluck('name')->contains('Mía')
+                && ! collect($locations)->pluck('name')->contains('Ajena'))
+            ->where('sites', fn ($sites) => ! collect($sites)->pluck('name')->contains('Sede ajena'))
+        );
+    }
+
     private function makeSite(int $clientId): int
     {
         $now = now();

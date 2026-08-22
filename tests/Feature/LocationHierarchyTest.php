@@ -76,6 +76,70 @@ class LocationHierarchyTest extends TestCase
         $response->assertStatus(422);
     }
 
+    /**
+     * Auditoría de bugs críticos (2026-08-22): LocationController no tenía
+     * ningún scoping de tenant -- IDOR cross-tenant total en las 4 rutas.
+     */
+    public function test_index_excludes_locations_of_another_tenant(): void
+    {
+        ['site' => $site, 'admin' => $admin] = $this->adminFixture();
+        Location::create(['site_id' => $site, 'name' => 'Mía', 'is_active' => true]);
+
+        $otherClient = Client::factory()->create();
+        $otherSite = $this->makeSite($otherClient->id);
+        Location::create(['site_id' => $otherSite, 'name' => 'Ajena', 'is_active' => true]);
+
+        $response = $this->actingAs($admin, 'web')->getJson('/api/locations');
+
+        $response->assertOk();
+        $names = collect($response->json())->pluck('name');
+        $this->assertTrue($names->contains('Mía'));
+        $this->assertFalse($names->contains('Ajena'));
+    }
+
+    public function test_cannot_create_a_location_for_another_tenants_site(): void
+    {
+        ['admin' => $admin] = $this->adminFixture();
+        $otherClient = Client::factory()->create();
+        $otherSite = $this->makeSite($otherClient->id);
+
+        $response = $this->actingAs($admin, 'web')->postJson('/api/locations', [
+            'site_id' => $otherSite, 'name' => 'Intrusa',
+        ]);
+
+        $response->assertForbidden();
+    }
+
+    public function test_cannot_update_or_delete_a_location_belonging_to_another_tenant(): void
+    {
+        ['admin' => $admin] = $this->adminFixture();
+        $otherClient = Client::factory()->create();
+        $otherSite = $this->makeSite($otherClient->id);
+        $foreign = Location::create(['site_id' => $otherSite, 'name' => 'Ajena', 'is_active' => true]);
+
+        $this->actingAs($admin, 'web')->putJson("/api/locations/{$foreign->id}", [
+            'site_id' => $otherSite, 'name' => 'Hackeada',
+        ])->assertForbidden();
+
+        $this->actingAs($admin, 'web')->deleteJson("/api/locations/{$foreign->id}")->assertForbidden();
+
+        $this->assertDatabaseHas('locations', ['id' => $foreign->id, 'name' => 'Ajena']);
+    }
+
+    public function test_cannot_link_parent_id_to_another_tenants_location(): void
+    {
+        ['site' => $site, 'admin' => $admin] = $this->adminFixture();
+        $otherClient = Client::factory()->create();
+        $otherSite = $this->makeSite($otherClient->id);
+        $foreignParent = Location::create(['site_id' => $otherSite, 'name' => 'Ajena', 'is_active' => true]);
+
+        $response = $this->actingAs($admin, 'web')->postJson('/api/locations', [
+            'site_id' => $site, 'name' => 'Piso 3', 'parent_id' => $foreignParent->id,
+        ]);
+
+        $response->assertForbidden();
+    }
+
     private function makeSite(int $clientId): int
     {
         $now = now();
