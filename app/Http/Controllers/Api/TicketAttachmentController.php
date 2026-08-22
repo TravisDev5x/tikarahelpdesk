@@ -27,7 +27,14 @@ class TicketAttachmentController extends Controller
 
         $saved = [];
         foreach ($request->file('attachments', []) as $file) {
-            $path = $file->store("tickets/{$ticket->id}", ['disk' => 'public']);
+            // Auditoría de bugs críticos (2026-08-22): antes se guardaba en
+            // disco 'public' (symlinkeado, servido directo por el
+            // webserver) -- cualquiera con la URL descargaba el adjunto sin
+            // sesión ni pertenecer al tenant, sin pasar por ningún
+            // middleware. Mismo fix ya aplicado a InvAssetImageController.
+            // 'local' (storage/app/private) no tiene symlink; solo
+            // download() de abajo, autenticado, sirve el archivo.
+            $path = $file->store("tickets/{$ticket->id}", ['disk' => 'local']);
             $attachment = TicketAttachment::create([
                 'ticket_id' => $ticket->id,
                 'uploaded_by' => $user->id,
@@ -36,7 +43,7 @@ class TicketAttachmentController extends Controller
                 'file_path' => $path,
                 'mime_type' => $file->getClientMimeType(),
                 'size' => $file->getSize(),
-                'disk' => 'public',
+                'disk' => 'local',
             ]);
             $saved[] = $attachment;
         }

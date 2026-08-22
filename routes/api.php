@@ -264,6 +264,7 @@ Route::middleware(['auth:sanctum','locale','perm:incidents.manage_all|incidents.
     Route::post('incidents/{incident}/unassign', [\App\Http\Controllers\Api\IncidentController::class, 'unassign']);
     Route::post('incidents/{incident}/attachments', [\App\Http\Controllers\Api\IncidentAttachmentController::class, 'store']);
     Route::delete('incidents/{incident}/attachments/{attachment}', [\App\Http\Controllers\Api\IncidentAttachmentController::class, 'destroy']);
+    Route::get('incidents/{incident}/attachments/{attachment}/download', [\App\Http\Controllers\Api\IncidentAttachmentController::class, 'download']);
     Route::name('api.')->group(function () {
         Route::apiResource('incidents', \App\Http\Controllers\Api\IncidentController::class)
             ->only(['index', 'store', 'update', 'show']);

@@ -312,7 +312,10 @@ class MyTicketsController extends Controller
 
         $saved = [];
         foreach ($request->file('attachments', []) as $file) {
-            $path = $file->store("tickets/{$ticket->id}", ['disk' => 'public']);
+            // Auditoría de bugs críticos (2026-08-22): mismo fix que
+            // TicketAttachmentController::store() -- disco 'local' en vez
+            // de 'public', solo accesible vía downloadAttachment() autenticado.
+            $path = $file->store("tickets/{$ticket->id}", ['disk' => 'local']);
             $attachment = TicketAttachment::create([
                 'ticket_id' => $ticket->id,
                 'uploaded_by' => $user->id,
@@ -321,7 +324,7 @@ class MyTicketsController extends Controller
                 'file_path' => $path,
                 'mime_type' => $file->getClientMimeType(),
                 'size' => $file->getSize(),
-                'disk' => 'public',
+                'disk' => 'local',
             ]);
             $saved[] = $attachment;
         }

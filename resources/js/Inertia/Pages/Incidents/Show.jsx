@@ -383,7 +383,12 @@ export default function Detalle() {
                                 {attachments.map((a) => (
                                     <TableRow key={a.id}>
                                         <TableCell>
-                                            <a href={a.url} target="_blank" rel="noreferrer" className="text-primary hover:underline">
+                                            <a
+                                                href={`/api/incidents/${incident.id}/attachments/${a.id}/download`}
+                                                target="_blank"
+                                                rel="noreferrer"
+                                                className="text-primary hover:underline"
+                                            >
                                                 {a.original_name}
                                             </a>
                                         </TableCell>

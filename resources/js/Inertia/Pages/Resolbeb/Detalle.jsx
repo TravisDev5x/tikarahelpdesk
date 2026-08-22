@@ -36,8 +36,14 @@ function formatBytes(bytes) {
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-/** Adjuntos del ticket (ticket.attachments ya viene eager-loaded desde TicketController::show). */
-function TicketAttachments({ attachments }) {
+/**
+ * Adjuntos del ticket (ticket.attachments ya viene eager-loaded desde
+ * TicketController::show). Auditoría de bugs críticos (2026-08-22): antes
+ * enlazaba directo a a.url (disco público, sin autenticación) -- ahora
+ * enlaza a la acción download() autenticada; basePath distingue la ruta de
+ * staff (/api/tickets) de la de solicitante (/api/my-tickets).
+ */
+function TicketAttachments({ attachments, ticketId, basePath }) {
     if (!attachments || attachments.length === 0) return null;
     return (
         <div className="border-t pt-3 space-y-2">
@@ -48,7 +54,7 @@ function TicketAttachments({ attachments }) {
                 {attachments.map((a) => (
                     <li key={a.id}>
                         <a
-                            href={a.url}
+                            href={`${basePath}/${ticketId}/attachments/${a.id}/download`}
                             target="_blank"
                             rel="noreferrer"
                             className="flex items-center gap-2 rounded-md border border-border/60 bg-muted/20 px-2.5 py-1.5 text-xs hover:bg-muted/40 transition-colors max-w-[220px]"
@@ -173,7 +179,7 @@ function RequesterView({
                                     />
                                 )}
                             </div>
-                            <TicketAttachments attachments={ticket.attachments} />
+                            <TicketAttachments attachments={ticket.attachments} ticketId={ticket.id} basePath="/api/my-tickets" />
                         </CardContent>
                     </Card>
                     <Card>
@@ -391,7 +397,7 @@ function ManagerView({
                             {descLong && !descExpanded ? <>{(ticket.description || "").slice(0, 280)}… <button type="button" onClick={() => setDescExpanded(true)} className="ml-2 text-primary hover:underline text-xs font-medium">Ver más <ChevronDown className="h-3 w-3" /></button></> : descLong && descExpanded ? <>{ticket.description} <button type="button" onClick={() => setDescExpanded(false)} className="ml-2 text-primary hover:underline text-xs font-medium">Ver menos <ChevronUp className="h-3 w-3" /></button></> : (ticket.description || "—")}
                         </div>
                     </div>
-                    <TicketAttachments attachments={ticket.attachments} />
+                    <TicketAttachments attachments={ticket.attachments} ticketId={ticket.id} basePath="/api/tickets" />
                 </CardContent>
             </Card>
 

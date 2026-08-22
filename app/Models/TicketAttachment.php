@@ -5,7 +5,6 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Support\Facades\Storage;
 
 class TicketAttachment extends Model
 {
@@ -22,8 +21,6 @@ class TicketAttachment extends Model
         'disk',
     ];
 
-    protected $appends = ['url'];
-
     public function ticket(): BelongsTo
     {
         return $this->belongsTo(Ticket::class);
@@ -32,14 +29,5 @@ class TicketAttachment extends Model
     public function uploader(): BelongsTo
     {
         return $this->belongsTo(User::class, 'uploaded_by');
-    }
-
-    public function getUrlAttribute(): ?string
-    {
-        if (!$this->file_path) {
-            return null;
-        }
-        $disk = $this->disk ?: 'public';
-        return Storage::disk($disk)->url($this->file_path);
     }
 }
