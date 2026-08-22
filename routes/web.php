@@ -7,6 +7,7 @@ use App\Http\Controllers\Auth\AcceptInvitationController;
 use App\Http\Controllers\CompanyController;
 use App\Http\Controllers\LandingController;
 use App\Http\Controllers\Inertia\CatalogPageController;
+use App\Http\Controllers\Inertia\InvAssetAssignmentPageController;
 use App\Http\Controllers\Inertia\InvIntegrationPageController;
 use App\Http\Controllers\Inertia\InvAssetPageController;
 use App\Http\Controllers\Inertia\InvMonitorPageController;
@@ -192,6 +193,13 @@ Route::middleware('auth')->group(function () {
     Route::get('/inventory/wallboard', [InvMonitorPageController::class, 'wallboard'])
         ->middleware('perm:inventory.manage_assets|inventory.edit_assets|inventory.view_assets')
         ->name('inventory.wallboard');
+
+    // Vista de asignación consolidada ("¿quién tiene qué?") -- pendiente
+    // retomado del roadmap original de fase 7, aparte de la auditoría
+    // ITAM/CMDB. Mismo nivel VER que /inventory/assets y /inventory/monitor.
+    Route::get('/inventory/assignments', [InvAssetAssignmentPageController::class, 'index'])
+        ->middleware('perm:inventory.manage_assets|inventory.edit_assets|inventory.view_assets')
+        ->name('inventory.assignments.index');
 
     // Inventario — catálogos (fase 1, port desde HelpdeskECD2026). A
     // diferencia de areas/campaigns/positions arriba, sí llevan perm: aquí

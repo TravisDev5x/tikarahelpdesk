@@ -46,11 +46,13 @@ Con esto quedan cerradas las 3 fases del roadmap de la auditoría con trabajo co
 - **"Activos con demasiados tickets"** (nuevo, `problemAssets()`/`problem_assets`): factible desde que fase 3.1 vinculó Activo↔Ticket -- 3+ tickets vinculados en los últimos 90 días.
 - Mismos nombres de método/prop/countKey de las 2 alertas enriquecidas (`warrantyExpiring`/`warranty_expiring`, `repeatedTransfers`/`repeated_transfers`) para minimizar el diff -- solo cambiaron los campos de cada fila (`severity`, `expires_on`, `source`, `transfers_7d`). Sin página ni nav nueva: todo se integra en `/inventory/monitor`, `/inventory/wallboard` y el resumen ligero de `/home` que ya existían.
 
-## Pendiente
+## Cerrado (fuera de la auditoría)
 
 ### Vista de asignación consolidada
 
-No iniciada. Parte del roadmap original "Fase 7: vistas de asignación, dashboard, exports" — 7.1 (dashboard) ya cerrada, falta una vista tipo "roster" que muestre de un vistazo qué usuario tiene qué activos asignados (join sobre `inv_assets.current_user_id`), distinta del historial de movimientos que ya existe por activo individual en el modal de detalle (`Assets/AssetDetailDialog.jsx`).
+✅ **Cerrada (2026-08-22)**. Parte del roadmap original "Fase 7: vistas de asignación, dashboard, exports" — 7.1 (dashboard) ya cerrada, faltaba una vista tipo "roster" que mostrara de un vistazo qué usuario tiene qué activos asignados. `GET /inventory/assignments` (`InvAssetAssignmentPageController`, mismo nivel VER que `/inventory/assets`/`/inventory/monitor`): un solo query scoped por tenant, agrupado en memoria por `current_user_id` (mismo criterio que `InvMonitorPageController::reports()->topAssignees`, que solo mostraba el top 5 dentro de una gráfica -- aquí se lista el roster completo). Página de solo lectura (`Inventory/Assignments.jsx`): tabla por usuario con conteo y valor total, fila expandible con los activos (link directo a `?asset=ID` para abrir el detalle) y un "Ver todos" hacia `/inventory/assets?user_id=ID` (filtro que ya existía). Deliberadamente sin export ni filtros de fecha en este corte -- se marcó como funcionalidad opcional/baja prioridad.
+
+## Pendiente
 
 ### Import con historial persistente + preview antes de confirmar
 

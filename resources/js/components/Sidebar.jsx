@@ -492,6 +492,7 @@ export function Sidebar({ collapsed, onToggle, onNavigate, currentPath: currentP
             if (can('inventory.manage_assets')) {
                 inventoryChildren.push(inertiaNav('/inventory/assets', { label: t('nav.inventoryAssets'), icon: Package }))
                 inventoryChildren.push(inertiaNav('/inventory/monitor', { label: t('nav.inventoryMonitor'), icon: AlertTriangle }))
+                inventoryChildren.push(inertiaNav('/inventory/assignments', { label: t('nav.inventoryAssignments'), icon: Users }))
             }
             if (can('inventory.manage_config')) {
                 inventoryChildren.push({ type: 'separator', label: t('nav.catalogs') })
