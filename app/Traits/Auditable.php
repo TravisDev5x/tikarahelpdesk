@@ -4,6 +4,7 @@ namespace App\Traits;
 
 use App\Models\AuditLog;
 use App\Models\InvAsset;
+use App\Models\InvAssetRelationship;
 use App\Models\InvAssetSpec;
 use App\Models\InvAssetTicket;
 use App\Models\InvComponent;
@@ -144,6 +145,11 @@ trait Auditable
 
             // InvAssetTicket (fase 3.1, relación Activo↔Ticket) -- mismo caso.
             if ($model instanceof InvAssetTicket) {
+                $payload['client_id'] = $model->client_id;
+            }
+
+            // InvAssetRelationship (fase 3.2, relaciones entre activos) -- mismo caso.
+            if ($model instanceof InvAssetRelationship) {
                 $payload['client_id'] = $model->client_id;
             }
 

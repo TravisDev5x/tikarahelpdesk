@@ -14,6 +14,7 @@ use App\Http\Controllers\Api\InvMaintenanceOriginController;
 use App\Http\Controllers\Api\InvMaintenanceModalityController;
 use App\Http\Controllers\Api\InvAssetController;
 use App\Http\Controllers\Api\InvAssetDocumentController;
+use App\Http\Controllers\Api\InvAssetRelationshipController;
 use App\Http\Controllers\Api\InvAssetWarrantyController;
 use App\Http\Controllers\Api\InvAssetImageController;
 use App\Http\Controllers\Api\InvMovementController;
@@ -388,6 +389,9 @@ Route::middleware(['auth:sanctum','locale','perm:inventory.manage_assets|invento
     // Garantías (fase 2.3) -- sin update a propósito, ver InvAssetWarrantyController.
     Route::post('inv-assets/{inv_asset}/warranties', [InvAssetWarrantyController::class, 'store']);
     Route::delete('inv-assets/{inv_asset}/warranties/{warranty}', [InvAssetWarrantyController::class, 'destroy']);
+    // Relaciones entre activos (fase 3.2, CMDB) -- mismo criterio que garantías.
+    Route::post('inv-assets/{inv_asset}/relationships', [InvAssetRelationshipController::class, 'store']);
+    Route::delete('inv-assets/{inv_asset}/relationships/{relationship}', [InvAssetRelationshipController::class, 'destroy']);
 
     // Ciclo de vida (fase 3) -- mutaciones de la bitácora inmutable
     // (checkout/checkin/traslado/baja son altas nuevas, nunca update/

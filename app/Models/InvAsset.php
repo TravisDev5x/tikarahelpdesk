@@ -134,4 +134,19 @@ class InvAsset extends Model
     {
         return $this->hasMany(InvAssetTicket::class, 'inv_asset_id');
     }
+
+    /**
+     * Relaciones entre activos (fase 3.2, CMDB) -- un activo puede ser
+     * padre de varios Y ser hijo de otro a la vez (ej. el dock es hijo
+     * del laptop pero también padre de un monitor).
+     */
+    public function childRelationships(): HasMany
+    {
+        return $this->hasMany(InvAssetRelationship::class, 'parent_asset_id');
+    }
+
+    public function parentRelationships(): HasMany
+    {
+        return $this->hasMany(InvAssetRelationship::class, 'child_asset_id');
+    }
 }

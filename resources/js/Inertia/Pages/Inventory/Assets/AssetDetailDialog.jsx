@@ -77,6 +77,13 @@ const DISPOSAL_METHODS = [
     { value: "DANO_IRREPARABLE", label: "Daño irreparable" },
 ];
 
+// Auditoría de Inventario, fase 3.2 (relaciones entre activos -- CMDB).
+const RELATIONSHIP_TYPES = [
+    { value: "component_of", label: "Componente de" },
+    { value: "network_of", label: "En red con" },
+    { value: "other", label: "Otro" },
+];
+
 const NONE = "__none__";
 
 /**
@@ -109,6 +116,12 @@ export default function AssetDetailDialog({ open, onOpenChange, assetId, categor
     const [selectedComponents, setSelectedComponents] = useState([]);
     const [newComponent, setNewComponent] = useState({ name: "", marca: "", modelo: "", serie: "", capacidad: "" });
     const [newWarranty, setNewWarranty] = useState({ provider: "", warranty_number: "", coverage: "", starts_at: "", ends_at: "" });
+    // Relaciones entre activos (auditoría de Inventario, fase 3.2).
+    const [relQuery, setRelQuery] = useState("");
+    const [relResults, setRelResults] = useState([]);
+    const [searchingRel, setSearchingRel] = useState(false);
+    const [relType, setRelType] = useState("component_of");
+    const [linkingRelId, setLinkingRelId] = useState(null);
 
     const [maintenanceForm, setMaintenanceForm] = useState({ origin_id: NONE, modality_id: NONE, title: "", diagnosis: "", start_date: "" });
     const [closingMaintenanceId, setClosingMaintenanceId] = useState(null);
@@ -151,6 +164,9 @@ export default function AssetDetailDialog({ open, onOpenChange, assetId, categor
         setRetireResidualValue("");
         setNewComponent({ name: "", marca: "", modelo: "", serie: "", capacidad: "" });
         setNewWarranty({ provider: "", warranty_number: "", coverage: "", starts_at: "", ends_at: "" });
+        setRelQuery("");
+        setRelResults([]);
+        setRelType("component_of");
         setMaintenanceForm({ origin_id: NONE, modality_id: NONE, title: "", diagnosis: "", start_date: "" });
         setClosingMaintenanceId(null);
         setCloseForm({ end_date: "", solution: "", cost: "" });
@@ -238,6 +254,60 @@ export default function AssetDetailDialog({ open, onOpenChange, assetId, categor
         } catch (err) {
             if (!handleAuthError(err)) {
                 notify.error(getApiErrorMessage(err, "No se pudo borrar la garantía"));
+            }
+        }
+    };
+
+    // Relaciones entre activos (auditoría de Inventario, fase 3.2) --
+    // busca sobre el índice normal de activos (GET /api/inv-assets, ya
+    // scoped por tenant), a diferencia de la fase 3.1 (Activo↔Ticket) no
+    // hace falta un endpoint de búsqueda aparte porque, para estar viendo
+    // este diálogo, el usuario ya tiene permiso de ver Inventario.
+    useEffect(() => {
+        if (!relQuery.trim() || !asset) { setRelResults([]); return; }
+        let active = true;
+        setSearchingRel(true);
+        const timeout = setTimeout(() => {
+            axios.get("/api/inv-assets", { params: { search: relQuery, per_page: 10 } })
+                .then((res) => {
+                    if (!active) return;
+                    const rows = (res.data?.data ?? []).filter((a) => a.id !== asset.id);
+                    setRelResults(rows);
+                })
+                .catch(() => { if (active) setRelResults([]); })
+                .finally(() => { if (active) setSearchingRel(false); });
+        }, 350);
+        return () => { active = false; clearTimeout(timeout); };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [relQuery, asset?.id]);
+
+    const linkRelationship = async (childAssetId) => {
+        setLinkingRelId(childAssetId);
+        try {
+            await axios.post(`/api/inv-assets/${asset.id}/relationships`, {
+                child_asset_id: childAssetId,
+                relationship_type: relType,
+            });
+            notify.success("Activos relacionados");
+            setRelQuery("");
+            setRelResults([]);
+            reload();
+        } catch (err) {
+            if (!handleAuthError(err)) {
+                notify.error(getApiErrorMessage(err, "No se pudo relacionar el activo"));
+            }
+        } finally {
+            setLinkingRelId(null);
+        }
+    };
+
+    const unlinkRelationship = async (relationshipId) => {
+        try {
+            await axios.delete(`/api/inv-assets/${asset.id}/relationships/${relationshipId}`);
+            reload();
+        } catch (err) {
+            if (!handleAuthError(err)) {
+                notify.error(getApiErrorMessage(err, "No se pudo quitar la relación"));
             }
         }
     };
@@ -490,6 +560,62 @@ export default function AssetDetailDialog({ open, onOpenChange, assetId, categor
                                                     <Wrench className="mr-2 h-4 w-4" />
                                                     Desarmar seleccionados ({selectedComponents.length})
                                                 </Button>
+                                            )}
+                                        </>
+                                    )}
+                                </CardContent>
+                            </Card>
+
+                            <Card>
+                                <CardHeader className="flex flex-row items-center justify-between space-y-0">
+                                    <CardTitle>Relaciones</CardTitle>
+                                    {canEdit && (
+                                        <Button size="sm" variant="outline" onClick={() => setOpenDialog("add-relationship")}>
+                                            <Plus className="mr-2 h-4 w-4" />
+                                            Vincular activo
+                                        </Button>
+                                    )}
+                                </CardHeader>
+                                <CardContent className="space-y-4">
+                                    {(asset.child_relationships ?? []).length === 0 && (asset.parent_relationships ?? []).length === 0 ? (
+                                        <p className="text-sm text-muted-foreground">Este activo no tiene relaciones registradas.</p>
+                                    ) : (
+                                        <>
+                                            {(asset.child_relationships ?? []).length > 0 && (
+                                                <div className="space-y-1.5">
+                                                    <p className="text-xs font-medium text-muted-foreground">Contiene / va con</p>
+                                                    <ul className="flex flex-wrap gap-2">
+                                                        {asset.child_relationships.map((rel) => (
+                                                            <li key={rel.id} className="flex items-center gap-2 rounded-md border bg-muted/20 px-2.5 py-1.5 text-xs">
+                                                                <span>{rel.child_asset?.name} <span className="text-muted-foreground font-mono">({rel.child_asset?.internal_tag})</span></span>
+                                                                <Badge variant="outline">{RELATIONSHIP_TYPES.find((t) => t.value === rel.relationship_type)?.label ?? rel.relationship_type}</Badge>
+                                                                {canEdit && (
+                                                                    <button type="button" onClick={() => unlinkRelationship(rel.id)} className="text-muted-foreground hover:text-destructive">
+                                                                        <Trash2 className="h-3.5 w-3.5" />
+                                                                    </button>
+                                                                )}
+                                                            </li>
+                                                        ))}
+                                                    </ul>
+                                                </div>
+                                            )}
+                                            {(asset.parent_relationships ?? []).length > 0 && (
+                                                <div className="space-y-1.5">
+                                                    <p className="text-xs font-medium text-muted-foreground">Es parte de</p>
+                                                    <ul className="flex flex-wrap gap-2">
+                                                        {asset.parent_relationships.map((rel) => (
+                                                            <li key={rel.id} className="flex items-center gap-2 rounded-md border bg-muted/20 px-2.5 py-1.5 text-xs">
+                                                                <span>{rel.parent_asset?.name} <span className="text-muted-foreground font-mono">({rel.parent_asset?.internal_tag})</span></span>
+                                                                <Badge variant="outline">{RELATIONSHIP_TYPES.find((t) => t.value === rel.relationship_type)?.label ?? rel.relationship_type}</Badge>
+                                                                {canEdit && (
+                                                                    <button type="button" onClick={() => unlinkRelationship(rel.id)} className="text-muted-foreground hover:text-destructive">
+                                                                        <Trash2 className="h-3.5 w-3.5" />
+                                                                    </button>
+                                                                )}
+                                                            </li>
+                                                        ))}
+                                                    </ul>
+                                                </div>
                                             )}
                                         </>
                                     )}
@@ -1003,6 +1129,59 @@ export default function AssetDetailDialog({ open, onOpenChange, assetId, categor
                                 >
                                     Agregar
                                 </Button>
+                            </DialogFooter>
+                        </DialogContent>
+                    </Dialog>
+
+                    {/* Vincular activo (relaciones entre activos, fase 3.2) */}
+                    <Dialog open={openDialog === "add-relationship"} onOpenChange={(o) => !o && close()}>
+                        <DialogContent>
+                            <DialogHeader><DialogTitle>Vincular activo</DialogTitle></DialogHeader>
+                            <div className="space-y-3">
+                                <div className="space-y-1.5">
+                                    <Label>Tipo de relación</Label>
+                                    <Select value={relType} onValueChange={setRelType}>
+                                        <SelectTrigger><SelectValue /></SelectTrigger>
+                                        <SelectContent>
+                                            {RELATIONSHIP_TYPES.map((t) => (
+                                                <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                                <div className="space-y-1.5">
+                                    <Label>Buscar activo</Label>
+                                    <Input
+                                        value={relQuery}
+                                        onChange={(e) => setRelQuery(e.target.value)}
+                                        placeholder="Nombre, número de inventario o serie…"
+                                    />
+                                </div>
+                                <div className="max-h-56 overflow-y-auto rounded-md border">
+                                    {!relQuery.trim() ? (
+                                        <p className="px-3 py-2 text-xs text-muted-foreground">Escribe para buscar.</p>
+                                    ) : searchingRel ? (
+                                        <p className="px-3 py-2 text-xs text-muted-foreground">Buscando…</p>
+                                    ) : relResults.length === 0 ? (
+                                        <p className="px-3 py-2 text-xs text-muted-foreground">Sin resultados.</p>
+                                    ) : (
+                                        relResults.map((a) => (
+                                            <button
+                                                key={a.id}
+                                                type="button"
+                                                disabled={linkingRelId === a.id}
+                                                onClick={() => linkRelationship(a.id)}
+                                                className="flex w-full items-center justify-between gap-2 border-b px-3 py-2 text-left text-xs last:border-b-0 hover:bg-muted/60 disabled:opacity-50"
+                                            >
+                                                <span>{a.name} <span className="text-muted-foreground font-mono">({a.internal_tag})</span></span>
+                                                {linkingRelId === a.id && <Loader2 className="h-3 w-3 animate-spin" />}
+                                            </button>
+                                        ))
+                                    )}
+                                </div>
+                            </div>
+                            <DialogFooter>
+                                <Button variant="outline" onClick={close}>Cerrar</Button>
                             </DialogFooter>
                         </DialogContent>
                     </Dialog>

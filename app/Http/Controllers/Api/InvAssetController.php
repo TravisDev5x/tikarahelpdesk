@@ -68,6 +68,9 @@ class InvAssetController extends Controller
             'disposal' => fn ($q) => $q->with('authorizedBy'),
             // Tickets relacionados (fase 3.1) -- lado inverso, solo lectura.
             'ticketLinks' => fn ($q) => $q->with(['ticket:id,folio,subject,ticket_state_id'])->with('ticket.state:id,name,code')->orderByDesc('created_at'),
+            // Relaciones entre activos (fase 3.2, CMDB).
+            'childRelationships' => fn ($q) => $q->with('childAsset:id,name,internal_tag'),
+            'parentRelationships' => fn ($q) => $q->with('parentAsset:id,name,internal_tag'),
             'movements' => fn ($q) => $q->with(['user', 'previousUser', 'admin'])->orderByDesc('date'),
             'components' => fn ($q) => $q->orderBy('name'),
             'maintenances' => fn ($q) => $q->with(['origin', 'modality'])->orderByDesc('start_date'),
