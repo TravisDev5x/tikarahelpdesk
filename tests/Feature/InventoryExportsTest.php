@@ -121,10 +121,10 @@ class InventoryExportsTest extends TestCase
         $path = $response->baseResponse->getFile()->getPathname();
         $spreadsheet = IOFactory::load($path);
         $summary = $spreadsheet->getSheetByName('Resumen')->toArray();
-        $warrantySheet = $spreadsheet->getSheetByName('Garantías por vencer')->toArray();
+        $warrantySheet = $spreadsheet->getSheetByName('Renovaciones')->toArray();
         @unlink($path);
 
-        $this->assertSame('Garantías por vencer (15 días)', $summary[1][0]);
+        $this->assertSame('Renovaciones (vencidas o por vencer en 30 días)', $summary[1][0]);
         $this->assertEquals(1, $summary[1][1]);
         $this->assertSame('Activos sin responsable', $summary[2][0]);
         $this->assertEquals(2, $summary[2][1]); // WARR-EXP y NO-RESP, ninguna tiene current_user_id

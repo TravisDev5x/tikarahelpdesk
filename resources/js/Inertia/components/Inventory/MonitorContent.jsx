@@ -18,9 +18,24 @@ import {
     TableRow,
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { AlertTriangle, Download, ExternalLink, MonitorPlay, RefreshCw } from "lucide-react";
 import { INVENTORY_ALERTS as ALERTS } from "@/lib/inventoryAlerts";
+import { badgeStatus } from "@/lib/badgeStyles";
 import { cn } from "@/lib/utils";
+
+const SEVERITY_LABEL = { vencida: "Vencida", critica: "Crítica", proxima: "Próxima", atencion: "Atención" };
+const SEVERITY_BADGE = {
+    vencida: badgeStatus.danger,
+    critica: badgeStatus.danger,
+    proxima: badgeStatus.warning,
+    atencion: badgeStatus.warning,
+};
+
+function SeverityBadge({ severity }) {
+    if (!severity) return null;
+    return <Badge className={SEVERITY_BADGE[severity] ?? badgeStatus.neutral}>{SEVERITY_LABEL[severity] ?? severity}</Badge>;
+}
 
 const REPORTS = [
     { key: "byCategory", title: "Activos por categoría" },
@@ -32,7 +47,7 @@ const REPORTS = [
 ];
 
 const RELOAD_PROPS = [
-    "warrantyExpiring", "unassigned", "repeatedTransfers", "staleMaintenances",
+    "warrantyExpiring", "unassigned", "repeatedTransfers", "staleMaintenances", "problemAssets",
     "byCategory", "byStatus", "bySite", "topAssignees", "totalValue", "costByCategory", "monthlyTrend",
 ];
 
@@ -47,7 +62,7 @@ const currency = (value) => `$${Number(value ?? 0).toLocaleString("es-MX", { min
  */
 export default function MonitorContent({ isStandalone = false }) {
     const {
-        warrantyExpiring, unassigned, repeatedTransfers, staleMaintenances,
+        warrantyExpiring, unassigned, repeatedTransfers, staleMaintenances, problemAssets,
         byCategory, byStatus, bySite, topAssignees, totalValue, costByCategory, monthlyTrend,
     } = usePage().props;
     const [openAlert, setOpenAlert] = useState(null);
@@ -62,7 +77,7 @@ export default function MonitorContent({ isStandalone = false }) {
         if (match?.user_id) router.visit(`/inventory/assets?user_id=${match.user_id}`);
     };
 
-    const data = { warrantyExpiring, unassigned, repeatedTransfers, staleMaintenances };
+    const data = { warrantyExpiring, unassigned, repeatedTransfers, staleMaintenances, problemAssets };
     const active = ALERTS.find((a) => a.key === openAlert);
     const rows = active ? data[active.key] ?? [] : [];
 
@@ -249,8 +264,21 @@ export default function MonitorContent({ isStandalone = false }) {
                                             <>
                                                 <TableHead>Nombre</TableHead>
                                                 <TableHead>Núm. inventario</TableHead>
-                                                {openAlert === "warrantyExpiring" && <TableHead>Vence</TableHead>}
-                                                {openAlert === "repeatedTransfers" && <TableHead>Traslados (24h)</TableHead>}
+                                                {openAlert === "warrantyExpiring" && (
+                                                    <>
+                                                        <TableHead>Vence</TableHead>
+                                                        <TableHead>Origen</TableHead>
+                                                        <TableHead>Urgencia</TableHead>
+                                                    </>
+                                                )}
+                                                {openAlert === "repeatedTransfers" && (
+                                                    <>
+                                                        <TableHead>24h</TableHead>
+                                                        <TableHead>7 días</TableHead>
+                                                        <TableHead>Severidad</TableHead>
+                                                    </>
+                                                )}
+                                                {openAlert === "problemAssets" && <TableHead>Tickets (90 días)</TableHead>}
                                             </>
                                         )}
                                     </TableRow>
@@ -276,8 +304,23 @@ export default function MonitorContent({ isStandalone = false }) {
                                                     </Link>
                                                 </TableCell>
                                                 <TableCell className="font-mono text-sm">{a.internal_tag}</TableCell>
-                                                {openAlert === "warrantyExpiring" && <TableCell className="text-sm">{a.warranty_expiry}</TableCell>}
-                                                {openAlert === "repeatedTransfers" && <TableCell className="text-sm">{a.transfer_count}</TableCell>}
+                                                {openAlert === "warrantyExpiring" && (
+                                                    <>
+                                                        <TableCell className="text-sm">{a.expires_on}</TableCell>
+                                                        <TableCell className="text-sm text-muted-foreground">
+                                                            {a.source === "inv_warranties" ? "Garantía registrada" : "Campo del activo"}
+                                                        </TableCell>
+                                                        <TableCell><SeverityBadge severity={a.severity} /></TableCell>
+                                                    </>
+                                                )}
+                                                {openAlert === "repeatedTransfers" && (
+                                                    <>
+                                                        <TableCell className="text-sm">{a.transfers_24h}</TableCell>
+                                                        <TableCell className="text-sm">{a.transfers_7d}</TableCell>
+                                                        <TableCell><SeverityBadge severity={a.severity} /></TableCell>
+                                                    </>
+                                                )}
+                                                {openAlert === "problemAssets" && <TableCell className="text-sm">{a.ticket_count}</TableCell>}
                                             </TableRow>
                                         ))}
                                 </TableBody>

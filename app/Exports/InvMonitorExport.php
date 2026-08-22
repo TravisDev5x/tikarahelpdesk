@@ -27,6 +27,7 @@ class InvMonitorExport
         $this->buildUnassignedSheet($spreadsheet->createSheet());
         $this->buildTransfersSheet($spreadsheet->createSheet());
         $this->buildMaintenanceSheet($spreadsheet->createSheet());
+        $this->buildProblemAssetsSheet($spreadsheet->createSheet());
         $spreadsheet->setActiveSheetIndex(0);
 
         return $spreadsheet;
@@ -38,17 +39,18 @@ class InvMonitorExport
         $this->writeHeadings($sheet, ['Alerta', 'Cantidad'], 1);
 
         $rows = [
-            ['Garantías por vencer (15 días)', count($this->alerts['warrantyExpiring'])],
+            ['Renovaciones (vencidas o por vencer en 30 días)', count($this->alerts['warrantyExpiring'])],
             ['Activos sin responsable', count($this->alerts['unassigned'])],
-            ['Traslados repetidos (24h)', count($this->alerts['repeatedTransfers'])],
+            ['Anomalías de traslados', count($this->alerts['repeatedTransfers'])],
             ['Mantenimientos estancados (30 días)', count($this->alerts['staleMaintenances'])],
+            ['Activos con muchos tickets (90 días)', count($this->alerts['problemAssets'])],
         ];
         foreach ($rows as $i => $row) {
             $sheet->setCellValue('A'.($i + 2), $row[0]);
             $sheet->setCellValue('B'.($i + 2), $row[1]);
         }
-        $sheet->setCellValue('A7', 'Generado');
-        $sheet->setCellValue('B7', now()->format('Y-m-d H:i:s'));
+        $sheet->setCellValue('A8', 'Generado');
+        $sheet->setCellValue('B8', now()->format('Y-m-d H:i:s'));
         foreach (['A', 'B'] as $col) {
             $sheet->getColumnDimension($col)->setAutoSize(true);
         }
@@ -56,18 +58,20 @@ class InvMonitorExport
 
     private function buildWarrantySheet(Worksheet $sheet): void
     {
-        $sheet->setTitle('Garantías por vencer');
-        $this->writeHeadings($sheet, ['ID', 'Etiqueta interna', 'Nombre', 'Vence'], 1);
+        $sheet->setTitle('Renovaciones');
+        $this->writeHeadings($sheet, ['ID', 'Etiqueta interna', 'Nombre', 'Vence', 'Origen', 'Urgencia'], 1);
 
         $row = 2;
         foreach ($this->alerts['warrantyExpiring'] as $a) {
-            $sheet->setCellValue('A'.$row, $a->id);
-            $sheet->setCellValue('B'.$row, $a->internal_tag);
-            $sheet->setCellValue('C'.$row, $a->name);
-            $sheet->setCellValue('D'.$row, (string) $a->warranty_expiry);
+            $sheet->setCellValue('A'.$row, $a['id']);
+            $sheet->setCellValue('B'.$row, $a['internal_tag']);
+            $sheet->setCellValue('C'.$row, $a['name']);
+            $sheet->setCellValue('D'.$row, (string) $a['expires_on']);
+            $sheet->setCellValue('E'.$row, $a['source']);
+            $sheet->setCellValue('F'.$row, $a['severity']);
             $row++;
         }
-        $this->autosize($sheet, 4);
+        $this->autosize($sheet, 6);
     }
 
     private function buildUnassignedSheet(Worksheet $sheet): void
@@ -87,18 +91,20 @@ class InvMonitorExport
 
     private function buildTransfersSheet(Worksheet $sheet): void
     {
-        $sheet->setTitle('Traslados repetidos');
-        $this->writeHeadings($sheet, ['ID', 'Etiqueta interna', 'Nombre', 'Traslados (24h)'], 1);
+        $sheet->setTitle('Anomalías de traslados');
+        $this->writeHeadings($sheet, ['ID', 'Etiqueta interna', 'Nombre', 'Traslados 24h', 'Traslados 7 días', 'Severidad'], 1);
 
         $row = 2;
         foreach ($this->alerts['repeatedTransfers'] as $a) {
             $sheet->setCellValue('A'.$row, $a['id']);
             $sheet->setCellValue('B'.$row, $a['internal_tag']);
             $sheet->setCellValue('C'.$row, $a['name']);
-            $sheet->setCellValue('D'.$row, $a['transfer_count']);
+            $sheet->setCellValue('D'.$row, $a['transfers_24h']);
+            $sheet->setCellValue('E'.$row, $a['transfers_7d']);
+            $sheet->setCellValue('F'.$row, $a['severity']);
             $row++;
         }
-        $this->autosize($sheet, 4);
+        $this->autosize($sheet, 6);
     }
 
     private function buildMaintenanceSheet(Worksheet $sheet): void
@@ -116,6 +122,22 @@ class InvMonitorExport
             $row++;
         }
         $this->autosize($sheet, 5);
+    }
+
+    private function buildProblemAssetsSheet(Worksheet $sheet): void
+    {
+        $sheet->setTitle('Activos con muchos tickets');
+        $this->writeHeadings($sheet, ['ID', 'Etiqueta interna', 'Nombre', 'Tickets (90 días)'], 1);
+
+        $row = 2;
+        foreach ($this->alerts['problemAssets'] as $a) {
+            $sheet->setCellValue('A'.$row, $a['id']);
+            $sheet->setCellValue('B'.$row, $a['internal_tag']);
+            $sheet->setCellValue('C'.$row, $a['name']);
+            $sheet->setCellValue('D'.$row, $a['ticket_count']);
+            $row++;
+        }
+        $this->autosize($sheet, 4);
     }
 
     private function writeHeadings(Worksheet $sheet, array $headings, int $row): void

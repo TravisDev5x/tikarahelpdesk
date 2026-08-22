@@ -25,6 +25,7 @@ class InvMonitorExportController extends Controller
             'unassigned' => $this->alerts->unassigned($user),
             'repeatedTransfers' => $this->alerts->repeatedTransfers($user),
             'staleMaintenances' => $this->alerts->staleMaintenances($user),
+            'problemAssets' => $this->alerts->problemAssets($user),
         ]);
 
         $filename = 'alertas_inventario_'.now()->format('Ymd_His').'.xlsx';

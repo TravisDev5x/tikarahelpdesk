@@ -52,7 +52,7 @@ class InvMonitorSummaryTest extends TestCase
         ], $overrides));
 
         $asset('WARR-1', ['warranty_expiry' => now()->addDays(10)->toDateString(), 'current_user_id' => $responsible->id]);
-        $asset('WARR-2', ['warranty_expiry' => now()->addDays(30)->toDateString(), 'current_user_id' => $responsible->id]); // fuera de rango
+        $asset('WARR-2', ['warranty_expiry' => now()->addDays(45)->toDateString(), 'current_user_id' => $responsible->id]); // fuera de rango (ventana de 30 días)
         $asset('UNASSIGNED-1'); // current_user_id null -- cuenta
 
         $transferAsset = $asset('TRANSFER-1', ['current_user_id' => $responsible->id]);
@@ -87,6 +87,7 @@ class InvMonitorSummaryTest extends TestCase
             'unassigned' => 1,
             'repeated_transfers' => 1,
             'stale_maintenances' => 1,
+            'problem_assets' => 0,
             'total_assets' => 5,
             'by_status' => [
                 ['label' => 'Disponible', 'value' => 5],

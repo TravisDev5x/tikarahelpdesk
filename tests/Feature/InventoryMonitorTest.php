@@ -60,7 +60,7 @@ class InventoryMonitorTest extends TestCase
 
         // Todas estas tienen responsable, para no contaminar la alerta "sin responsable".
         $this->makeAsset($fx, 'WARR-1', ['warranty_expiry' => now()->addDays(10)->toDateString(), 'current_user_id' => $responsible->id]);
-        $this->makeAsset($fx, 'WARR-2', ['warranty_expiry' => now()->addDays(30)->toDateString(), 'current_user_id' => $responsible->id]); // fuera de rango, no debe aparecer
+        $this->makeAsset($fx, 'WARR-2', ['warranty_expiry' => now()->addDays(45)->toDateString(), 'current_user_id' => $responsible->id]); // fuera de rango (ventana de 30 días), no debe aparecer
 
         $this->makeAsset($fx, 'UNASSIGNED-1'); // current_user_id null por defecto -- la única que debe aparecer aquí
 
@@ -97,7 +97,7 @@ class InventoryMonitorTest extends TestCase
             ->where('unassigned.0.internal_tag', 'UNASSIGNED-1')
             ->has('repeatedTransfers', 1)
             ->where('repeatedTransfers.0.internal_tag', 'TRANSFER-1')
-            ->where('repeatedTransfers.0.transfer_count', 2)
+            ->where('repeatedTransfers.0.transfers_24h', 2)
             ->has('staleMaintenances', 1)
             ->where('staleMaintenances.0.title', 'Diagnóstico pendiente')
         );
