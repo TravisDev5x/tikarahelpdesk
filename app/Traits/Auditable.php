@@ -11,6 +11,7 @@ use App\Models\InvComponent;
 use App\Models\InvComponentMovement;
 use App\Models\InvDisposal;
 use App\Models\InvDocument;
+use App\Models\InvIntegration;
 use App\Models\InvMaintenance;
 use App\Models\InvMovement;
 use App\Models\InvWarranty;
@@ -150,6 +151,11 @@ trait Auditable
 
             // InvAssetRelationship (fase 3.2, relaciones entre activos) -- mismo caso.
             if ($model instanceof InvAssetRelationship) {
+                $payload['client_id'] = $model->client_id;
+            }
+
+            // InvIntegration (fase 4.1, integraciones opcionales Entra ID/Intune/AD) -- mismo caso.
+            if ($model instanceof InvIntegration) {
                 $payload['client_id'] = $model->client_id;
             }
 

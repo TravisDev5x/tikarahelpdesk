@@ -9,6 +9,7 @@ use App\Http\Controllers\Api\PositionController;
 use App\Http\Controllers\Api\InvCategoryController;
 use App\Http\Controllers\Api\InvStatusController;
 use App\Http\Controllers\Api\InvLabelController;
+use App\Http\Controllers\Api\InvIntegrationController;
 use App\Http\Controllers\Api\InvManufacturerController;
 use App\Http\Controllers\Api\InvMaintenanceOriginController;
 use App\Http\Controllers\Api\InvMaintenanceModalityController;
@@ -325,6 +326,15 @@ Route::middleware(['auth:sanctum','locale','perm:inventory.manage_config'])->nam
         ->only(['index', 'store', 'update', 'destroy']);
     Route::apiResource('inv-maintenance-modalities', InvMaintenanceModalityController::class)
         ->only(['index', 'store', 'update', 'destroy']);
+
+    // Fase 4.1 de la auditoría -- integraciones opcionales por tenant
+    // (Entra ID/Intune/AD). {provider} no es un modelo (una fila por
+    // client_id+provider, no siempre existe todavía), por eso son rutas
+    // explícitas y no un apiResource.
+    Route::get('inv-integrations', [InvIntegrationController::class, 'index']);
+    Route::put('inv-integrations/{provider}', [InvIntegrationController::class, 'store']);
+    Route::post('inv-integrations/{provider}/test', [InvIntegrationController::class, 'test']);
+    Route::delete('inv-integrations/{provider}', [InvIntegrationController::class, 'destroy']);
 });
 
 // ==========================

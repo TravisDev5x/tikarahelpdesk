@@ -7,6 +7,7 @@ use App\Http\Controllers\Auth\AcceptInvitationController;
 use App\Http\Controllers\CompanyController;
 use App\Http\Controllers\LandingController;
 use App\Http\Controllers\Inertia\CatalogPageController;
+use App\Http\Controllers\Inertia\InvIntegrationPageController;
 use App\Http\Controllers\Inertia\InvAssetPageController;
 use App\Http\Controllers\Inertia\InvMonitorPageController;
 use App\Http\Controllers\Inertia\ResolbebIndexController;
@@ -208,6 +209,9 @@ Route::middleware('auth')->group(function () {
         ->middleware('perm:inventory.manage_config')->name('inventory.maintenance-origins.index');
     Route::get('/inventory/maintenance-modalities', [CatalogPageController::class, 'inventoryMaintenanceModalities'])
         ->middleware('perm:inventory.manage_config')->name('inventory.maintenance-modalities.index');
+    // Fase 4.1 de la auditoría -- integraciones opcionales por tenant (Entra ID/Intune/AD).
+    Route::get('/inventory/integrations', InvIntegrationPageController::class)
+        ->middleware('perm:inventory.manage_config')->name('inventory.integrations.index');
 
     Route::get('/home', fn () => Inertia::render('Home/Dashboard'))
         ->middleware('onboarding')

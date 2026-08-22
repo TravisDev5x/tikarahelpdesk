@@ -75,6 +75,7 @@ import {
     Tag,
     Wrench,
     Factory,
+    Plug,
 } from 'lucide-react'
 
 const ICON_SIZE = 20
@@ -500,6 +501,7 @@ export function Sidebar({ collapsed, onToggle, onNavigate, currentPath: currentP
                 inventoryChildren.push(inertiaNav('/inventory/manufacturers', { label: t('nav.inventoryManufacturers'), icon: Factory }))
                 inventoryChildren.push(inertiaNav('/inventory/maintenance-origins', { label: t('nav.inventoryMaintenanceOrigins'), icon: Wrench }))
                 inventoryChildren.push(inertiaNav('/inventory/maintenance-modalities', { label: t('nav.inventoryMaintenanceModalities'), icon: Wrench }))
+                inventoryChildren.push(inertiaNav('/inventory/integrations', { label: t('nav.inventoryIntegrations'), icon: Plug }))
             }
             if (inventoryChildren.length > 0) {
                 const inventoryGroup = {
