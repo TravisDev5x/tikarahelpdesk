@@ -128,4 +128,10 @@ class InvAsset extends Model
     {
         return $this->hasMany(InvWarranty::class, 'asset_id');
     }
+
+    /** Tickets relacionados (fase 3.1) -- lado inverso, solo lectura. */
+    public function ticketLinks(): HasMany
+    {
+        return $this->hasMany(InvAssetTicket::class, 'inv_asset_id');
+    }
 }

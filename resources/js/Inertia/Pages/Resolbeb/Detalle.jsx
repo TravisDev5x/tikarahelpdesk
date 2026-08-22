@@ -14,7 +14,7 @@ import { cn } from "@/lib/utils";
 import { kpiCardSurface, hintWarning, noticeWarningPanel } from "@/lib/badgeStyles";
 import { notify } from "@/lib/notify";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Loader2, MessageSquare, ArrowLeft, ChevronDown, ChevronUp, UserCheck, AlertTriangle, XCircle, BellRing, ArrowUpFromLine, Paperclip, Download } from "lucide-react";
+import { Loader2, MessageSquare, ArrowLeft, ChevronDown, ChevronUp, UserCheck, AlertTriangle, XCircle, BellRing, ArrowUpFromLine, Paperclip, Download, Package, Search, X } from "lucide-react";
 import { TicketPriorityBadgeByName, TicketStateBadgeByName } from "@/components/badges/EntityBadges";
 
 const RESOLVE_BASE = "/resolbeb";
@@ -302,6 +302,13 @@ function ManagerView({
     stateChangeWithDiff,
     alertEntries,
     canEscalate,
+    assetQuery,
+    setAssetQuery,
+    assetResults,
+    searchingAssets,
+    linkingAssetId,
+    linkAsset,
+    unlinkAsset,
 }) {
     const [escalateAreaId, setEscalateAreaId] = useState("");
     const [escalateNote, setEscalateNote] = useState("");
@@ -387,6 +394,78 @@ function ManagerView({
                     <TicketAttachments attachments={ticket.attachments} />
                 </CardContent>
             </Card>
+
+            <Card>
+                <CardHeader>
+                    <CardTitle className="flex items-center gap-2 text-base">
+                        <Package className="h-4 w-4" />
+                        Activos relacionados
+                    </CardTitle>
+                    <CardDescription>Equipo de Inventario del que trata este ticket.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                    {(ticket.asset_links ?? []).length === 0 ? (
+                        <p className="text-sm text-muted-foreground">Sin activos vinculados todavía.</p>
+                    ) : (
+                        <ul className="flex flex-wrap gap-2">
+                            {ticket.asset_links.map((link) => (
+                                <li
+                                    key={link.id}
+                                    className="flex items-center gap-2 rounded-md border border-border/60 bg-muted/20 px-2.5 py-1.5 text-xs"
+                                >
+                                    <span>
+                                        {link.asset?.name} <span className="text-muted-foreground font-mono">({link.asset?.internal_tag})</span>
+                                    </span>
+                                    {canEdit && (
+                                        <button
+                                            type="button"
+                                            onClick={() => unlinkAsset(link.id)}
+                                            className="text-muted-foreground hover:text-destructive"
+                                            title="Quitar"
+                                        >
+                                            <X className="h-3.5 w-3.5" />
+                                        </button>
+                                    )}
+                                </li>
+                            ))}
+                        </ul>
+                    )}
+                    {canEdit && (
+                        <div className="relative max-w-sm">
+                            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                            <Input
+                                className="h-9 pl-8 text-sm"
+                                placeholder="Buscar por nombre, número de inventario o serie…"
+                                value={assetQuery}
+                                onChange={(e) => setAssetQuery(e.target.value)}
+                            />
+                            {(searchingAssets || assetResults.length > 0) && assetQuery.trim() && (
+                                <div className="absolute z-10 mt-1 w-full rounded-md border bg-popover shadow-md max-h-56 overflow-y-auto">
+                                    {searchingAssets ? (
+                                        <p className="px-3 py-2 text-xs text-muted-foreground">Buscando…</p>
+                                    ) : assetResults.length === 0 ? (
+                                        <p className="px-3 py-2 text-xs text-muted-foreground">Sin resultados.</p>
+                                    ) : (
+                                        assetResults.map((asset) => (
+                                            <button
+                                                key={asset.id}
+                                                type="button"
+                                                disabled={linkingAssetId === asset.id}
+                                                onClick={() => linkAsset(asset.id)}
+                                                className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-xs hover:bg-muted/60 disabled:opacity-50"
+                                            >
+                                                <span>{asset.name} <span className="text-muted-foreground font-mono">({asset.internal_tag})</span></span>
+                                                {linkingAssetId === asset.id && <Loader2 className="h-3 w-3 animate-spin" />}
+                                            </button>
+                                        ))
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                    )}
+                </CardContent>
+            </Card>
+
             {canEdit && (
                 <Card>
                     <CardHeader><CardTitle>Actualizar</CardTitle><p className="text-sm text-muted-foreground">Cambios de estado, prioridad o área quedan registrados en el historial.</p></CardHeader>
@@ -513,6 +592,11 @@ export default function Resolvev1Detalle() {
     const [macros, setMacros] = useState([]);
     const [macrosLoading, setMacrosLoading] = useState(false);
     const [selectedMacroId, setSelectedMacroId] = useState("");
+    // Activos relacionados (auditoría de Inventario, fase 3.1).
+    const [assetQuery, setAssetQuery] = useState("");
+    const [assetResults, setAssetResults] = useState([]);
+    const [searchingAssets, setSearchingAssets] = useState(false);
+    const [linkingAssetId, setLinkingAssetId] = useState(null);
 
     const load = async () => {
         try {
@@ -542,6 +626,46 @@ export default function Resolvev1Detalle() {
         if (!macro) return;
         setNote((prev) => (prev?.trim() ? prev + "\n\n" + macro.content : macro.content));
         setSelectedMacroId("");
+    };
+
+    // Activos relacionados (auditoría de Inventario, fase 3.1) -- búsqueda
+    // acotada al tenant del ticket (TicketAssetController::search), no al
+    // scope de inventario del usuario.
+    useEffect(() => {
+        if (!assetQuery.trim()) { setAssetResults([]); return; }
+        let active = true;
+        setSearchingAssets(true);
+        const timeout = setTimeout(() => {
+            axios.get(`/api/tickets/${ticketId}/assets/search`, { params: { q: assetQuery } })
+                .then((res) => { if (active) setAssetResults(res.data ?? []); })
+                .catch(() => { if (active) setAssetResults([]); })
+                .finally(() => { if (active) setSearchingAssets(false); });
+        }, 350);
+        return () => { active = false; clearTimeout(timeout); };
+    }, [assetQuery, ticketId]);
+
+    const linkAsset = async (assetId) => {
+        setLinkingAssetId(assetId);
+        try {
+            await axios.post(`/api/tickets/${ticketId}/assets`, { asset_id: assetId });
+            notify.success("Activo vinculado");
+            setAssetQuery("");
+            setAssetResults([]);
+            load();
+        } catch (err) {
+            notify.error(err?.response?.data?.message || "No se pudo vincular el activo");
+        } finally {
+            setLinkingAssetId(null);
+        }
+    };
+
+    const unlinkAsset = async (linkId) => {
+        try {
+            await axios.delete(`/api/tickets/${ticketId}/assets/${linkId}`);
+            load();
+        } catch (err) {
+            notify.error(err?.response?.data?.message || "No se pudo quitar el activo");
+        }
     };
 
     const escalateTicket = async (areaDestinoId, escalateNote) => {
@@ -780,6 +904,13 @@ export default function Resolvev1Detalle() {
                     stateChangeWithDiff={stateChangeWithDiff}
                     alertEntries={alertEntries}
                     canEscalate={canEscalate}
+                    assetQuery={assetQuery}
+                    setAssetQuery={setAssetQuery}
+                    assetResults={assetResults}
+                    searchingAssets={searchingAssets}
+                    linkingAssetId={linkingAssetId}
+                    linkAsset={linkAsset}
+                    unlinkAsset={unlinkAsset}
                 />
             ) : (
                 <RequesterView

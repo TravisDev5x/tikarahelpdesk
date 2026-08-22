@@ -5,6 +5,7 @@ namespace App\Traits;
 use App\Models\AuditLog;
 use App\Models\InvAsset;
 use App\Models\InvAssetSpec;
+use App\Models\InvAssetTicket;
 use App\Models\InvComponent;
 use App\Models\InvComponentMovement;
 use App\Models\InvDisposal;
@@ -138,6 +139,11 @@ trait Auditable
 
             // InvWarranty (fase 2.3, garantías) -- mismo caso.
             if ($model instanceof InvWarranty) {
+                $payload['client_id'] = $model->client_id;
+            }
+
+            // InvAssetTicket (fase 3.1, relación Activo↔Ticket) -- mismo caso.
+            if ($model instanceof InvAssetTicket) {
                 $payload['client_id'] = $model->client_id;
             }
 

@@ -242,6 +242,11 @@ Route::middleware(['auth:sanctum','locale','throttle:tickets','perm:tickets.mana
     Route::post('tickets/{ticket}/attachments', [\App\Http\Controllers\Api\TicketAttachmentController::class, 'store']);
     Route::delete('tickets/{ticket}/attachments/{attachment}', [\App\Http\Controllers\Api\TicketAttachmentController::class, 'destroy']);
     Route::get('tickets/{ticket}/attachments/{attachment}/download', [\App\Http\Controllers\Api\TicketAttachmentController::class, 'download']);
+    // Activo↔Ticket (auditoría de Inventario, fase 3.1) -- gateado por
+    // TicketPolicy, no por un permiso de Inventario (ver TicketAssetController).
+    Route::get('tickets/{ticket}/assets/search', [\App\Http\Controllers\Api\TicketAssetController::class, 'search']);
+    Route::post('tickets/{ticket}/assets', [\App\Http\Controllers\Api\TicketAssetController::class, 'store']);
+    Route::delete('tickets/{ticket}/assets/{link}', [\App\Http\Controllers\Api\TicketAssetController::class, 'destroy']);
     Route::get('tickets/{ticket}/audit', [\App\Http\Controllers\Api\TicketController::class, 'audit']);
     Route::apiResource('tickets', \App\Http\Controllers\Api\TicketController::class)
         ->only(['index', 'store', 'update', 'show']);

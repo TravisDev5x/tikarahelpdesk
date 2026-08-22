@@ -91,6 +91,12 @@ class Ticket extends Model
     public function urgencyLevel(): BelongsTo { return $this->belongsTo(\App\Models\UrgencyLevel::class, 'urgency_level_id'); }
     public function state(): BelongsTo { return $this->belongsTo(\App\Models\TicketState::class, 'ticket_state_id'); }
 
+    /** Activos relacionados (auditoría de Inventario, fase 3.1) -- Sección L del informe. */
+    public function assetLinks(): HasMany
+    {
+        return $this->hasMany(\App\Models\InvAssetTicket::class, 'ticket_id');
+    }
+
     public function histories(): HasMany
     {
         return $this->hasMany(TicketHistory::class);

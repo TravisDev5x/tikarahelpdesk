@@ -356,6 +356,10 @@ class TicketController extends Controller
                 $q->orderByDesc('created_at');
                 $q->with('uploader:id,name');
             },
+            // Activos relacionados (auditoría de Inventario, fase 3.1).
+            'assetLinks' => function ($q) {
+                $q->with(['asset:id,name,internal_tag,category_id,status_id', 'asset.category:id,name', 'asset.status:id,name,badge_class']);
+            },
         ]);
         if ($user && (int) $user->id === (int) $ticket->requester_id) {
             $ticket->setRelation('histories', $ticket->histories->reject(fn ($h) => $h->action === 'comment' && $h->is_internal)->values());

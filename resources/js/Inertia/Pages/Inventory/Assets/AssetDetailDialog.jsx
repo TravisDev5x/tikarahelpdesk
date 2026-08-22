@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "@inertiajs/react";
 import AssetFormDialog from "./AssetFormDialog";
 import axios from "@/lib/axios";
 import { notify } from "@/lib/notify";
@@ -32,7 +33,7 @@ import {
     TableHeader,
     TableRow,
 } from "@/components/ui/table";
-import { ArrowRightLeft, CheckCircle2, Cpu, Download, FileText, Loader2, PackageMinus, Pencil, Plus, Trash2, Upload, UserMinus, UserPlus, Wrench } from "lucide-react";
+import { ArrowRightLeft, CheckCircle2, Cpu, Download, FileText, Loader2, PackageMinus, Pencil, Plus, Ticket, Trash2, Upload, UserMinus, UserPlus, Wrench } from "lucide-react";
 
 function Field({ label, value }) {
     return (
@@ -670,6 +671,36 @@ export default function AssetDetailDialog({ open, onOpenChange, assetId, categor
                                                 }}
                                             />
                                         </div>
+                                    )}
+                                </CardContent>
+                            </Card>
+
+                            <Card>
+                                <CardHeader>
+                                    <CardTitle className="flex items-center gap-2">
+                                        <Ticket className="h-4 w-4" />
+                                        Tickets relacionados
+                                    </CardTitle>
+                                </CardHeader>
+                                <CardContent>
+                                    {(asset.ticket_links ?? []).length === 0 ? (
+                                        <p className="text-sm text-muted-foreground">Este activo no tiene tickets relacionados.</p>
+                                    ) : (
+                                        <ul className="divide-y rounded-md border">
+                                            {asset.ticket_links.map((link) => (
+                                                <li key={link.id} className="flex items-center justify-between gap-3 px-3 py-2">
+                                                    <Link
+                                                        href={`/resolbeb/tickets/${link.ticket?.id}`}
+                                                        className="text-sm hover:underline truncate"
+                                                    >
+                                                        #{link.ticket?.folio ?? link.ticket?.id} — {link.ticket?.subject}
+                                                    </Link>
+                                                    {link.ticket?.state && (
+                                                        <Badge variant="outline" className="shrink-0">{link.ticket.state.name}</Badge>
+                                                    )}
+                                                </li>
+                                            ))}
+                                        </ul>
                                     )}
                                 </CardContent>
                             </Card>

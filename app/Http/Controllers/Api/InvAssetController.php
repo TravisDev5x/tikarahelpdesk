@@ -66,6 +66,8 @@ class InvAssetController extends Controller
             'category', 'manufacturer', 'status', 'label', 'site', 'location', 'currentUser', 'images', 'specs', 'documents',
             'warranties' => fn ($q) => $q->orderByDesc('ends_at'),
             'disposal' => fn ($q) => $q->with('authorizedBy'),
+            // Tickets relacionados (fase 3.1) -- lado inverso, solo lectura.
+            'ticketLinks' => fn ($q) => $q->with(['ticket:id,folio,subject,ticket_state_id'])->with('ticket.state:id,name,code')->orderByDesc('created_at'),
             'movements' => fn ($q) => $q->with(['user', 'previousUser', 'admin'])->orderByDesc('date'),
             'components' => fn ($q) => $q->orderBy('name'),
             'maintenances' => fn ($q) => $q->with(['origin', 'modality'])->orderByDesc('start_date'),
